@@ -1,0 +1,318 @@
+openapi: 3.0.3
+info:
+  title: Motor do fechamento — contrato comum do spike
+  version: "1.0.0"
+  description: |
+    Contrato que as DUAS spikes (.NET 10 e Python) implementam exatamente igual.
+    Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
+    Nenhuma rota extra é exigida; rotas extras não são usadas pelo verificador.
+    Sem autenticação no spike.
+servers:
+  - url: http://localhost:8081
+    description: spike .NET
+  - url: http://localhost:8082
+    description: spike Python
+
+paths:
+  /health:
+    get:
+      summary: Saúde do serviço e do banco
+      responses:
+        "200":
+          description: Serviço e banco respondendo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+
+  /competencias/abrir:
+    post:
+      summary: AbrirCompetencias (semântica §5)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AbrirCompetenciasRequest" }
+      responses:
+        "200":
+          description: Casos criados ou já existentes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AbrirCompetenciasResponse" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /fatos:
+    post:
+      summary: PublicarFato (semântica §6)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FatoRequest" }
+      responses:
+        "200":
+          description: Fato gravado ou sem mudança
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FatoResponse" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /casos/{titular_id}/{competencia}:
+    get:
+      summary: Consulta do caso
+      parameters:
+        - $ref: "#/components/parameters/TitularId"
+        - $ref: "#/components/parameters/Competencia"
+      responses:
+        "200":
+          description: Caso, entregáveis, tarefas abertas e exceções abertas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CasoResponse" }
+        "404": { $ref: "#/components/responses/NaoEncontrado" }
+
+  /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir:
+    post:
+      summary: ConcluirTarefa de entregável humano (semântica §8)
+      parameters:
+        - $ref: "#/components/parameters/TitularId"
+        - $ref: "#/components/parameters/Competencia"
+        - $ref: "#/components/parameters/TipoEntregavel"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConcluirRequest" }
+      responses:
+        "200":
+          description: Tarefa concluída
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntregavelEstado" }
+        "404": { $ref: "#/components/responses/NaoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflito" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override:
+    post:
+      summary: RegistrarOverride de conferência divergente (usado a partir do cenário 2)
+      parameters:
+        - $ref: "#/components/parameters/TitularId"
+        - $ref: "#/components/parameters/Competencia"
+        - $ref: "#/components/parameters/TipoEntregavel"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OverrideRequest" }
+      responses:
+        "200":
+          description: Override registrado; entregável divergente → validado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntregavelEstado" }
+        "404": { $ref: "#/components/responses/NaoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflito" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /admin/fila:
+    get:
+      summary: Estado da fila. pendentes = 0 só quando todo efeito já está gravado (semântica §13)
+      responses:
+        "200":
+          description: Contagens da fila
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pendentes, com_erro]
+                properties:
+                  pendentes: { type: integer, minimum: 0 }
+                  com_erro: { type: integer, minimum: 0 }
+
+components:
+  parameters:
+    TitularId:
+      name: titular_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    Competencia:
+      name: competencia
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[0-9]{4}(0[1-9]|1[0-2])$" }
+    TipoEntregavel:
+      name: tipo
+      in: path
+      required: true
+      schema: { type: string, enum: [E01, E02, E03, E04, E05, E06, E07, E08, E10, E11, E12] }
+
+  responses:
+    NaoEncontrado:
+      description: Caso ou entregável inexistente
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+    Conflito:
+      description: Estado não permite a operação
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+    Invalido:
+      description: Corpo inválido
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+
+  schemas:
+    Erro:
+      type: object
+      required: [erro, mensagem]
+      properties:
+        erro: { type: string, description: "código curto, ex.: 'entregavel_nao_pronto'" }
+        mensagem: { type: string }
+
+    Empresa:
+      type: object
+      additionalProperties: false
+      required: [titular_id, regime, tem_folha, tem_prolabore, tem_taxa_municipal, filial, carteira, municipio]
+      properties:
+        titular_id: { type: string, minLength: 1, maxLength: 64 }
+        regime: { type: string, enum: [SN, LP] }
+        tem_folha: { type: boolean }
+        tem_prolabore: { type: boolean }
+        tem_taxa_municipal: { type: boolean }
+        filial: { type: boolean }
+        carteira: { type: string, minLength: 1 }
+        municipio: { type: string, minLength: 1 }
+
+    AbrirCompetenciasRequest:
+      type: object
+      additionalProperties: false
+      required: [competencia, ator, empresas]
+      properties:
+        competencia: { type: string, pattern: "^[0-9]{4}(0[1-9]|1[0-2])$" }
+        ator: { type: string, minLength: 1 }
+        empresas:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items: { $ref: "#/components/schemas/Empresa" }
+
+    AbrirCompetenciasResponse:
+      type: object
+      required: [criados, existentes]
+      properties:
+        criados:
+          type: array
+          items:
+            type: object
+            required: [titular_id, caso_id]
+            properties:
+              titular_id: { type: string }
+              caso_id: { type: string, format: uuid }
+        existentes:
+          type: array
+          items:
+            type: object
+            required: [titular_id, caso_id]
+            properties:
+              titular_id: { type: string }
+              caso_id: { type: string, format: uuid }
+
+    FatoRequest:
+      type: object
+      additionalProperties: false
+      required: [titular_id, competencia, tipo, fonte, observado_em]
+      properties:
+        titular_id: { type: string, minLength: 1, maxLength: 64 }
+        competencia: { type: string, pattern: "^[0-9]{4}(0[1-9]|1[0-2])$" }
+        tipo: { type: string, minLength: 1 }
+        tributo: { type: string, default: "" }
+        valor_centavos: { type: integer, format: int64, nullable: true }
+        payload: { type: object, default: {} }
+        fonte: { type: string, minLength: 1 }
+        origem_ref: { type: string, nullable: true }
+        observado_em: { type: string, format: date-time }
+
+    FatoResponse:
+      type: object
+      required: [fato_id, versao, efeito]
+      properties:
+        fato_id: { type: string, format: uuid, description: "id da versão vigente após a operação" }
+        versao: { type: integer }
+        efeito: { type: string, enum: [novo, nova_versao, sem_mudanca] }
+
+    ConcluirRequest:
+      type: object
+      additionalProperties: false
+      required: [ator, saidas]
+      properties:
+        ator: { type: string, minLength: 1 }
+        saidas:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              tributo: { type: string, default: "" }
+              valor_centavos: { type: integer, format: int64, nullable: true }
+              payload: { type: object, default: {} }
+
+    OverrideRequest:
+      type: object
+      additionalProperties: false
+      required: [ator, cf, motivo]
+      properties:
+        ator: { type: string, minLength: 1 }
+        cf: { type: string, pattern: "^CF-[0-9]{2}$" }
+        motivo: { type: string, minLength: 5 }
+
+    EntregavelEstado:
+      type: object
+      required: [entregavel_id, tipo, estado]
+      properties:
+        entregavel_id: { type: string, format: uuid }
+        tipo: { type: string }
+        estado: { type: string }
+
+    CasoResponse:
+      type: object
+      required: [caso_id, titular_id, competencia, estado, entregaveis, tarefas_abertas, excecoes_abertas]
+      properties:
+        caso_id: { type: string, format: uuid }
+        titular_id: { type: string }
+        competencia: { type: string }
+        estado: { type: string, enum: [aberto, encerrado, reaberto] }
+        entregaveis:
+          type: array
+          items:
+            type: object
+            required: [entregavel_id, tipo, estado, executor]
+            properties:
+              entregavel_id: { type: string, format: uuid }
+              tipo: { type: string }
+              estado: { type: string }
+              executor: { type: string, enum: [sistema, humano] }
+        tarefas_abertas:
+          type: array
+          items:
+            type: object
+            required: [tarefa_id, entregavel_tipo]
+            properties:
+              tarefa_id: { type: string, format: uuid }
+              entregavel_tipo: { type: string }
+        excecoes_abertas:
+          type: array
+          items:
+            type: object
+            required: [excecao_id, tipo, classe]
+            properties:
+              excecao_id: { type: string, format: uuid }
+              tipo: { type: string }
+              classe: { type: string, enum: [S, O] }

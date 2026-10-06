@@ -1,0 +1,27 @@
+# dados e segredos nunca entram no Git
+dados-anon/
+dados/
+*.csv
+*.xlsx
+.env
+.env.*
+!.env.example
+chave-anon*
+
+# relatórios e ambientes locais
+resultado-*.json
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# sistema
+.DS_Store

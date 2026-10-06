@@ -1,0 +1,810 @@
+{
+  "id": "C1",
+  "nome": "Feliz: Simples Nacional com folha e pró-labore",
+  "descricao": "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11, encerramento pelo E12, idempotência de fato e eventos.",
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1",
+    "fiscal.parametros v1"
+  ],
+  "titulares": [
+    "T001"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T001",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": true,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "abrir_competencias",
+      "descricao": "repetir a abertura é idempotente",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T001",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": true,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 0,
+        "existentes": 1
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "após abertura",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E07",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "pronto"
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E05"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E06"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "sem_mudanca"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "insumos completos",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E07",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E03"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E06"
+          }
+        ],
+        "fatos": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versoes": 1
+          }
+        ]
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T001",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 600000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T001",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "valor_centavos": 500000,
+            "payload": {
+              "inss_centavos": 110000,
+              "fgts_centavos": 40000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T001",
+      "competencia": "202609",
+      "tipo": "E07",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "valor_centavos": 2800000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 360000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 240000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-0001"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "INSS",
+        "valor_centavos": 110000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "FGTS",
+        "valor_centavos": 40000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 600000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "guias validadas, antes da entrega",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "nibo"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "guia_paga",
+        "fonte": "banco",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 600000,
+        "payload": {
+          "pago_em": "2026-10-18"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E07",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado",
+              "pago"
+            ]
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E05"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E03",
+            "cf": "CF-04",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E04",
+            "cf": "CF-07",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E07",
+            "cf": "CF-08",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E08",
+            "cf": "CF-09",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E10",
+            "cf": "CF-12",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-05",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-06",
+            "resultado": "ok",
+            "quantidade": 1
+          }
+        ],
+        "conferencias_total": 8,
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "apurado",
+            "tributo": "DAS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "tipo": "prolabore",
+            "tributo": "",
+            "versoes": 1
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 13
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "insumos.completos",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "folha.fechada",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "guias.validadas",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "guia.paga",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}

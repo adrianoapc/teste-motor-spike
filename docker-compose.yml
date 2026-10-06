@@ -1,0 +1,78 @@
+# Base comum do spike do motor do fechamento.
+# Sobe o Postgres (com um banco por spike), o MinIO e aplica as migrações.
+#   docker compose up -d                      # base
+#   docker compose --profile dotnet up -d     # base + spike .NET  (porta 8081)
+#   docker compose --profile python up -d     # base + spike Python (porta 8082)
+# Só localhost. Nada é exposto para a rede.
+
+name: rissi-motor-spike
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: spike
+      POSTGRES_PASSWORD: spike
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spike -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrar:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: spike
+      PGPASSWORD: spike
+    volumes:
+      - ./db:/db:ro
+    entrypoint: ["/bin/sh", "-c", "/db/scripts/migrar.sh spike_dotnet && /db/scripts/migrar.sh spike_python"]
+    restart: "no"
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: spike
+      MINIO_ROOT_PASSWORD: spike-spike
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - miniodata:/data
+
+  spike-dotnet:
+    profiles: ["dotnet"]
+    build: ./spikes/dotnet
+    depends_on:
+      migrar:
+        condition: service_completed_successfully
+    environment:
+      MOTOR_DB: "Host=postgres;Port=5432;Database=spike_dotnet;Username=spike;Password=spike"
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  spike-python:
+    profiles: ["python"]
+    build: ./spikes/python
+    depends_on:
+      migrar:
+        condition: service_completed_successfully
+    environment:
+      MOTOR_DB: "postgresql://spike:spike@postgres:5432/spike_python"
+    ports:
+      - "127.0.0.1:8082:8080"
+
+volumes:
+  pgdata:
+  miniodata:
