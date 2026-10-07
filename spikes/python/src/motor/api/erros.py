@@ -30,7 +30,10 @@ def invalido(codigo: str, mensagem: str) -> ErroDominio:
 
 async def tratar_erro_dominio(_req: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ErroDominio)
-    return JSONResponse(status_code=exc.status, content={"erro": exc.codigo, "mensagem": exc.mensagem})
+    return JSONResponse(
+        status_code=exc.status,
+        content={"erro": exc.codigo, "mensagem": exc.mensagem},
+    )
 
 
 async def tratar_validacao(_req: Request, exc: Exception) -> JSONResponse:

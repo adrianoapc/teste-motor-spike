@@ -1,1 +1,1 @@
-"""Camada de domínio: pura, sem framework nem banco."""
+"""Domínio puro do motor. Sem dependências de banco, HTTP ou framework."""
