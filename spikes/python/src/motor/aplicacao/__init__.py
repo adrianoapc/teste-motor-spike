@@ -1,1 +1,1 @@
-"""Camada de aplicação: casos de uso e protocolos de repositório."""
+"""Aplicação: casos de uso e protocolos de repositório (sem HTTP nem driver)."""
