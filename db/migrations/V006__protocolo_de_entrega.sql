@@ -150,7 +150,7 @@ UPDATE conferencias.conferencia_tipo
 
 -- ---------------------------------------------------------------------------
 -- 4 · I6 · Protocolo e recebimento por competência e carteira
--- protocolados = E11 em 'disponibilizado'; recebidos = E11 com evento documento.recebido;
+-- protocolados = E11 em 'disponibilizado'; recebidos = E11 com evento recebimento.confirmado;
 -- falhas e pendências = exceções abertas do acompanhamento (semântica v3 §10.3).
 -- ---------------------------------------------------------------------------
 CREATE VIEW indicadores.i6_protocolo_e_recebimento AS
@@ -162,7 +162,7 @@ WITH e11 AS (
     WHERE tp.area = 'entrega'
 ),
 recebidos AS (
-    SELECT DISTINCT entregavel_id FROM eventos.evento WHERE nome = 'documento.recebido'
+    SELECT DISTINCT entregavel_id FROM eventos.evento WHERE nome = 'recebimento.confirmado'
 ),
 abertas AS (
     SELECT entregavel_id,

@@ -138,7 +138,7 @@ Acompanhar(caso, E11, f, nova_versao):                 # v3 §10.3 — caso aber
     documento_disponibilizado e nova_versao:  evento documento.disponibilizado (com fato_id da guia)
                                               resolver exceções abertas 'entrega_falhou' do E11 ('reenviado')
     entrega_falhou:        AbrirExcecao(E11, 'entrega_falhou', classe O)
-    entrega_confirmada:    evento documento.recebido {entregavel_id}
+    entrega_confirmada:    evento recebimento.confirmado {entregavel_id}
                            resolver abertas 'entrega_falhou' e 'recebimento_pendente' do E11 ('recebido')
     recebimento_pendente:  se não existe fato vigente entrega_confirmada com a mesma chave:
                                AbrirExcecao(E11, 'recebimento_pendente', classe O)

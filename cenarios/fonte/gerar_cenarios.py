@@ -182,7 +182,7 @@ def c1() -> dict[str, Any]:
             "tarefas_abertas": [],
             "fatos": [versoes(t, C, "notas_oneflow", 1), versoes(t, C, "apurado", 1, "DAS"), versoes(t, C, "folha", 1), versoes(t, C, "prolabore", 1)],
             "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=12, insumos__completos=1, apuracao__concluida=1,
-                               folha__fechada=2, guias__validadas=2, documento__disponibilizado=1, documento__recebido=0, guia__paga=0,
+                               folha__fechada=2, guias__validadas=2, documento__disponibilizado=1, recebimento__confirmado=0, guia__paga=0,
                                fechamento__concluido=1, conferencia__divergente=0, excecao__aberta=0, entregavel__invalidado=0),
         }, final=True),
     ]
@@ -648,7 +648,7 @@ def c10() -> dict[str, Any]:
         verificar("reenvio resolve a falha; pendência de leitura continua", {
             "excecoes": [exc(t, C, "E11", "entrega_falhou", ["resolvida:reenviado"]), exc(t, C, "E11", "recebimento_pendente", ["aberta:"])],
             "excecoes_abertas": 1,
-            "eventos": eventos(t, C, documento__disponibilizado=2, documento__recebido=0)}),
+            "eventos": eventos(t, C, documento__disponibilizado=2, recebimento__confirmado=0)}),
         fato(t, C, "entrega_confirmada", None, tributo="DAS", payload={"canal": "app", "como": "leitura_pelo_link"}, fonte="entrega",
              descricao="cliente abriu pelo link da Rissi"),
         fato(t, C, "recebimento_pendente", None, tributo="DAS", payload={"dias_sem_leitura": 10}, fonte="agendador", efeito="nova_versao",
@@ -667,12 +667,12 @@ def c10() -> dict[str, Any]:
             "tarefas_abertas": [],
             "fatos": [versoes(t, C, "documento_disponibilizado", 2, "DAS"), versoes(t, C, "entrega_falhou", 1, "DAS"),
                       versoes(t, C, "recebimento_pendente", 3, "DAS"), versoes(t, C, "entrega_confirmada", 1, "DAS")],
-            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=14, documento__disponibilizado=2, documento__recebido=1,
+            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=14, documento__disponibilizado=2, recebimento__confirmado=1,
                                fechamento__concluido=1, excecao__aberta=2, entregavel__invalidado=0, guia__paga=0),
         }, final=True),
     ]
     return cenario("C10", 2, "Acompanhamento depois do protocolo",
-                   "Simples sem folha. O caso encerra no protocolo (e-mail disparado), sem esperar leitura nem pagamento. Depois do encerramento, o e-mail volta: abre exceção entrega_falhou com dono, sem reabrir o caso e sem nenhuma transição. O agendador avisa que não houve leitura (recebimento_pendente; antes do protocolo o mesmo aviso só foi gravado). O reenvio pelo App gera novo protocolo e resolve a falha; a confirmação de leitura gera documento.recebido e resolve a pendência; um aviso de pendência posterior à confirmação não faz nada. O N dias vem do agendador, porque o motor não tem relógio.",
+                   "Simples sem folha. O caso encerra no protocolo (e-mail disparado), sem esperar leitura nem pagamento. Depois do encerramento, o e-mail volta: abre exceção entrega_falhou com dono, sem reabrir o caso e sem nenhuma transição. O agendador avisa que não houve leitura (recebimento_pendente; antes do protocolo o mesmo aviso só foi gravado). O reenvio pelo App gera novo protocolo e resolve a falha; a confirmação de leitura gera recebimento.confirmado e resolve a pendência; um aviso de pendência posterior à confirmação não faz nada. O N dias vem do agendador, porque o motor não tem relógio.",
                    ["§6", "§9.4", "§10.1", "§10.2", "§10.3", "§12", "§15"], R_SEM_PARAM, [t], passos)
 
 

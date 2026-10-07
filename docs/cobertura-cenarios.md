@@ -14,7 +14,7 @@
 | C4 | 2 | SN sem folha | Guia retificada 2 vezes: CF-05 e CF-06 divergentes e resolvidas, só a última versão vale, reenvio idêntico sem efeito | R6 (volta H) |
 | C5 | 2 | LP sem folha | Mudança retroativa: caso encerrado não muda e ganha `competencia_encerrada`; caso aberto que usou o fato como entrada relativa é invalidado | R7 |
 | C9 | 2 | SN sem folha | Override: 422, 404, 409 (3 situações), override válido, override repetido; depois, invalidação de entregável validado por override e de entregável `pronto` com tarefa | — |
-| C10 | 2 | SN sem folha | Encerramento no protocolo; depois dele: `entrega_falhou` com dono sem reabrir, `recebimento_pendente` vindo do agendador (antes do protocolo só grava), reenvio resolve a falha, confirmação gera `documento.recebido` e resolve a pendência, pendência depois da confirmação não faz nada | Acompanhamento da entrega (decisão de 07/10) |
+| C10 | 2 | SN sem folha | Encerramento no protocolo; depois dele: `entrega_falhou` com dono sem reabrir, `recebimento_pendente` vindo do agendador (antes do protocolo só grava), reenvio resolve a falha, confirmação gera `recebimento.confirmado` e resolve a pendência, pendência depois da confirmação não faz nada | Acompanhamento da entrega (decisão de 07/10) |
 | C6 | 3 | Massa sintética | 4.500 casos em lotes, 300 guias com 20 requisições simultâneas, indicadores com volume | Cenário de escala |
 
 ## 2 · Por regra da semântica

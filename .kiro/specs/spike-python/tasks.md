@@ -91,7 +91,7 @@ Antes da tarefa 11: `git merge origin/main` (traz a semântica **v3**, a migraç
 
 - [ ] 16. Acompanhamento depois do protocolo (§10.3)
   - Ler o estado do E11 antes da reavaliação; aplicar a tabela de §10.3 depois dela, em caso aberto ou encerrado, sem transição.
-  - Resoluções `reenviado` e `recebido`; evento `documento.recebido`; `recebimento_pendente` só sem confirmação vigente.
+  - Resoluções `reenviado` e `recebido`; evento `recebimento.confirmado`; `recebimento_pendente` só sem confirmação vigente.
   - Testes unitários da tabela de §10.3.
   - Verificador: `--cenario cenarios/c10-acompanhamento-apos-protocolo.json`.
   - _Requisitos: 20.5–20.8_

@@ -300,12 +300,12 @@ Os fatos usam a chave normal (§6): titular, competência, `tipo` e `tributo` = 
 |---|---|
 | `documento_disponibilizado`, **nova versão**, com o E11 já em `disponibilizado` | **Reenvio** (outro canal ou de novo). Evento `documento.disponibilizado` (novo protocolo, mesmo payload do §10.1). Exceções abertas `entrega_falhou` do E11 passam a `resolvida`, `resolucao = 'reenviado'` |
 | `acompanhamento.falha.tipo` (`entrega_falhou`) | Exceção `tipo = 'entrega_falhou'`, classe `O`, no E11, `dono` = carteira do caso (§9.4, abertura única); evento `excecao.aberta` |
-| `acompanhamento.confirmacao.tipo` (`entrega_confirmada`) | Evento `documento.recebido` (`payload`: `{"entregavel_id"}`). Exceções abertas `entrega_falhou` e `recebimento_pendente` do E11 passam a `resolvida`, `resolucao = 'recebido'` |
+| `acompanhamento.confirmacao.tipo` (`entrega_confirmada`) | Evento `recebimento.confirmado` (`payload`: `{"entregavel_id"}`). Exceções abertas `entrega_falhou` e `recebimento_pendente` do E11 passam a `resolvida`, `resolucao = 'recebido'` |
 | `acompanhamento.pendencia.tipo` (`recebimento_pendente`) | Se **não existe** fato vigente `entrega_confirmada` com a mesma chave: exceção `tipo = 'recebimento_pendente'`, classe `O`, no E11 (abertura única); evento `excecao.aberta`. Se existe, nada |
 
 O "N dias sem leitura" **não** é calculado pelo motor: o spike não tem relógio. Quem publica `recebimento_pendente` é o agendador (em produção, o fluxo de Entrega ao cliente), com `payload` livre (ex.: `{"dias_sem_leitura": 5}`). Cada nova versão do fato é uma nova checagem.
 
-Em caso encerrado, o evento `excecao.aberta` e o `documento.recebido` levam o `caso_id` do caso encerrado.
+Em caso encerrado, o evento `excecao.aberta` e o `recebimento.confirmado` levam o `caso_id` do caso encerrado.
 
 ## 11 · Invalidação (nova versão de fato já usado)
 
@@ -352,12 +352,14 @@ Se a semente pertence a um caso com `estado = 'encerrado'`: **nenhuma transiçã
 | `folha.fechada` | E06 ou E07 → validado | `{"entregavel_id"}` |
 | `guias.validadas` | E08 ou E11 → validado | `{"entregavel_id"}` |
 | `documento.disponibilizado` | E11 → disponibilizado (protocolo); e reenvio (§10.3) | `{"entregavel_id", "fato_id"}`, `fato_id` = guia de entrada do E11 |
-| `documento.recebido` | `entrega_confirmada` gravada com E11 em `disponibilizado` (§10.3) | `{"entregavel_id"}` |
+| `recebimento.confirmado` | `entrega_confirmada` gravada com E11 em `disponibilizado` (§10.3) | `{"entregavel_id"}` |
 | `conferencia.divergente` | conferência B divergente | `{"conferencia_id"}` |
 | `excecao.aberta` | exceção criada | `{"excecao_id"}` |
 | `entregavel.invalidado` | → invalidado | `{"entregavel_id"}` |
 | `fechamento.concluido` | caso encerrado | `{"caso_id"}` |
 | `conferencia.override` | override registrado (§8.1) | `{"conferencia_id"}` |
+
+`recebimento.confirmado` segue o nome do fluxo de Entrega ao cliente. Não confundir com `documento.recebido` do ADR-011, que é o caminho inverso (o cliente enviou um documento à Rissi) e não é emitido pelo motor.
 
 **Aposentado na v3:** `guia.paga`. O motor não emite mais esse evento. Na arquitetura alvo, quem o produz é a Regularidade Fiscal.
 

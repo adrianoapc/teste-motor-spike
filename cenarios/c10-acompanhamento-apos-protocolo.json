@@ -2,7 +2,7 @@
   "id": "C10",
   "fase": 2,
   "nome": "Acompanhamento depois do protocolo",
-  "descricao": "Simples sem folha. O caso encerra no protocolo (e-mail disparado), sem esperar leitura nem pagamento. Depois do encerramento, o e-mail volta: abre exceção entrega_falhou com dono, sem reabrir o caso e sem nenhuma transição. O agendador avisa que não houve leitura (recebimento_pendente; antes do protocolo o mesmo aviso só foi gravado). O reenvio pelo App gera novo protocolo e resolve a falha; a confirmação de leitura gera documento.recebido e resolve a pendência; um aviso de pendência posterior à confirmação não faz nada. O N dias vem do agendador, porque o motor não tem relógio.",
+  "descricao": "Simples sem folha. O caso encerra no protocolo (e-mail disparado), sem esperar leitura nem pagamento. Depois do encerramento, o e-mail volta: abre exceção entrega_falhou com dono, sem reabrir o caso e sem nenhuma transição. O agendador avisa que não houve leitura (recebimento_pendente; antes do protocolo o mesmo aviso só foi gravado). O reenvio pelo App gera novo protocolo e resolve a falha; a confirmação de leitura gera recebimento.confirmado e resolve a pendência; um aviso de pendência posterior à confirmação não faz nada. O N dias vem do agendador, porque o motor não tem relógio.",
   "secoes_semantica": [
     "§6",
     "§9.4",
@@ -499,7 +499,7 @@
           {
             "titular_id": "T010",
             "competencia": "202609",
-            "nome": "documento.recebido",
+            "nome": "recebimento.confirmado",
             "quantidade": 0
           }
         ]
@@ -747,7 +747,7 @@
           {
             "titular_id": "T010",
             "competencia": "202609",
-            "nome": "documento.recebido",
+            "nome": "recebimento.confirmado",
             "quantidade": 1
           },
           {
