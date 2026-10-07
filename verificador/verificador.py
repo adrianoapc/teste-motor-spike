@@ -9,16 +9,22 @@ Uso:
       --db postgresql://spike:spike@localhost:5432/spike_dotnet \
       --cenario ../cenarios/c1-feliz-simples-com-folha.json --limpar
 
-  python verificador.py --api ... --db ... --todos ../cenarios --limpar --relatorio saida.json
+  python verificador.py --api ... --db ... --todos ../cenarios --fase 2 --limpar --relatorio saida.json
+
+--fase N roda os cenários das fases 1..N (regressão incluída). Sem --fase, roda todos.
 
 Saída: relatório legível no terminal e, com --relatorio, JSON. Código 0 se tudo passou.
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import statistics
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -133,19 +139,29 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
 
     for cf in esp.get("conferencias", []):
         cur.execute(
-            """SELECT cf.resultado FROM conferencias.conferencia cf
+            """SELECT cf.resultado, cf.severidade, cf.override_autor FROM conferencias.conferencia cf
                JOIN fechamento.entregavel e ON e.id = cf.entregavel_id
                JOIN fechamento.caso_competencia c ON c.id = e.caso_id
-               WHERE c.titular_id = %s AND c.competencia = %s AND e.tipo = %s AND cf.cf = %s""",
+               WHERE c.titular_id = %s AND c.competencia = %s AND e.tipo = %s AND cf.cf = %s
+               ORDER BY cf.em, cf.id""",
             (cf["titular_id"], cf["competencia"], cf["tipo"], cf["cf"]),
         )
         rows = cur.fetchall()
         ident = f"{cf['titular_id']}/{cf['competencia']}/{cf['tipo']}/{cf['cf']}"
-        r.checar(len(rows) == cf.get("quantidade", 1),
-                 f"[{rotulo}] conferência {ident}: {len(rows)} registro(s), esperado {cf.get('quantidade', 1)}")
-        if rows:
-            r.checar(rows[-1]["resultado"] == cf["resultado"],
-                     f"[{rotulo}] conferência {ident}: resultado {rows[-1]['resultado']!r}, esperado {cf['resultado']!r}")
+        if "resultados" in cf:
+            obtido = [f"{x['resultado']}:{x['severidade']}" for x in rows]
+            r.checar(obtido == cf["resultados"],
+                     f"[{rotulo}] conferência {ident}: sequência {obtido}, esperado {cf['resultados']}")
+        else:
+            r.checar(len(rows) == cf.get("quantidade", 1),
+                     f"[{rotulo}] conferência {ident}: {len(rows)} registro(s), esperado {cf.get('quantidade', 1)}")
+            if rows:
+                r.checar(rows[-1]["resultado"] == cf["resultado"],
+                         f"[{rotulo}] conferência {ident}: resultado {rows[-1]['resultado']!r}, esperado {cf['resultado']!r}")
+        if "override" in cf and rows:
+            com_override = [i for i, x in enumerate(rows) if x["override_autor"]]
+            r.checar(com_override == cf["override"],
+                     f"[{rotulo}] conferência {ident}: override nas posições {com_override}, esperado {cf['override']}")
 
     if "conferencias_total" in esp:
         cur.execute(
@@ -168,6 +184,49 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
         n = cur.fetchone()["n"]
         r.checar(n == esp["excecoes_abertas"],
                  f"[{rotulo}] exceções abertas {n}, esperado {esp['excecoes_abertas']}")
+
+    for x in esp.get("excecoes", []):
+        tipo_ent = x.get("entregavel")
+        cur.execute(
+            """SELECT x.estado, x.resolucao, x.classe FROM trabalho.excecao x
+               JOIN fechamento.caso_competencia c ON c.id = x.caso_id
+               LEFT JOIN fechamento.entregavel e ON e.id = x.entregavel_id
+               WHERE c.titular_id = %s AND c.competencia = %s AND x.tipo = %s
+                 AND (%s::text IS NULL AND x.entregavel_id IS NULL OR e.tipo = %s)
+               ORDER BY x.aberta_em, x.id""",
+            (x["titular_id"], x["competencia"], x["tipo"], tipo_ent, tipo_ent),
+        )
+        rows = cur.fetchall()
+        obtido = [f"{y['estado']}:{y['resolucao'] or ''}" for y in rows]
+        ident = f"{x['titular_id']}/{x['competencia']}/{tipo_ent or '-'}/{x['tipo']}"
+        r.checar(obtido == x["estados"], f"[{rotulo}] exceções {ident}: {obtido}, esperado {x['estados']}")
+        if "classe" in x and rows:
+            r.checar(all(y["classe"] == x["classe"] for y in rows),
+                     f"[{rotulo}] exceções {ident}: classe {[y['classe'] for y in rows]}, esperado {x['classe']}")
+
+    if "excecoes_total" in esp:
+        cur.execute(
+            """SELECT count(*) AS n FROM trabalho.excecao x
+               JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = ANY(%s)""",
+            (titulares,),
+        )
+        n = cur.fetchone()["n"]
+        r.checar(n == esp["excecoes_total"], f"[{rotulo}] total de exceções {n}, esperado {esp['excecoes_total']}")
+
+    if "casos_total" in esp:
+        cur.execute("SELECT count(*) AS n FROM fechamento.caso_competencia")
+        n = cur.fetchone()["n"]
+        r.checar(n == esp["casos_total"], f"[{rotulo}] total de casos {n}, esperado {esp['casos_total']}")
+
+    if "entregaveis_total" in esp:
+        cur.execute("SELECT count(*) AS n FROM fechamento.entregavel")
+        n = cur.fetchone()["n"]
+        r.checar(n == esp["entregaveis_total"], f"[{rotulo}] total de entregáveis {n}, esperado {esp['entregaveis_total']}")
+
+    for ft in esp.get("fatos_total", []):
+        cur.execute("SELECT count(*) AS n FROM fatos.fato WHERE tipo = %s AND tributo = %s", (ft["tipo"], ft.get("tributo", "")))
+        n = cur.fetchone()["n"]
+        r.checar(n == ft["quantidade"], f"[{rotulo}] fatos {ft['tipo']}[{ft.get('tributo', '')}]: {n}, esperado {ft['quantidade']}")
 
     if "tarefas_abertas" in esp:
         cur.execute(
@@ -302,6 +361,42 @@ def verificar_invariantes(conn: psycopg.Connection, r: Resultado) -> None:
     for x in cur.fetchall():
         r.checar(False, f"[INV-9] conferência divergente {x['id']} ({x['cf']}) sem exceção")
     r.checagens += 1
+
+    # INV-10: no máximo uma exceção aberta por (entregável, tipo), ou por (caso, tipo) sem entregável (§9.4)
+    cur.execute("""
+        SELECT caso_id, entregavel_id, tipo, count(*) AS n FROM trabalho.excecao
+        WHERE estado = 'aberta' GROUP BY caso_id, entregavel_id, tipo HAVING count(*) > 1""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-10] {x['n']} exceções abertas do tipo {x['tipo']} no entregável {x['entregavel_id']} (caso {x['caso_id']})")
+    r.checagens += 1
+
+    # INV-11: no máximo uma tarefa aberta por entregável, e só em entregável 'pronto'
+    cur.execute("""
+        SELECT t.entregavel_id, count(*) AS n, min(e.estado) AS estado
+        FROM trabalho.tarefa_humana t JOIN fechamento.entregavel e ON e.id = t.entregavel_id
+        WHERE t.estado = 'aberta' GROUP BY t.entregavel_id
+        HAVING count(*) > 1 OR min(e.estado) <> 'pronto'""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-11] entregável {x['entregavel_id']} ({x['estado']}) com {x['n']} tarefa(s) aberta(s)")
+    r.checagens += 1
+
+    # INV-12: override resolve a exceção da mesma CF no entregável (§8.1)
+    cur.execute("""
+        SELECT cf.id, cf.cf FROM conferencias.conferencia cf
+        WHERE cf.override_autor IS NOT NULL
+          AND EXISTS (SELECT 1 FROM trabalho.excecao x
+                      WHERE x.entregavel_id = cf.entregavel_id AND x.tipo = cf.cf AND x.estado = 'aberta')""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-12] conferência {x['id']} ({x['cf']}) com override e exceção ainda aberta")
+    r.checagens += 1
+
+    # INV-13: transição 'invalidado' sempre causada por fato
+    cur.execute("""
+        SELECT id FROM fechamento.entregavel_transicao
+        WHERE para_estado = 'invalidado' AND (causado_por_tipo IS DISTINCT FROM 'fato' OR motivo <> 'fato_alterado')""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-13] transição {x['id']} para 'invalidado' sem motivo fato_alterado/causado_por fato")
+    r.checagens += 1
     cur.close()
 
 
@@ -341,6 +436,33 @@ def aguardar_fila(cliente: httpx.Client, limite_s: float = 120.0) -> float:
         time.sleep(0.1)
 
 
+RAIZ = Path(__file__).resolve().parent.parent
+
+
+def carregar_massa(param: dict[str, Any]) -> dict[str, Any]:
+    """Gera a massa sintética pelo script comum (massa/gerar_massa_sintetica.py), sem arquivo intermediário."""
+    spec = importlib.util.spec_from_file_location("gerar_massa_sintetica", RAIZ / "massa" / "gerar_massa_sintetica.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    padrao = {"empresas": 4500, "competencia": "202609", "semente": 20261006, "pct_sn": 0.70, "pct_folha": 0.30,
+              "pct_prolabore": 0.85, "pct_taxa": 0.20, "carteiras": 50, "guias": 300}
+    a = padrao | param
+    return mod.gerar(a["empresas"], a["competencia"], a["semente"], a["pct_sn"], a["pct_folha"],
+                     a["pct_prolabore"], a["pct_taxa"], a["carteiras"], a["guias"])
+
+
+_local = threading.local()
+
+
+def _cliente_thread(api: str) -> httpx.Client:
+    c = getattr(_local, "cliente", None)
+    if c is None:
+        c = httpx.Client(base_url=api, timeout=120.0)
+        _local.cliente = c
+    return c
+
+
 def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[str, Any],
                    titulares: list[str], r: Resultado, i: int) -> None:
     acao = passo["acao"]
@@ -376,7 +498,54 @@ def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[
         r.checar(resp.status_code == esp.get("status", 200), f"[{rotulo}] HTTP {resp.status_code}: {resp.text[:300]}")
 
     elif acao == "aguardar_fila":
-        aguardar_fila(cliente)
+        aguardar_fila(cliente, passo.get("limite_segundos", 120.0))
+
+    elif acao == "abrir_massa":
+        massa = carregar_massa(passo["massa"])
+        empresas = massa["abrir"]["empresas"]
+        lote = passo.get("lote", 500)
+        criados = 0
+        t_ini = time.perf_counter()
+        for i in range(0, len(empresas), lote):
+            corpo = {"competencia": massa["abrir"]["competencia"], "ator": "agenda", "empresas": empresas[i:i + lote]}
+            resp = cliente.post("/competencias/abrir", json=corpo, timeout=600.0)
+            r.checar(resp.status_code == 200, f"[{rotulo}] lote {i // lote}: HTTP {resp.status_code}: {resp.text[:200]}")
+            if resp.status_code != 200:
+                break
+            criados += len(resp.json().get("criados", []))
+        aguardar_fila(cliente, esp.get("limite_segundos", 300.0))
+        dt = time.perf_counter() - t_ini
+        r.indicadores["abertura_massa"] = {"empresas": len(empresas), "criados": criados, "segundos": round(dt, 2)}
+        r.checar(criados == esp.get("criados", len(empresas)), f"[{rotulo}] criados {criados}, esperado {esp.get('criados', len(empresas))}")
+        r.checar(dt < esp.get("limite_segundos", 300.0), f"[{rotulo}] abertura em {dt:.1f}s, limite {esp.get('limite_segundos', 300.0)}s")
+
+    elif acao == "publicar_lote":
+        massa = carregar_massa(passo["massa"])
+        corpos = massa[passo["origem"]]
+        api = str(cliente.base_url)
+        tempos: list[float] = []
+        erros: list[str] = []
+        trava = threading.Lock()
+
+        def enviar(corpo: dict[str, Any]) -> None:
+            t0 = time.perf_counter()
+            resp = _cliente_thread(api).post("/fatos", json=corpo)
+            dt = time.perf_counter() - t0
+            with trava:
+                tempos.append(dt)
+                if resp.status_code != 200:
+                    erros.append(f"HTTP {resp.status_code}: {resp.text[:120]}")
+
+        t_ini = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=passo.get("concorrencia", 20)) as pool:
+            list(pool.map(enviar, corpos))
+        aguardar_fila(cliente, esp.get("limite_segundos", 600.0))
+        total = time.perf_counter() - t_ini
+        p95 = statistics.quantiles(tempos, n=20)[18] if len(tempos) >= 20 else max(tempos, default=0.0)
+        r.indicadores["lote_fatos"] = {"quantidade": len(corpos), "p95_segundos": round(p95, 3),
+                                       "total_segundos": round(total, 2), "erros": len(erros)}
+        r.checar(not erros, f"[{rotulo}] {len(erros)} erro(s), ex.: {erros[:2]}")
+        r.checar(p95 < esp.get("p95_segundos", 30.0), f"[{rotulo}] p95 {p95:.2f}s, limite {esp.get('p95_segundos', 30.0)}s")
 
     elif acao == "verificar":
         conn.rollback()  # garante leitura fresca
@@ -416,7 +585,15 @@ def imprimir(r: Resultado) -> None:
     for f in r.falhas:
         print(f"   ✗ {f}")
     if r.indicadores:
-        ind = ", ".join(f"{k}={v.get('segundos', 'erro')}s" for k, v in r.indicadores.items())
+        def fmt(k: str, v: dict[str, Any]) -> str:
+            if "erro" in v:
+                return f"{k}=ERRO"
+            if "p95_segundos" in v:
+                return f"{k}=p95 {v['p95_segundos']}s ({v['quantidade']} fatos, {v['erros']} erro(s))"
+            if "criados" in v:
+                return f"{k}={v['segundos']}s ({v['criados']} casos)"
+            return f"{k}={v['segundos']}s"
+        ind = ", ".join(fmt(k, v) for k, v in r.indicadores.items())
         print(f"   indicadores: {ind}")
 
 
@@ -429,9 +606,13 @@ def main() -> int:
     grupo.add_argument("--todos", type=Path, help="pasta com cenários c*.json")
     ap.add_argument("--limpar", action="store_true", help="esvazia as tabelas de execução antes de cada cenário")
     ap.add_argument("--relatorio", type=Path, help="grava o resultado em JSON")
+    ap.add_argument("--fase", type=int, help="roda só cenários das fases 1..N (padrão: todos)")
     args = ap.parse_args()
 
     arquivos = [args.cenario] if args.cenario else sorted(args.todos.glob("c*.json"))
+    if args.fase is not None:
+        arquivos = [a for a in arquivos
+                    if json.loads(a.read_text(encoding="utf-8")).get("fase", 1) <= args.fase]
     resultados = [rodar_cenario(args.api, args.db, a, args.limpar) for a in arquivos]
     for r in resultados:
         imprimir(r)

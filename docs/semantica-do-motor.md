@@ -1,6 +1,6 @@
 # Semântica do motor do fechamento (normativa para as duas spikes)
 
-**v1 · 06/10/2026.** Este documento define **o que** o motor faz. As duas spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
+**v2 · 07/10/2026** (v1 de 06/10 + regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12). Este documento define **o que** o motor faz. As duas spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
 
 Fontes do domínio: spec do spike v0.3, spec da saga do fechamento (CF-01..18, R1–R10), catálogo de capacidades (E01–E12). Tudo o que é regra fiscal aqui é **provisório** (status `provisoria` no banco) e não foi validado pelas áreas.
 
@@ -161,6 +161,20 @@ Um entregável em `invalidado` que **não** cumpre a regra acima volta a `aguard
 
 Sempre que um entregável muda de estado, os entregáveis do **mesmo caso** que dependem dele são reavaliados (prontidão e encerramento). Repetir até não haver mudança.
 
+**Como a reavaliação anda (normativo desde a v2):** em voltas. Em cada volta, os entregáveis do caso são percorridos em ordem de `tipo` (E01, E02, …) e **cada um dá no máximo um passo**:
+
+| Estado no início do passo | Passo |
+|---|---|
+| `aguardando_insumo` ou `invalidado` | → `pronto` (§7.2); ou, se `invalidado` e não cumprir §7.2, → `aguardando_insumo` |
+| `pronto`, executor `sistema` | → `processado` **e** desfecho das conferências (§9.3), no mesmo passo |
+| `validado` | → `liberado` (§10.1) ou → `encerrado` (§10.2), conforme o item |
+| `liberado` | → `disponibilizado`, se o fato existir |
+| `disponibilizado` | → `pago`, se o fato existir |
+
+O estado das dependências é lido **no momento da checagem**, já com as mudanças feitas antes na mesma volta. As voltas se repetem até nenhuma mudar nada.
+
+Consequência que os cenários cobram: um entregável `invalidado` cuja dependência acabou de voltar só a `pronto` vai para `aguardando_insumo` e, numa volta seguinte, para `pronto` (cenário C9, E03).
+
 ## 8 · `ConcluirTarefa`
 
 Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir`.
@@ -168,10 +182,31 @@ Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir`.
 1. Caso ou entregável inexistente → `404`.
 2. Entregável fora de `pronto`, ou executor `sistema` → `409`.
 3. `saidas` vazio, ou entregável sem `saida` na regra → `422`.
-4. Para cada item de `saidas`: publica fato (§6) com `tipo` = `saida.tipo` da regra, `titular_id` e `competencia` do caso, `tributo`, `valor_centavos` e `payload` do item, `fonte = 'tarefa'`, `observado_em` = agora. Liga em `entregavel_fato` com papel `saida`.
+4. Para cada item de `saidas`: publica fato (§6) com `tipo` = `saida.tipo` da regra, `titular_id` e `competencia` do caso, `tributo`, `valor_centavos` e `payload` do item, `fonte = 'tarefa'`, `observado_em` = agora. Liga em `entregavel_fato` com papel `saida` a versão vigente devolvida, **inclusive quando o efeito for `sem_mudanca`**. Se o efeito for `nova_versao`, a invalidação (§11) roda normalmente, **exceto para o próprio entregável que está sendo concluído**.
 5. Conclui a tarefa aberta do entregável (`estado = 'concluida'`, `concluida_em`).
 6. Entregável `pronto → processado` (motivo `tarefa_concluida`, `causado_por_tipo = 'tarefa'`, `causado_por_id` = id da tarefa, `ator` = `corpo.ator`).
 7. Roda as conferências (§9).
+8. Reavalia os casos abertos do titular (§7.4).
+
+### 8.1 · `RegistrarOverride`
+
+Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override`, corpo `{"ator", "cf", "motivo"}`.
+
+A **conferência vigente** de uma CF num entregável é a mais recente daquela CF naquele entregável (maior `em`).
+
+Validação, nesta ordem:
+1. Corpo inválido (falta campo, `cf` fora do padrão `CF-nn`, `motivo` com menos de 5 caracteres) → `422`.
+2. Caso ou entregável inexistente → `404`.
+3. Entregável fora de `divergente`, ou a conferência vigente da `cf` não existe, ou não é `divergente` com severidade `B`, ou já tem override → `409`.
+
+Efeito, numa transação:
+1. Grava `override_autor` (= `ator`), `override_motivo` e `override_em` na conferência vigente da `cf`.
+2. Resolve as exceções abertas daquele entregável com `tipo` = `cf` (`estado = 'resolvida'`, `resolucao = 'override'`, `resolvida_em`).
+3. Evento `conferencia.override` (`payload`: `{"conferencia_id"}`).
+4. Se nenhuma outra CF do entregável tiver conferência vigente `divergente`, severidade `B` e sem override: `divergente → validado` (motivo `override`, `causado_por_tipo = 'conferencia'`, id da conferência, `ator` = `corpo.ator`) e o evento do tipo do entregável (§9.3).
+5. Reavalia os casos abertos do titular (§7.4).
+
+Resposta `200`: `{"entregavel_id", "tipo", "estado"}` com o estado depois do override.
 
 ## 9 · Conferências
 
@@ -189,7 +224,7 @@ Os valores vêm dos **fatos vigentes do próprio caso** (mesmo titular e compet�
 | CF-06 | E11 | competência do caso | `guia[T].payload.competencia_impressa` (comparação de texto; esperado/obtido em centavos ficam nulos) |
 | CF-07 | E04 | `apurado[DAS].valor` (SN) ou `apurado[IRPJ].valor` (LP) | soma de `divisao_socios.payload.parcelas[].valor_centavos` |
 | CF-08 | E07 (SN) | `arred(faturamento_mes.valor × fiscal.parametros.prolabore_percentual_bp ÷ 10000)` | `prolabore.valor` |
-| CF-09 | E08 | para INSS e FGTS: `folha.payload.inss_centavos` e `folha.payload.fgts_centavos` | `guia[INSS].valor` e `guia[FGTS].valor`; a diferença da conferência é a **maior** das duas |
+| CF-09 | E08 | para INSS e FGTS: `folha.payload.inss_centavos` e `folha.payload.fgts_centavos` | `guia[INSS].valor` e `guia[FGTS].valor`; a diferença da conferência é a **maior** das duas. `esperado_centavos` e `obtido_centavos` gravam o par do tributo de maior diferença (empate: INSS) |
 | CF-12 | E10 | existe `recibo_obrigacao` com o tributo exigido pela entrada | — (ok se existe) |
 
 `arred` = divisão inteira com arredondamento **meio para o par** (banker's rounding), sobre inteiros. Nunca use ponto flutuante.
@@ -217,6 +252,14 @@ Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `
 - Alguma conferência `divergente` com severidade `B` → entregável `processado → divergente` (motivo `conferencia_divergente`, `causado_por_tipo = 'conferencia'`); abre `trabalho.excecao` (`tipo` = a CF, `classe`, `dono` = carteira, `estado = 'aberta'`); eventos `conferencia.divergente` e `excecao.aberta`.
 - Senão → `processado → validado` (motivo `conferencias_ok`); evento `evento_publicado` do tipo do entregável, se houver.
 - Entregável sem conferências → `validado` direto.
+- Divergência com severidade `A` **não bloqueia**: é gravada como `divergente`, não abre exceção nem evento, e o entregável segue para `validado` se nenhuma B divergir.
+
+### 9.4 · Exceções: abertura única e resolução
+
+- **Abertura única:** só se abre exceção de um `tipo` para um entregável se **não houver** outra exceção **aberta** do mesmo `tipo` para o mesmo entregável. Para exceção sem entregável (`competencia_encerrada`, §11.3), a chave é (`caso_id`, `tipo`).
+- **Resolução por fato novo:** quando um entregável sai de `divergente` para `invalidado` (§11), todas as suas exceções abertas cujo `tipo` comece com `CF-` passam a `resolvida`, `resolucao = 'fato_alterado'`, `resolvida_em` = agora.
+- **Resolução por override:** §8.1.
+- **Exceções que o spike não resolve:** `substituicao`, `diferenca_paga` e `competencia_encerrada` ficam `aberta`. Resolver exige ação humana fora do motor (reenvio, guia complementar, serviço retroativo). Elas **não** impedem o encerramento do caso (o E12 só olha estados dos entregáveis).
 
 ## 10 · Depois de `validado`
 
@@ -236,17 +279,36 @@ Quando o E12 chega a `validado`: transição imediata `validado → encerrado` (
 
 ## 11 · Invalidação (nova versão de fato já usado)
 
-Usada pelos cenários 2 a 5 (ainda não escritos). Normativa desde já.
+Roda dentro de `PublicarFato` (§6, passo 3) e de `ConcluirTarefa` (§8, passo 4), **na mesma transação**, quando o efeito é `nova_versao`. Depois dela vem a reavaliação dos casos abertos do titular (§7.4).
 
-Quando um fato ganha `nova_versao` e a versão anterior está em `entregavel_fato` de um entregável E:
+### 11.1 · Quem é atingido
 
-| Estado de E | Ação |
+**Sementes:** os entregáveis que têm a **versão anterior** do fato em `entregavel_fato` (qualquer papel), menos o entregável que está sendo concluído (§8, passo 4). Agrupe as sementes por caso.
+
+### 11.2 · Caso aberto: regra por estado
+
+Para cada semente, conforme o estado atual:
+
+| Estado do entregável | Ação |
 |---|---|
-| `pronto`, `processado`, `divergente`, `validado`, `liberado` | `→ invalidado` (motivo `fato_alterado`, `causado_por_tipo = 'fato'`, id do fato novo); evento `entregavel.invalidado`; tarefa aberta de E, se houver, é cancelada; depois reavalia a prontidão (§7.2) |
-| `disponibilizado`, `pago` | Estado não muda. Abre exceção `tipo = 'substituicao'`, classe `O`. Evento `excecao.aberta` |
-| `aguardando_insumo` | Nada |
+| `pronto`, `processado`, `divergente`, `validado`, `liberado` | `→ invalidado` (motivo `fato_alterado`, `causado_por_tipo = 'fato'`, `causado_por_id` = id do fato novo, `ator = 'sistema'`); evento `entregavel.invalidado`; tarefa aberta do entregável passa a `cancelada`; se saiu de `divergente`, resolve as exceções `CF-` (§9.4) |
+| `disponibilizado` | Estado não muda. Exceção `tipo = 'substituicao'`, classe `O` (§9.4, abertura única); evento `excecao.aberta` |
+| `pago` | Estado não muda. Exceção `tipo = 'diferenca_paga'`, classe `O` (§9.4, abertura única); evento `excecao.aberta` |
+| `aguardando_insumo`, `invalidado`, `encerrado` | Nada |
 
-**Cascata:** todo entregável que depende de E e está em estado ≥ `pronto` (pelo caminho principal) ou `divergente` recebe a mesma regra, recursivamente.
+**Cascata:** para cada entregável que **foi para `invalidado`** neste passo, aplique a mesma tabela a todo entregável do mesmo caso que **depende dele** (`entregavel_dependencia.depende_de_id`), recursivamente. A cascata só continua a partir de quem foi para `invalidado`. **Cada entregável é tratado no máximo uma vez por publicação.**
+
+Interpretação no spike: o E11 depende do E08, então representa a entrega do **pacote** da competência. Folha ou guia do DP alterada depois da entrega gera `substituicao` no E11 (cenário C2).
+
+### 11.3 · Caso encerrado
+
+Se a semente pertence a um caso com `estado = 'encerrado'`: **nenhuma transição** em nenhum entregável desse caso. Abre **uma** exceção `tipo = 'competencia_encerrada'`, classe `O`, `entregavel_id` nulo, `dono` = carteira do caso (§9.4, abertura única por caso), e o evento `excecao.aberta` com o `caso_id` do caso encerrado. Reabrir a competência fica fora do spike (§14). Em produção, esse é o gatilho do serviço retroativo (S10).
+
+### 11.4 · Ordem dentro da transação
+
+1. Grava o fato novo e o evento `fato.publicado`.
+2. Invalidação (§11.1 a §11.3), sementes em ordem de `tipo` do entregável.
+3. Reavaliação dos casos abertos do titular (§7.4).
 
 ## 12 · Eventos (nomes exatos)
 
@@ -264,6 +326,7 @@ Quando um fato ganha `nova_versao` e a versão anterior está em `entregavel_fat
 | `excecao.aberta` | exceção criada | `{"excecao_id"}` |
 | `entregavel.invalidado` | → invalidado | `{"entregavel_id"}` |
 | `fechamento.concluido` | caso encerrado | `{"caso_id"}` |
+| `conferencia.override` | override registrado (§8.1) | `{"conferencia_id"}` |
 
 `caso_id` e `entregavel_id` da linha de `eventos.evento` são preenchidos sempre que se aplicam (`fato.publicado` leva o `caso_id` só se o fato for da competência de um caso existente; senão fica nulo). **Payload nunca leva CPF, CNPJ, nome ou valor.**
 
@@ -276,4 +339,4 @@ Quando um fato ganha `nova_versao` e a versão anterior está em `entregavel_fat
 
 ## 14 · Fora do escopo do spike
 
-Autenticação; RLS; cofre de segredos; conectores reais (OneFlow, Integra Contador, prefeituras, Nibo); porta documental; tela; reabertura de competência encerrada (R1–R10 sobre caso encerrado); CF não marcadas `no_spike`.
+Autenticação; RLS; cofre de segredos; conectores reais (OneFlow, Integra Contador, prefeituras, Nibo); porta documental; tela; reabertura de competência encerrada (o spike só registra a exceção `competencia_encerrada`, §11.3); resolução das exceções `substituicao`, `diferenca_paga` e `competencia_encerrada`; CF não marcadas `no_spike`.

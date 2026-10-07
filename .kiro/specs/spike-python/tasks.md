@@ -54,8 +54,42 @@ Regras: uma tarefa por vez, na ordem. Ao terminar cada uma, rodar os testes; nas
   - Revisar `README.md`, `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 12_
 
-## Fase 2 (não iniciar sem novos cenários na pasta `cenarios/`)
+## Fase 2 · invalidação, exceções e override
 
-- [ ] 11. Invalidação e cascata (§11) e override.
-- [ ] 12. Cenários 2 a 5.
-- [ ] 13. Cenário 6 (escala): fila assíncrona em `eventos.fila`, massa de `massa/gerar_massa_sintetica.py`.
+Antes da tarefa 11: `git merge origin/main` (traz a semântica v2, os cenários novos e o verificador com `--fase`). A partir de agora, a regressão da fase 1 é `--todos cenarios --fase 1`.
+
+- [ ] 11. Reavaliação em passos (§7.4) e regressão
+  - Conferir que a reavaliação dá no máximo um passo por entregável por volta, em ordem de `tipo`, lendo o estado atual das dependências. Ajustar se preciso.
+  - Rodar `--fase 1` e confirmar 2/2.
+  - _Requisitos: 13_
+
+- [ ] 12. Exceções: abertura única e resolução (§9.4)
+  - Abertura única por (entregável, tipo) ou (caso, tipo); resolução `fato_alterado`; divergência A não abre exceção.
+  - Testes unitários das regras de exceção.
+  - _Requisitos: 15_
+
+- [ ] 13. Invalidação e cascata (§11)
+  - Sementes, tabela por estado, cascata com visitados, caso encerrado, ordem dentro da transação (§11.4).
+  - `ConcluirTarefa`: não invalida o próprio entregável; liga a saída mesmo com `sem_mudanca` (§8, item 4).
+  - CF-09: par de maior diferença (§9.1).
+  - Testes unitários da cascata sobre um grafo em memória (sem banco), cobrindo os estados de §11.2.
+  - Verificador: `--cenario cenarios/c4-r6-guia-retificada-duas-vezes.json`, depois C3, C2, C5, C8.
+  - _Requisitos: 14, 17_
+
+- [ ] 14. Override (§8.1)
+  - Rota, validação 422 → 404 → 409, efeitos e evento `conferencia.override`.
+  - Verificador: `--cenario cenarios/c9-override-conferencia.json`.
+  - _Requisitos: 16_
+
+- [ ] 15. Fechamento da fase 2
+  - `--todos cenarios --fase 2 --limpar --relatorio resultado-fase2-python.json` com 8/8.
+  - `METRICAS.md` (seção Fase 2), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
+  - _Requisitos: 18_
+
+## Fase 3 · escala
+
+- [ ] 16. Cenário C6
+  - Rodar `--cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-python.json` com só esta spike no ar.
+  - Se não cumprir os limites: medir onde está o tempo antes de mudar (registrar em `DUVIDAS.md`), e só então otimizar ou passar para `eventos.fila`.
+  - Fechar com `--todos cenarios --fase 3` (9/9) e a seção "Fase 3" em `METRICAS.md`.
+  - _Requisitos: 19_

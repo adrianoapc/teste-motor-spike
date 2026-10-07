@@ -119,3 +119,48 @@ Transicionar(E, para, motivo, causado_por, ator):           # §4.1
 | Ordem de avaliação | Entregáveis em ordem de `tipo` (E01, E02, …) dentro de cada volta |
 | Erros | Corpo `{"erro": "<codigo>", "mensagem": "<texto>"}`; códigos curtos em snake_case |
 | Hora | Sempre do banco (`now()`, `clock_timestamp()`) para gravação; nunca do relógio local para ordenar transições |
+
+## Fase 2 · acréscimos ao fluxo
+
+```
+PublicarFato(f):                                       # §6, §11.4
+  transação:
+    ... grava versão; evento fato.publicado
+    se nova_versao: Invalidar(versão anterior, fato novo, excluir = nenhum)
+    para cada caso aberto do titular: AvaliarCaso(caso)
+
+ConcluirTarefa(...):                                   # §8 item 4
+    para cada saída: r ← PublicarFato(sem reavaliar, excluir = este entregável)
+                     ligar r.fato_id como 'saida' (também se sem_mudanca)
+
+Invalidar(anterior, novo, excluir):                    # §11
+  sementes ← entregáveis com 'anterior' em entregavel_fato, menos 'excluir', por caso, em ordem de tipo
+  por caso:
+    se encerrado: AbrirExcecao(caso, sem entregável, 'competencia_encerrada'); continuar
+    fila ← sementes do caso; visitados ← {}
+    enquanto fila:
+      E ← próximo; se E ∈ visitados: continuar; marcar
+      se E.estado ∈ {pronto, processado, divergente, validado, liberado}:
+          Transicionar(E, invalidado, 'fato_alterado', causado_por = fato novo)
+          evento entregavel.invalidado; cancelar tarefa aberta de E
+          se veio de divergente: resolver exceções CF- de E ('fato_alterado')
+          fila += dependentes de E (em ordem de tipo)
+      senão se disponibilizado: AbrirExcecao(E, 'substituicao')
+      senão se pago:            AbrirExcecao(E, 'diferenca_paga')
+
+AbrirExcecao(...):                                     # §9.4
+  se já existe aberta do mesmo tipo (no entregável, ou no caso sem entregável): não faz nada
+  senão: insere e emite excecao.aberta
+
+RegistrarOverride(caso, tipo, corpo):                  # §8.1
+  422 → 404 → 409; grava override na conferência vigente da CF
+  resolve exceções da CF ('override'); evento conferencia.override
+  se nenhuma outra CF vigente divergente B sem override: divergente → validado ('override') + evento do tipo
+  para cada caso aberto do titular: AvaliarCaso(caso)
+```
+
+## Fase 3 · escala
+
+- Medir antes de otimizar. Os pontos prováveis: uma transação por empresa na abertura, leituras repetidas de catálogo e regra (podem ser lidas uma vez por requisição), e a reavaliação de todos os casos do titular a cada fato.
+- Fila assíncrona (`eventos.fila`) só se a medida mostrar necessidade (requisito 19.4).
+

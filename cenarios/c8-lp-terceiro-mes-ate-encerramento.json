@@ -1,0 +1,589 @@
+{
+  "id": "C8",
+  "fase": 2,
+  "nome": "Lucro Presumido, 3º mês, até o encerramento",
+  "descricao": "Continua o C7 até o caso encerrar: divisão por sócio sobre o IRPJ (CF-07), recibo de DCTFWeb (CF-12), guia de IRPJ (CF-05 e CF-06), entrega, pagamento e E12. Cobre o caminho de encerramento do LP que o C7 não exercita (observação de 07/10). Um recibo de PGDAS-D publicado por engano para empresa LP é gravado e não afeta nada.",
+  "secoes_semantica": [
+    "§7.1",
+    "§9.1",
+    "§10.1",
+    "§10.2"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T008"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T008",
+            "regime": "LP",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-02",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 20000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 20000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "sem os meses anteriores, E03 não fica pronto",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E02"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E05"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E06"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E07"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E08"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202607",
+        "tipo": "apurado",
+        "fonte": "intranet-legado",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 150000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "com só um mês anterior, continua aguardando",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202608",
+        "tipo": "apurado",
+        "fonte": "intranet-legado",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 155000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "com os dois meses, E03 fica pronto",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T008",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "IRPJ",
+            "valor_centavos": 160000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 96000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 64000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DCTFWEB",
+        "payload": {
+          "numero_recibo": "D-0001"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "recibo de outro regime: grava, mas não é entrada de nenhum entregável desta empresa LP",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "X-0001"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "E04 e E10 validados; E11 aguarda a guia de IRPJ",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "aguardando_insumo"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 160000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "payload": {
+          "canal": "nibo"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T008",
+        "competencia": "202609",
+        "tipo": "guia_paga",
+        "fonte": "banco",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 160000,
+        "payload": {
+          "pago_em": "2026-10-30"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado",
+              "pago"
+            ]
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E02"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E05"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E06"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E07"
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E08"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E04",
+            "cf": "CF-07",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E10",
+            "cf": "CF-12",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-05",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-06",
+            "resultado": "ok",
+            "quantidade": 1
+          }
+        ],
+        "conferencias_total": 5,
+        "excecoes_total": 0,
+        "tarefas_abertas": [],
+        "eventos": [
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 9
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "insumos.completos",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "guias.validadas",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "guia.paga",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T008",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}

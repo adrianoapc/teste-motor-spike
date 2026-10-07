@@ -1,0 +1,444 @@
+{
+  "id": "C9",
+  "fase": 2,
+  "nome": "Override de conferência",
+  "descricao": "Simples sem folha. O OneFlow está sem uma nota e a CF-01 diverge (B). Validações do override (422, 404, 409 em três situações) e o override válido: grava autor e motivo na conferência, resolve a exceção, leva o E01 a validado e libera a apuração. Quando o OneFlow sincroniza, a nova versão invalida o E01 já validado por override e, em cascata, o E03 que estava pronto com tarefa: a tarefa é cancelada, o E03 passa por aguardando_insumo enquanto o E01 é reconferido (§7.4) e volta a pronto com tarefa nova.",
+  "secoes_semantica": [
+    "§8.1",
+    "§9.4",
+    "§11.2"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T009"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T009",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T009",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "OneFlow sem uma nota de R$ 50,00",
+      "corpo": {
+        "titular_id": "T009",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 4995000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T009",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "E01 diverge (CF-01, B) e segura a apuração",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "divergente"
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "override",
+      "titular_id": "T009",
+      "competencia": "202609",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "ok"
+      },
+      "espera": {
+        "status": 422
+      },
+      "descricao": "motivo curto demais"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T999",
+      "competencia": "202609",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 404
+      },
+      "descricao": "caso inexistente"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T009",
+      "competencia": "202609",
+      "tipo": "E02",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 409
+      },
+      "descricao": "entregável não está divergente"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T009",
+      "competencia": "202609",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-04",
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 409
+      },
+      "descricao": "CF sem conferência no entregável"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T009",
+      "competencia": "202609",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 200
+      },
+      "descricao": "coordenação aceita a divergência com motivo"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T009",
+      "competencia": "202609",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 409
+      },
+      "descricao": "override repetido"
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "override libera o E01 e a apuração",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:B"
+            ],
+            "override": [
+              0
+            ]
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:override"
+            ]
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "OneFlow sincroniza a nota que faltava",
+      "corpo": {
+        "titular_id": "T009",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente",
+              "validado",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "invalidado",
+              "aguardando_insumo",
+              "pronto"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:B",
+              "ok:B"
+            ],
+            "override": [
+              0
+            ]
+          }
+        ],
+        "conferencias_total": 2,
+        "excecoes": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:override"
+            ]
+          }
+        ],
+        "excecoes_total": 1,
+        "tarefas_abertas": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 4
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "insumos.completos",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "conferencia.override",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T009",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,716 @@
+{
+  "id": "C5",
+  "fase": 2,
+  "nome": "R7: alteração retroativa em competência encerrada",
+  "descricao": "Lucro Presumido. Julho (1º mês do trimestre) fecha e encerra. Setembro (3º mês) apura usando os IRPJ de julho e agosto. Uma equiparação com vigência retroativa muda o IRPJ de julho: o caso de julho não reabre nem muda nenhum estado, só ganha a exceção competencia_encerrada (em produção, o gatilho do serviço retroativo S10); o caso de setembro, aberto, tem a apuração invalidada porque usou o IRPJ de julho como entrada.",
+  "secoes_semantica": [
+    "§7.1",
+    "§9.4",
+    "§11.1",
+    "§11.2",
+    "§11.3"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T006"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202607",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T006",
+            "regime": "LP",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-03",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 12000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 12000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T006",
+      "competencia": "202607",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "IRPJ",
+            "valor_centavos": 150000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 90000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 60000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DCTFWEB",
+        "payload": {
+          "numero_recibo": "D-0607"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 150000,
+        "payload": {
+          "competencia_impressa": "202607",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "payload": {
+          "canal": "nibo"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "guia_paga",
+        "fonte": "banco",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 150000,
+        "payload": {
+          "pago_em": "2026-08-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "julho encerrado (LP, 1º mês do trimestre)",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "estado": "encerrado"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T006",
+            "regime": "LP",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-03",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 13000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 13000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202608",
+        "tipo": "apurado",
+        "fonte": "intranet-legado",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 155000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T006",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "IRPJ",
+            "valor_centavos": 160000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "setembro com a apuração validada, usando julho e agosto",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "equiparação hospitalar com vigência retroativa reduz o IRPJ de julho",
+      "corpo": {
+        "titular_id": "T006",
+        "competencia": "202607",
+        "tipo": "apurado",
+        "fonte": "equiparacao",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRPJ",
+        "valor_centavos": 90000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "julho não reabre; setembro, que usa julho, volta para o analista",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "estado": "encerrado"
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "entregavel": null,
+            "tipo": "competencia_encerrada",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T006",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "IRPJ",
+            "valor_centavos": 160000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "estado": "encerrado"
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E11",
+            "estado": "pago",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado",
+              "pago"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E04",
+            "cf": "CF-07",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E10",
+            "cf": "CF-12",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E11",
+            "cf": "CF-05",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "E11",
+            "cf": "CF-06",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultado": "ok",
+            "quantidade": 1
+          }
+        ],
+        "conferencias_total": 6,
+        "excecoes": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "entregavel": null,
+            "tipo": "competencia_encerrada",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "excecoes_total": 1,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "tipo": "apurado",
+            "tributo": "IRPJ",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202608",
+            "tipo": "apurado",
+            "tributo": "IRPJ",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "tipo": "apurado",
+            "tributo": "IRPJ",
+            "versoes": 1
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "nome": "fato.publicado",
+            "quantidade": 9
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "nome": "excecao.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202607",
+            "nome": "entregavel.invalidado",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 3
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T006",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}

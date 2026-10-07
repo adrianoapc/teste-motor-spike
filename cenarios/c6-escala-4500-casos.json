@@ -1,0 +1,61 @@
+{
+  "id": "C6",
+  "fase": 3,
+  "nome": "Escala: 4.500 casos no dia 1 e 300 guias em lote",
+  "descricao": "Massa sintética determinística (massa/gerar_massa_sintetica.py, semente 20261006): abre 4.500 casos em lotes de 500 (limite total de 300 s) e publica 300 guias de INSS com 20 requisições simultâneas (p95 abaixo de 30 s). Confere totais, as invariantes e o tempo das consultas de indicador (I1–I5 abaixo de 2 s) com esse volume.",
+  "secoes_semantica": [
+    "§5",
+    "§6",
+    "§13"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [],
+  "passos": [
+    {
+      "acao": "abrir_massa",
+      "massa": {
+        "empresas": 4500,
+        "competencia": "202609",
+        "semente": 20261006
+      },
+      "lote": 500,
+      "espera": {
+        "criados": 4500,
+        "limite_segundos": 300
+      }
+    },
+    {
+      "acao": "publicar_lote",
+      "massa": {
+        "empresas": 4500,
+        "competencia": "202609",
+        "semente": 20261006
+      },
+      "origem": "guias_dctfweb",
+      "concorrencia": 20,
+      "espera": {
+        "p95_segundos": 30,
+        "limite_segundos": 600
+      }
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos_total": 4500,
+        "entregaveis_total": 40306,
+        "fatos_total": [
+          {
+            "tipo": "guia",
+            "tributo": "INSS",
+            "quantidade": 300
+          }
+        ]
+      }
+    }
+  ]
+}

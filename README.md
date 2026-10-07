@@ -30,14 +30,22 @@ pip install -r verificador/requirements.txt
 
 python verificador/verificador.py --api http://localhost:8081 \
   --db postgresql://spike:spike@localhost:5432/spike_dotnet \
-  --todos cenarios --limpar --relatorio resultado-dotnet.json
+  --todos cenarios --fase 2 --limpar --relatorio resultado-dotnet.json
 
 python verificador/verificador.py --api http://localhost:8082 \
   --db postgresql://spike:spike@localhost:5432/spike_python \
-  --todos cenarios --limpar --relatorio resultado-python.json
+  --todos cenarios --fase 2 --limpar --relatorio resultado-python.json
 ```
 
-O verificador chama a API de cada cenário, confere o banco, checa 9 invariantes (transições, versões de fatos, eventos, conferências) e mede as 5 consultas de indicador.
+O verificador chama a API de cada cenário, confere o banco, checa 13 invariantes (transições, versões de fatos, eventos, conferências, exceções, tarefas, override) e mede as 5 consultas de indicador. `--fase N` roda as fases 1 a N.
+
+| Fase | Cenários | O que cobre |
+|---|---|---|
+| 1 | C1, C7 | Caminho feliz do Simples com folha; LP no 3º mês até a apuração |
+| 2 | C2, C3, C4, C5, C8, C9 | Invalidação e cascata, exceções, competência encerrada, override, encerramento do LP |
+| 3 | C6 | Escala: 4.500 casos e 300 guias em lote |
+
+Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gerados por `cenarios/fonte/gerar_cenarios.py`.
 
 ## O que tem aqui
 
@@ -47,7 +55,7 @@ O verificador chama a API de cada cenário, confere o banco, checa 9 invariantes
 | `contrato/openapi.yaml` | API idêntica nas duas spikes | Só o Adriano |
 | `docs/semantica-do-motor.md` | **O que** o motor faz. Fonte da verdade | Só o Adriano |
 | `docs/regras-do-jogo.md` | Como as spikes são comparadas | Só o Adriano |
-| `cenarios/` | C1 (Simples com folha, ponta a ponta) e C7 (Presumido, 3º mês do trimestre) | Só o Adriano |
+| `cenarios/` | C1 a C9, em três fases (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
 | `verificador/` | Juiz comum | Só o Adriano |
 | `massa/` | Massa sintética para o cenário de escala | Só o Adriano |
 | `anonimizacao/` | Anonimização local de amostras reais (roda só no Mac) | Só o Adriano |

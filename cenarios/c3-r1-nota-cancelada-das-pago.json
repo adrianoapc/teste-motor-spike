@@ -1,0 +1,826 @@
+{
+  "id": "C3",
+  "fase": 2,
+  "nome": "R1: nota cancelada depois da apuração, com DAS já pago",
+  "descricao": "Simples sem folha. Depois de o DAS ser pago (e antes do recibo do PGDAS-D), uma nota é cancelada. O faturamento novo invalida o E01 e, em cascata, E03 e E04; o E11 pago ganha exceção de diferença paga. O E01 diverge do OneFlow até ele sincronizar. O analista refaz a apuração (a nova versão do apurado não invalida o próprio E03, §8 item 4). A divisão antiga diverge (B); a refeita tem 1 centavo de diferença (A) e não bloqueia. O recibo encerra o caso com a diferença paga ainda aberta.",
+  "secoes_semantica": [
+    "§8",
+    "§9.2",
+    "§9.3",
+    "§9.4",
+    "§11.1",
+    "§11.2"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T004"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T004",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T004",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 600000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 360000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 240000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 600000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "nibo"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "guia_paga",
+        "fonte": "banco",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 600000,
+        "payload": {
+          "pago_em": "2026-10-15"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "DAS pago, caso aberto esperando o recibo do PGDAS-D",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E05"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E06"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E07"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E08"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "nota de R$ 5.000,00 cancelada: faturamento do mês cai",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 9500000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "cancelamento: E01 diverge do OneFlow, cascata invalida E03 e E04, DAS pago vira exceção de diferença",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "divergente"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "diferenca_paga",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "excecoes_total": 2,
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "OneFlow sincroniza o cancelamento",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 9500000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "insumos batem de novo; apuração volta para o analista",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T004",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 570000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "nova apuração: divisão antiga não fecha com o DAS novo",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "divergente"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E04",
+            "tipo": "CF-07",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "S"
+          }
+        ],
+        "fatos": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "apurado",
+            "tributo": "DAS",
+            "versoes": 2
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "divisão refeita com 1 centavo de arredondamento: divergência A, não bloqueia",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 342000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 228001
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T004",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-0004"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "invalidado",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "invalidado",
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "invalidado",
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado",
+              "pago"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "ok:B",
+              "divergente:B",
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E03",
+            "cf": "CF-04",
+            "resultados": [
+              "ok:B",
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E04",
+            "cf": "CF-07",
+            "resultados": [
+              "ok:B",
+              "divergente:B",
+              "divergente:A"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E10",
+            "cf": "CF-12",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-05",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-06",
+            "resultado": "ok",
+            "quantidade": 1
+          }
+        ],
+        "conferencias_total": 11,
+        "excecoes": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "diferenca_paga",
+            "estados": [
+              "aberta:"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "entregavel": "E04",
+            "tipo": "CF-07",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          }
+        ],
+        "excecoes_total": 3,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "faturamento_mes",
+            "tributo": "",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "apurado",
+            "tributo": "DAS",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "divisao_socios",
+            "tributo": "",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "versoes": 1
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 13
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "insumos.completos",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "guias.validadas",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "guia.paga",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 3
+          },
+          {
+            "titular_id": "T004",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 5
+          }
+        ]
+      }
+    }
+  ]
+}

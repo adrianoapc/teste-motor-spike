@@ -1,0 +1,633 @@
+{
+  "id": "C4",
+  "fase": 2,
+  "nome": "R6: guia retificada duas vezes",
+  "descricao": "Simples sem folha. A guia do DAS chega três vezes: valor errado (CF-05 diverge), valor certo com competência impressa errada (CF-06 diverge), e correta. Cada versão invalida o E11 e resolve a exceção da versão anterior; só a última vale e nenhuma versão é apagada. Reenviar a mesma guia não muda nada. Substitui a volta H do as-is (exclusão manual de guia por guia).",
+  "secoes_semantica": [
+    "§6",
+    "§9.1",
+    "§9.4",
+    "§11.2"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v1",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T005"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T005",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T005",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 180000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 120000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-0005"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "guia salva com valor errado (R$ 300,00 em vez de R$ 3.000,00)",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 30000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "guia v1: valor não bate com o apurado",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "divergente"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "CF-05",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "retificação 1: valor certo, mas salva com a competência anterior impressa",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202608",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "guia v2: valor certo, competência errada",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "divergente"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "CF-05",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "CF-06",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "retificação 2: guia correta",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "mesma guia salva de novo pelo operacional: não muda nada",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "guia v3 vale; nada foi apagado",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          }
+        ],
+        "excecoes_abertas": 0,
+        "fatos": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "versoes": 3
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "nibo"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T005",
+        "competencia": "202609",
+        "tipo": "guia_paga",
+        "fonte": "banco",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "pago_em": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "pago",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado",
+              "pago"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E03",
+            "cf": "CF-04",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E04",
+            "cf": "CF-07",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E10",
+            "cf": "CF-12",
+            "resultado": "ok",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-05",
+            "resultados": [
+              "divergente:B",
+              "ok:B",
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "E11",
+            "cf": "CF-06",
+            "resultados": [
+              "ok:B",
+              "divergente:B",
+              "ok:B"
+            ]
+          }
+        ],
+        "conferencias_total": 10,
+        "excecoes": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "CF-05",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "CF-06",
+            "estados": [
+              "resolvida:fato_alterado"
+            ]
+          }
+        ],
+        "excecoes_total": 2,
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "versoes": 3
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 11
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "insumos.completos",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "apuracao.concluida",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "guias.validadas",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "guia.paga",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T005",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 2
+          }
+        ]
+      }
+    }
+  ]
+}

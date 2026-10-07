@@ -16,7 +16,7 @@ inclusion: always
 | Hash | SHA-256 hexadecimal minúsculo de JSON canônico (chaves em ordem ordinal, sem espaços, UTF-8 sem escape) |
 | Arredondamento | Meio para o par, só com inteiros |
 | Testes de integração | Contra um Postgres com as migrações aplicadas (`db/scripts/migrar.sh <banco>`) |
-| Verificador | `python verificador/verificador.py --api http://localhost:<porta> --db <dsn> --todos cenarios --limpar` |
+| Verificador | `python verificador/verificador.py --api http://localhost:<porta> --db <dsn> --todos cenarios --fase <N> --limpar` (roda as fases 1..N) |
 
 ## Como subir
 

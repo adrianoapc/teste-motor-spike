@@ -1,7 +1,16 @@
 {
   "id": "C7",
+  "fase": 1,
   "nome": "Lucro Presumido, 3º mês do trimestre",
-  "descricao": "Empresa do Lucro Presumido na competência 09 (3º mês do trimestre). A apuração (E03) só fica pronta quando existirem os apurados de IRPJ das competências 07 e 08. Testa entrada com competência relativa, reavaliação disparada por fato de outra competência, e que E02/E06/E07/E08 não existem para essa empresa.",
+  "descricao": "Empresa do Lucro Presumido na competência 09 (3º mês do trimestre). A apuração (E03) só fica pronta quando existirem os apurados de IRPJ das competências 07 e 08. Testa entrada com competência relativa, reavaliação disparada por fato de outra competência, e que E02/E06/E07/E08 não existem para essa empresa. Para na conclusão do E03; o encerramento do LP está no C8.",
+  "secoes_semantica": [
+    "§3",
+    "§5",
+    "§6",
+    "§7.1",
+    "§7.2",
+    "§8"
+  ],
   "regras_usadas": [
     "fechamento.entregaveis v1",
     "fiscal.tolerancia v1"
