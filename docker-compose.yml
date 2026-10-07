@@ -1,11 +1,11 @@
 # Base comum do spike do motor do fechamento.
-# Sobe o Postgres (com um banco por spike), o MinIO e aplica as migrações.
+# Sobe o Postgres (com um banco por spike), o emulador de GCS (fake-gcs-server) e aplica as migrações.
 #   docker compose up -d                      # base
 #   docker compose --profile dotnet up -d     # base + spike .NET  (porta 8081)
 #   docker compose --profile python up -d     # base + spike Python (porta 8082)
 # Só localhost. Nada é exposto para a rede.
 
-name: rissi-motor-spike
+name: teste-motor-spike
 
 services:
   postgres:
@@ -39,17 +39,13 @@ services:
     entrypoint: ["/bin/sh", "-c", "/db/scripts/migrar.sh spike_dotnet && /db/scripts/migrar.sh spike_python"]
     restart: "no"
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: spike
-      MINIO_ROOT_PASSWORD: spike-spike
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    command: ["-scheme", "http", "-port", "4443", "-public-host", "localhost:4443", "-filesystem-root", "/storage"]
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:4443:4443"
     volumes:
-      - miniodata:/data
+      - gcsdata:/storage
 
   spike-dotnet:
     profiles: ["dotnet"]
@@ -75,4 +71,4 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  gcsdata:
