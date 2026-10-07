@@ -48,6 +48,7 @@ CONSULTAS_INDICADORES = {
     "I3": "SELECT * FROM indicadores.i3_excecoes_por_tipo",
     "I4": "SELECT * FROM indicadores.i4_acerto_de_primeira",
     "I5": "SELECT * FROM indicadores.i5_entregaveis_travados WHERE dias_parado >= 0",
+    "I6": "SELECT * FROM indicadores.i6_protocolo_e_recebimento",
 }
 LIMITE_INDICADOR_S = 2.0
 
@@ -95,7 +96,9 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
 
     for c in esp.get("casos", []):
         cur.execute(
-            "SELECT estado FROM fechamento.caso_competencia WHERE titular_id = %s AND competencia = %s",
+            """SELECT c.estado, v.versao AS regra_versao FROM fechamento.caso_competencia c
+               LEFT JOIN regras.regra_versao v ON v.id = c.regra_entregaveis_versao_id
+               WHERE c.titular_id = %s AND c.competencia = %s""",
             (c["titular_id"], c["competencia"]),
         )
         row = cur.fetchone()
@@ -103,6 +106,9 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
         if row:
             r.checar(row["estado"] == c["estado"],
                      f"[{rotulo}] caso {c['titular_id']}/{c['competencia']}: estado {row['estado']!r}, esperado {c['estado']!r}")
+            if "regra_entregaveis_versao" in c:
+                r.checar(row["regra_versao"] == c["regra_entregaveis_versao"],
+                         f"[{rotulo}] caso {c['titular_id']}/{c['competencia']}: usa fechamento.entregaveis v{row['regra_versao']}, esperado v{c['regra_entregaveis_versao']}")
 
     for e in esp.get("entregaveis", []):
         cur.execute(
@@ -264,7 +270,7 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
 
 
 def verificar_invariantes(conn: psycopg.Connection, r: Resultado) -> None:
-    """Invariantes que valem para qualquer cenário (semântica §4.1, §6, §9.2, §12)."""
+    """Invariantes que valem para qualquer cenário (semântica v3 §4.1, §6, §9.2, §10, §12)."""
     cur = conn.cursor(row_factory=dict_row)
 
     # INV-1: a última transição de cada entregável bate com o estado atual
@@ -397,11 +403,31 @@ def verificar_invariantes(conn: psycopg.Connection, r: Resultado) -> None:
     for x in cur.fetchall():
         r.checar(False, f"[INV-13] transição {x['id']} para 'invalidado' sem motivo fato_alterado/causado_por fato")
     r.checagens += 1
+
+    # INV-14: protocolo leva a guia (semântica v3 §10.1, §15): documento.disponibilizado com fato_id de uma guia
+    cur.execute("""
+        SELECT ev.id FROM eventos.evento ev
+        WHERE ev.nome = 'documento.disponibilizado'
+          AND NOT EXISTS (SELECT 1 FROM fatos.fato f
+                          WHERE f.id::text = ev.payload->>'fato_id' AND f.tipo = 'guia')""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-14] evento documento.disponibilizado {x['id']} sem fato_id de guia")
+    r.checagens += 1
+
+    # INV-15: caso encerrado não muda (v3 §10.2, §10.3, §11.3): nenhuma transição depois da de encerramento
+    cur.execute("""
+        SELECT t.id, t.caso_id FROM fechamento.entregavel_transicao t
+        JOIN (SELECT caso_id, min(id) AS enc FROM fechamento.entregavel_transicao
+              WHERE para_estado = 'encerrado' GROUP BY caso_id) e ON e.caso_id = t.caso_id
+        WHERE t.id > e.enc""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-15] transição {x['id']} no caso {x['caso_id']} depois do encerramento")
+    r.checagens += 1
     cur.close()
 
 
 def medir_indicadores(conn: psycopg.Connection, r: Resultado) -> None:
-    """Atualiza estatísticas (como o autovacuum faria) e mede I1–I5."""
+    """Atualiza estatísticas (como o autovacuum faria) e mede I1–I6."""
     with conn.cursor() as cur:
         for tabela in TABELAS_EXECUCAO:
             cur.execute(f"ANALYZE {tabela}")
@@ -609,7 +635,7 @@ def main() -> int:
     ap.add_argument("--fase", type=int, help="roda só cenários das fases 1..N (padrão: todos)")
     args = ap.parse_args()
 
-    arquivos = [args.cenario] if args.cenario else sorted(args.todos.glob("c*.json"))
+    arquivos = [args.cenario] if args.cenario else sorted(args.todos.glob("c*.json"), key=lambda a: int(a.name[1:].split("-")[0]))
     if args.fase is not None:
         arquivos = [a for a in arquivos
                     if json.loads(a.read_text(encoding="utf-8")).get("fase", 1) <= args.fase]

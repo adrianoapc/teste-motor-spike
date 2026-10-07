@@ -2,7 +2,7 @@
   "id": "C8",
   "fase": 2,
   "nome": "Lucro Presumido, 3º mês, até o encerramento",
-  "descricao": "Continua o C7 até o caso encerrar: divisão por sócio sobre o IRPJ (CF-07), recibo de DCTFWeb (CF-12), guia de IRPJ (CF-05 e CF-06), entrega, pagamento e E12. Cobre o caminho de encerramento do LP que o C7 não exercita (observação de 07/10). Um recibo de PGDAS-D publicado por engano para empresa LP é gravado e não afeta nada.",
+  "descricao": "Continua o C7 até o caso encerrar: divisão por sócio sobre o IRPJ (CF-07), recibo de DCTFWeb (CF-12), guia de IRPJ (CF-05 e CF-06), protocolo de entrega e E12. Cobre o caminho de encerramento do LP que o C7 não exercita (observação de 07/10). Um recibo de PGDAS-D publicado por engano para empresa LP é gravado e não afeta nada.",
   "secoes_semantica": [
     "§7.1",
     "§9.1",
@@ -10,7 +10,7 @@
     "§10.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v1",
+    "fechamento.entregaveis v2",
     "fiscal.tolerancia v1"
   ],
   "titulares": [
@@ -339,24 +339,6 @@
       }
     },
     {
-      "acao": "publicar_fato",
-      "corpo": {
-        "titular_id": "T008",
-        "competencia": "202609",
-        "tipo": "guia_paga",
-        "fonte": "banco",
-        "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "IRPJ",
-        "valor_centavos": 160000,
-        "payload": {
-          "pago_em": "2026-10-30"
-        }
-      },
-      "espera": {
-        "efeito": "novo"
-      }
-    },
-    {
       "acao": "aguardar_fila"
     },
     {
@@ -424,15 +406,14 @@
             "titular_id": "T008",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago",
+            "estado": "disponibilizado",
             "transicoes": [
               "aguardando_insumo",
               "pronto",
               "processado",
               "validado",
               "liberado",
-              "disponibilizado",
-              "pago"
+              "disponibilizado"
             ]
           },
           {
@@ -532,7 +513,7 @@
             "titular_id": "T008",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 9
+            "quantidade": 8
           },
           {
             "titular_id": "T008",
@@ -562,7 +543,7 @@
             "titular_id": "T008",
             "competencia": "202609",
             "nome": "guia.paga",
-            "quantidade": 1
+            "quantidade": 0
           },
           {
             "titular_id": "T008",

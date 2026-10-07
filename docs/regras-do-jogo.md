@@ -21,13 +21,13 @@ Se uma spike achar erro na base comum, ela **para** e registra em `DUVIDAS.md`. 
 | # | Critério | Como medir | Onde fica |
 |---|---|---|---|
 | 1 | Correção | Verificador com `--fase N` (regressão das fases anteriores incluída) | saída do verificador (`--relatorio`) |
-| 2 | Invariantes | INV-1 a INV-13 do verificador | idem |
-| 3 | Indicadores | I1–I5 rodam em < 2 s | idem |
+| 2 | Invariantes | INV-1 a INV-15 do verificador | idem |
+| 3 | Indicadores | I1–I6 rodam em < 2 s | idem |
 | 4 | Tamanho | Linhas de código e arquivos por camada, sem testes e sem arquivos gerados | `METRICAS.md` |
 | 5 | Rede de proteção | Erros barrados pelo compilador ou mypy antes de teste | `REGISTRO-COMPILADOR.md` |
 | 6 | Esforço do agente | Tarefas concluídas, retrabalhos, intervenções humanas, tempo de relógio | `METRICAS.md` |
 | 7 | Dúvidas | Quantas e de que tipo; quantas viraram invenção sem registro (avaliado na revisão) | `DUVIDAS.md` e revisão |
-| 8 | Manutenção | A fase 2 já é um teste de manutenção: a semântica v2 muda regras sobre código pronto (§7.4, §8 item 4, §9.1 CF-09). Medir retrabalho e tempo da fase 2 em separado | `METRICAS.md` (seção Fase 2) |
+| 8 | Manutenção | A fase 2 é um teste de manutenção em duas camadas: a semântica v2 muda regras sobre código pronto (§7.4, §8 item 4, §9.1 CF-09) e a **v3 muda o domínio** (fim no protocolo, estado `pago` aposentado, regra trocada de versão pela V006). Medir retrabalho e tempo da fase 2 em separado, e a tarefa 11 (v3) à parte | `METRICAS.md` (seção Fase 2) |
 | 9 | Imagem | Tamanho da imagem e tempo de subida até `/health` responder | `METRICAS.md` |
 | 10 | Escala | Cenário C6 (fase 3), uma spike de cada vez | relatório do verificador |
 

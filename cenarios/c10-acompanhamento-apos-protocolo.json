@@ -1,0 +1,781 @@
+{
+  "id": "C10",
+  "fase": 2,
+  "nome": "Acompanhamento depois do protocolo",
+  "descricao": "Simples sem folha. O caso encerra no protocolo (e-mail disparado), sem esperar leitura nem pagamento. Depois do encerramento, o e-mail volta: abre exceção entrega_falhou com dono, sem reabrir o caso e sem nenhuma transição. O agendador avisa que não houve leitura (recebimento_pendente; antes do protocolo o mesmo aviso só foi gravado). O reenvio pelo App gera novo protocolo e resolve a falha; a confirmação de leitura gera documento.recebido e resolve a pendência; um aviso de pendência posterior à confirmação não faz nada. O N dias vem do agendador, porque o motor não tem relógio.",
+  "secoes_semantica": [
+    "§6",
+    "§9.4",
+    "§10.1",
+    "§10.2",
+    "§10.3",
+    "§12",
+    "§15"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v2",
+    "fiscal.tolerancia v1"
+  ],
+  "titulares": [
+    "T010"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T010",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 6000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 6000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T010",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 360000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 360000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-0010"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "valor_centavos": 360000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "agendador dispara antes do protocolo: o fato só é gravado (§10.3, quando aplicar)",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "recebimento_pendente",
+        "fonte": "agendador",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "dias_sem_leitura": 0
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "guia liberada; pendência antecipada não abre exceção",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "estado": "aberto"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "excecoes_total": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "protocolo: e-mail disparado",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "email"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "protocolo encerra o caso",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "estado": "encerrado",
+            "regra_entregaveis_versao": 2
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "disponibilizado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "excecoes_total": 0,
+        "eventos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "e-mail voltou depois do encerramento",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "entrega_falhou",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "email",
+          "motivo": "caixa_inexistente"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "o mesmo aviso de falha chega de novo: nada muda",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "entrega_falhou",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "email",
+          "motivo": "caixa_inexistente"
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "falha depois do encerramento: exceção com dono, caso continua encerrado, nada transiciona",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "disponibilizado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "entrega_falhou",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "excecoes_total": 1
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "agendador: 5 dias sem leitura, e o fato agora é aplicado",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "recebimento_pendente",
+        "fonte": "agendador",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "dias_sem_leitura": 5
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "sem leitura: segunda exceção do acompanhamento",
+      "esperado": {
+        "excecoes": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "entrega_falhou",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "recebimento_pendente",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "excecoes_abertas": 2
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "reenvio pelo App: novo protocolo, resolve a falha",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "app"
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "reenvio resolve a falha; pendência de leitura continua",
+      "esperado": {
+        "excecoes": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "entrega_falhou",
+            "estados": [
+              "resolvida:reenviado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "recebimento_pendente",
+            "estados": [
+              "aberta:"
+            ]
+          }
+        ],
+        "excecoes_abertas": 1,
+        "eventos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "documento.recebido",
+            "quantidade": 0
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "cliente abriu pelo link da Rissi",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "entrega_confirmada",
+        "fonte": "entrega",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "app",
+          "como": "leitura_pelo_link"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "agendador roda de novo: já há confirmação, nada acontece",
+      "corpo": {
+        "titular_id": "T010",
+        "competencia": "202609",
+        "tipo": "recebimento_pendente",
+        "fonte": "agendador",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "DAS",
+        "payload": {
+          "dias_sem_leitura": 10
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "estado": "encerrado",
+            "regra_entregaveis_versao": 2
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "disponibilizado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado"
+            ]
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E05"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E06"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E07"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "E08"
+          }
+        ],
+        "conferencias_total": 6,
+        "excecoes": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "entrega_falhou",
+            "estados": [
+              "resolvida:reenviado"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "entregavel": "E11",
+            "tipo": "recebimento_pendente",
+            "estados": [
+              "resolvida:recebido"
+            ],
+            "classe": "O"
+          }
+        ],
+        "excecoes_total": 2,
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "documento_disponibilizado",
+            "tributo": "DAS",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "entrega_falhou",
+            "tributo": "DAS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "recebimento_pendente",
+            "tributo": "DAS",
+            "versoes": 3
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "tipo": "entrega_confirmada",
+            "tributo": "DAS",
+            "versoes": 1
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "competencia.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "fato.publicado",
+            "quantidade": 14
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "documento.recebido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T010",
+            "competencia": "202609",
+            "nome": "guia.paga",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}

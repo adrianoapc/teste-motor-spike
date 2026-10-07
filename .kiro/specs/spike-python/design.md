@@ -92,9 +92,8 @@ AvaliarCaso(caso):                                          # §7, §10
       senão se E = validado e item.encerra_caso:
          → encerrado (encerramento); caso encerrado; evento fechamento.concluido; parar
       senão se E = liberado e existe fato disponibilizado_quando[tributo da guia]:
-         → disponibilizado; evento documento.disponibilizado
-      senão se E = disponibilizado e existe fato pago_quando[tributo da guia]:
-         → pago; evento guia.paga
+         → disponibilizado (protocolo); evento documento.disponibilizado
+           com payload {entregavel_id, fato_id = versão vigente da guia de entrada do E11}   # v3 §10.1
 
 Conferir(E):                                                # §9
   para cada CF do item com casa(cf.quando, ctx):
@@ -119,6 +118,8 @@ Transicionar(E, para, motivo, causado_por, ator):           # §4.1
 | `observado_em` das saídas de tarefa | Instante atual do servidor |
 | Ordem de avaliação | Entregáveis em ordem de `tipo` (E01, E02, …) dentro de cada volta |
 | Erros | Corpo `{"erro": "<codigo>", "mensagem": "<texto>"}`; códigos curtos em snake_case |
+| Versão da regra | Sempre a versão **em uso** (`status IN ('provisoria','ativa')`), lida na abertura e guardada no caso. Nunca `versao = 1` no código (v3: a V006 publicou a v2) |
+| Estado `pago` | Aposentado na v3. O código não deve ter nenhum caminho para ele |
 | Hora | Sempre do banco (`now()`, `clock_timestamp()`) para gravação; nunca do relógio local para ordenar transições |
 
 ## Fase 2 · acréscimos ao fluxo
@@ -127,8 +128,21 @@ Transicionar(E, para, motivo, causado_por, ator):           # §4.1
 PublicarFato(f):                                       # §6, §11.4
   transação:
     ... grava versão; evento fato.publicado
+    e11_antes ← estado do E11 do caso (titular, competência), se existir     # v3 §10.3
     se nova_versao: Invalidar(versão anterior, fato novo, excluir = nenhum)
     para cada caso aberto do titular: AvaliarCaso(caso)
+    se gravou e e11_antes = disponibilizado: Acompanhar(caso, E11, fato, nova_versao)
+
+Acompanhar(caso, E11, f, nova_versao):                 # v3 §10.3 — caso aberto OU encerrado; nunca transiciona
+  se f.tributo ≠ tributo da guia de entrada do E11: nada
+  conforme f.tipo (nomes vêm do bloco 'acompanhamento' e de 'pos_validacao' da regra):
+    documento_disponibilizado e nova_versao:  evento documento.disponibilizado (com fato_id da guia)
+                                              resolver exceções abertas 'entrega_falhou' do E11 ('reenviado')
+    entrega_falhou:        AbrirExcecao(E11, 'entrega_falhou', classe O)
+    entrega_confirmada:    evento documento.recebido {entregavel_id}
+                           resolver abertas 'entrega_falhou' e 'recebimento_pendente' do E11 ('recebido')
+    recebimento_pendente:  se não existe fato vigente entrega_confirmada com a mesma chave:
+                               AbrirExcecao(E11, 'recebimento_pendente', classe O)
 
 ConcluirTarefa(...):                                   # §8 item 4
     para cada saída: r ← PublicarFato(sem reavaliar, excluir = este entregável)
@@ -147,7 +161,6 @@ Invalidar(anterior, novo, excluir):                    # §11
           se veio de divergente: resolver exceções CF- de E ('fato_alterado')
           fila += dependentes de E (em ordem de tipo)
       senão se disponibilizado: AbrirExcecao(E, 'substituicao')
-      senão se pago:            AbrirExcecao(E, 'diferenca_paga')
 
 AbrirExcecao(...):                                     # §9.4
   se já existe aberta do mesmo tipo (no entregável, ou no caso sem entregável): não faz nada

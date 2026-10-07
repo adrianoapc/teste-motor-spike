@@ -10,7 +10,7 @@
     "§11.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v1",
+    "fechamento.entregaveis v2",
     "fiscal.tolerancia v1"
   ],
   "titulares": [
@@ -340,24 +340,6 @@
       }
     },
     {
-      "acao": "publicar_fato",
-      "corpo": {
-        "titular_id": "T005",
-        "competencia": "202609",
-        "tipo": "guia_paga",
-        "fonte": "banco",
-        "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "DAS",
-        "valor_centavos": 300000,
-        "payload": {
-          "pago_em": "2026-10-20"
-        }
-      },
-      "espera": {
-        "efeito": "novo"
-      }
-    },
-    {
       "acao": "aguardar_fila"
     },
     {
@@ -437,7 +419,7 @@
             "titular_id": "T005",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago",
+            "estado": "disponibilizado",
             "transicoes": [
               "aguardando_insumo",
               "pronto",
@@ -452,8 +434,7 @@
               "processado",
               "validado",
               "liberado",
-              "disponibilizado",
-              "pago"
+              "disponibilizado"
             ]
           },
           {
@@ -570,7 +551,7 @@
             "titular_id": "T005",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 11
+            "quantidade": 10
           },
           {
             "titular_id": "T005",
@@ -600,7 +581,7 @@
             "titular_id": "T005",
             "competencia": "202609",
             "nome": "guia.paga",
-            "quantidade": 1
+            "quantidade": 0
           },
           {
             "titular_id": "T005",

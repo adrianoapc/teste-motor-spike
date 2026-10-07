@@ -37,12 +37,12 @@ python verificador/verificador.py --api http://localhost:8082 \
   --todos cenarios --fase 2 --limpar --relatorio resultado-python.json
 ```
 
-O verificador chama a API de cada cenário, confere o banco, checa 13 invariantes (transições, versões de fatos, eventos, conferências, exceções, tarefas, override) e mede as 5 consultas de indicador. `--fase N` roda as fases 1 a N.
+O verificador chama a API de cada cenário, confere o banco, checa 15 invariantes (transições, versões de fatos, eventos, conferências, exceções, tarefas, override, protocolo com a guia, caso encerrado imutável) e mede as 6 consultas de indicador. `--fase N` roda as fases 1 a N.
 
 | Fase | Cenários | O que cobre |
 |---|---|---|
 | 1 | C1, C7 | Caminho feliz do Simples com folha; LP no 3º mês até a apuração |
-| 2 | C2, C3, C4, C5, C8, C9 | Invalidação e cascata, exceções, competência encerrada, override, encerramento do LP |
+| 2 | C2, C3, C4, C5, C8, C9, C10 | Invalidação e cascata, exceções, competência encerrada, override, encerramento do LP, acompanhamento depois do protocolo |
 | 3 | C6 | Escala: 4.500 casos e 300 guias em lote |
 
 Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gerados por `cenarios/fonte/gerar_cenarios.py`.
@@ -51,11 +51,11 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 
 | Pasta | O quê | Quem altera |
 |---|---|---|
-| `db/` | Esquema (V001–V005), regras **provisórias**, script de migração | Só o Adriano |
+| `db/` | Esquema (V001–V006), regras **provisórias**, script de migração | Só o Adriano |
 | `contrato/openapi.yaml` | API idêntica nas duas spikes | Só o Adriano |
 | `docs/semantica-do-motor.md` | **O que** o motor faz. Fonte da verdade | Só o Adriano |
 | `docs/regras-do-jogo.md` | Como as spikes são comparadas | Só o Adriano |
-| `cenarios/` | C1 a C9, em três fases (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
+| `cenarios/` | C1 a C10, em três fases (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
 | `verificador/` | Juiz comum | Só o Adriano |
 | `massa/` | Massa sintética para o cenário de escala | Só o Adriano |
 | `anonimizacao/` | Anonimização local de amostras reais (roda só no Mac) | Só o Adriano |
@@ -76,6 +76,8 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 - Amostra real só entra depois de passar por `anonimizacao/anonimizar.py`, no Mac. A pasta `dados-anon/` e a chave de anonimização **nunca** vão para o Git (`.gitignore`).
 
 ## Estado
+
+- **07/10/2026, semântica v3:** o fechamento termina no **protocolo de entrega** (pacote disponibilizado no App ou disparado por e-mail). O pagamento da guia saiu do fechamento e virou sinal para a Regularidade Fiscal. A V006 aposenta o estado `pago` e troca a regra `fechamento.entregaveis` para a v2. Falha de envio, leitura e falta de leitura depois do protocolo viram exceção com dono, sem reabrir o caso (C10).
 
 - Base comum validada contra Postgres 16 e contra uma implementação de referência mínima (fora deste repositório): C1 e C7 passam, e o verificador reprova estados errados, transições proibidas e eventos com dado indevido.
 - Regras de negócio **provisórias**: R-01 a R-07 ainda não validadas com Fiscal e DP.

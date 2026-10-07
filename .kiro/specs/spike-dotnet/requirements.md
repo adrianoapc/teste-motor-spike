@@ -122,7 +122,9 @@ Tudo das fases 2 e 3 abaixo.
 
 ## Fase 2 · invalidação, exceções e override
 
-**Escopo:** cenários **C2, C3, C4, C5, C8 e C9** (`"fase": 2`). Semântica **v2** (`docs/semantica-do-motor.md`): §7.4, §8 (item 4), §8.1, §9.1 (CF-09), §9.4, §11 e §12. Antes de começar: `git merge origin/main` na branch da spike.
+**Escopo:** cenários **C2, C3, C4, C5, C8, C9 e C10** (`"fase": 2`). Semântica **v3** (`docs/semantica-do-motor.md`): §7.4, §8 (item 4), §8.1, §9.1 (CF-09), §9.4, §10 (protocolo e acompanhamento), §11, §12 e §15. Antes de começar: `git merge origin/main` na branch da spike (traz a migração **V006**, que aposenta o estado `pago` e troca a regra `fechamento.entregaveis` para a v2).
+
+> **Mudança de domínio de 07/10/2026 (v3).** O pagamento da guia não é parte do fechamento. O fechamento termina no **protocolo de entrega** (E11 em `disponibilizado`). Depois do merge, o C1 da fase 1 deixa de passar até o Requisito 20 estar feito: isso é esperado e faz parte da medição de manutenção.
 
 ### Requisito 13 · Reavaliação em passos (§7.4)
 
@@ -134,7 +136,7 @@ Tudo das fases 2 e 3 abaixo.
 
 1. QUANDO um fato ganhar `nova_versao`, ENTÃO O SISTEMA DEVE aplicar §11 na mesma transação, antes da reavaliação (§11.4).
 2. As sementes DEVEM ser os entregáveis com a versão anterior em `entregavel_fato` (qualquer papel), exceto o entregável que está sendo concluído em `ConcluirTarefa` (§8, item 4).
-3. Em caso aberto, O SISTEMA DEVE aplicar a tabela de §11.2: `invalidado` (com evento, cancelamento da tarefa aberta e resolução das exceções `CF-` se vinha de `divergente`), `substituicao` para `disponibilizado`, `diferenca_paga` para `pago`, nada para os demais.
+3. Em caso aberto, O SISTEMA DEVE aplicar a tabela de §11.2: `invalidado` (com evento, cancelamento da tarefa aberta e resolução das exceções `CF-` se vinha de `divergente`), `substituicao` para `disponibilizado`, nada para os demais (v3: não existe mais `pago` nem `diferenca_paga`).
 4. A cascata DEVE seguir só a partir de quem foi para `invalidado`, tratando cada entregável no máximo uma vez por publicação.
 5. Em caso encerrado, O SISTEMA NÃO DEVE mudar nenhum estado e DEVE abrir uma exceção `competencia_encerrada` sem entregável (§11.3).
 6. Toda transição para `invalidado` DEVE ter `motivo = 'fato_alterado'` e `causado_por_tipo = 'fato'`. *Verificador: INV-13.*
@@ -145,7 +147,7 @@ Tudo das fases 2 e 3 abaixo.
 1. O SISTEMA NÃO DEVE abrir exceção de um tipo para um entregável que já tenha exceção **aberta** do mesmo tipo (ou, sem entregável, para o mesmo caso). *Verificador: INV-10.*
 2. Ao sair de `divergente` para `invalidado`, as exceções abertas `CF-` do entregável DEVEM virar `resolvida` com `resolucao = 'fato_alterado'`.
 3. Divergência de severidade `A` NÃO DEVE abrir exceção nem bloquear. *Verificador: C3, CF-07 `divergente:A`.*
-4. `substituicao`, `diferenca_paga` e `competencia_encerrada` ficam abertas e NÃO DEVEM impedir o encerramento.
+4. `substituicao` e `competencia_encerrada` ficam abertas e NÃO DEVEM impedir o encerramento.
 
 ### Requisito 16 · Override (§8.1)
 
@@ -158,9 +160,20 @@ Tudo das fases 2 e 3 abaixo.
 1. CF-09 DEVE gravar em `esperado_centavos`/`obtido_centavos` o par do tributo de maior diferença; empate: INSS (§9.1).
 2. Em `ConcluirTarefa`, uma saída com efeito `sem_mudanca` DEVE ser ligada como `saida` à versão vigente (§8, item 4). *Verificador: C2 e C5 (segunda conclusão).*
 
+### Requisito 20 · Protocolo de entrega e acompanhamento (v3: §2, §4, §10, §12, §15)
+
+1. O SISTEMA DEVE ler a versão **em uso** de cada regra pelo `status` (§2). Código que fixe `versao = 1` está errado. *Verificador: `regra_entregaveis_versao: 2` em C1 e C10; INV-6.*
+2. O SISTEMA NÃO DEVE levar nenhum entregável ao estado `pago` (aposentado) nem emitir `guia.paga`. *Verificador: INV-2 e contagem `guia.paga = 0`.*
+3. O evento `documento.disponibilizado` DEVE levar `{"entregavel_id", "fato_id"}`, com `fato_id` = versão vigente da guia de entrada do E11 (§10.1). *Verificador: INV-14.*
+4. O E12 DEVE encerrar o caso quando o E11 chegar a `disponibilizado` e os demais a `validado` (a dependência vem da regra v2; não codificar). *Verificador: C1, C2, C3, C4, C5, C8, C10.*
+5. QUANDO um fato `entrega_falhou`, `entrega_confirmada`, `recebimento_pendente` ou uma nova versão de `documento_disponibilizado` for gravado E o E11 do caso já estava em `disponibilizado`, ENTÃO O SISTEMA DEVE aplicar a tabela de §10.3, **inclusive em caso encerrado**, sem nenhuma transição.
+6. Depois do encerramento, NENHUMA transição DEVE ser gravada em entregável do caso. *Verificador: INV-15.*
+7. Fato do §10.3 que chega antes do protocolo, ou com efeito `sem_mudanca`, só é gravado. *Verificador: C10.*
+8. `recebimento_pendente` só abre exceção se não houver fato vigente `entrega_confirmada` com a mesma chave. O motor não calcula "N dias": quem publica o fato é o agendador. *Verificador: C10.*
+
 ### Requisito 18 · Entrega da fase 2
 
-1. `python verificador/verificador.py --api http://localhost:8081 --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --fase 2 --limpar` DEVE terminar com `RESULTADO: todos passaram (8/8)` (C1, C7 e os seis da fase 2).
+1. `python verificador/verificador.py --api http://localhost:8081 --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --fase 2 --limpar` DEVE terminar com `RESULTADO: todos passaram (9/9)` (C1, C7 e os sete da fase 2).
 2. `METRICAS.md` DEVE ganhar uma seção "Fase 2" pelo mesmo modelo, com o tempo e os retrabalhos desta fase em separado.
 3. `DUVIDAS.md` DEVE registrar as decisões da fase 2.
 
@@ -174,10 +187,10 @@ Tudo das fases 2 e 3 abaixo.
 
 1. Abrir 4.500 casos (massa sintética, lotes de 500) DEVE levar menos de 300 s até `/admin/fila` responder `pendentes = 0`.
 2. 300 publicações de guia com 20 requisições simultâneas DEVEM ter p95 abaixo de 30 s e nenhum erro HTTP.
-3. I1–I5 DEVEM responder em menos de 2 s com esse volume.
+3. I1–I6 DEVEM responder em menos de 2 s com esse volume.
 4. O SISTEMA PODE passar a usar `eventos.fila` (assíncrono, §13) se o síncrono não cumprir os limites; nesse caso, `/admin/fila` DEVE refletir o trabalho pendente de verdade e as fases 1 e 2 DEVEM continuar passando.
-5. *Verificador:* `… --cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-dotnet.json`, e depois `--todos cenarios --fase 3` (9/9).
+5. *Verificador:* `… --cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-dotnet.json`, e depois `--todos cenarios --fase 3` (10/10).
 
 ### Fora do escopo (todas as fases)
 
-Reabertura de competência encerrada; resolução das exceções `substituicao`, `diferenca_paga` e `competencia_encerrada`; autenticação; RLS; conectores reais; qualquer tela.
+Reabertura de competência encerrada; resolução das exceções `substituicao` e `competencia_encerrada`; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.

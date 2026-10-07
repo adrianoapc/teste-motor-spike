@@ -2,7 +2,7 @@
   "id": "C2",
   "fase": 2,
   "nome": "R4: folha reaberta depois de o pacote ser entregue",
-  "descricao": "Simples com folha. O pacote da competência já foi disponibilizado ao cliente (E11) quando o DP reabre a folha e corrige o INSS. A folha nova invalida o E06 (que volta a pronto com tarefa nova) e, em cascata, o E08. O E11, já disponibilizado, não muda de estado: ganha exceção de substituição. Ao concluir de novo, a guia de INSS antiga diverge da folha (CF-09); a guia recalculada invalida o E08 de novo e resolve a exceção. O pagamento do DAS encerra o caso com a substituição ainda aberta. O E12 não é afetado por estar em aguardando_insumo. Fator R do mês seguinte fica fora do spike.",
+  "descricao": "Simples com folha. O pacote da competência já foi disponibilizado ao cliente (E11) quando o DP reabre a folha e corrige o INSS. A folha nova invalida o E06 (que volta a pronto com tarefa nova) e, em cascata, o E08. O E11, já disponibilizado, não muda de estado: ganha exceção de substituição. Ao concluir de novo, a guia de INSS antiga diverge da folha (CF-09); a guia recalculada invalida o E08 de novo e resolve a exceção. O recibo do PGDAS-D, último insumo, encerra o caso com a substituição ainda aberta (o protocolo já tinha acontecido; pagamento não entra no fechamento). O E12 não é afetado por estar em aguardando_insumo. Fator R do mês seguinte fica fora do spike.",
   "secoes_semantica": [
     "§8",
     "§9.4",
@@ -10,7 +10,7 @@
     "§11.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v1",
+    "fechamento.entregaveis v2",
     "fiscal.tolerancia v1"
   ],
   "titulares": [
@@ -157,23 +157,6 @@
       "corpo": {
         "titular_id": "T003",
         "competencia": "202609",
-        "tipo": "recibo_obrigacao",
-        "fonte": "integra",
-        "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "PGDAS-D",
-        "payload": {
-          "numero_recibo": "R-0003"
-        }
-      },
-      "espera": {
-        "efeito": "novo"
-      }
-    },
-    {
-      "acao": "publicar_fato",
-      "corpo": {
-        "titular_id": "T003",
-        "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
         "observado_em": "2026-10-01T09:00:00-03:00",
@@ -248,7 +231,7 @@
     },
     {
       "acao": "verificar",
-      "nome": "pacote entregue, ainda não pago",
+      "nome": "pacote protocolado; caso aberto esperando o recibo do PGDAS-D",
       "esperado": {
         "casos": [
           {
@@ -460,16 +443,16 @@
     },
     {
       "acao": "publicar_fato",
+      "descricao": "recibo do PGDAS-D: último insumo; o caso encerra",
       "corpo": {
         "titular_id": "T003",
         "competencia": "202609",
-        "tipo": "guia_paga",
-        "fonte": "banco",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
         "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "DAS",
-        "valor_centavos": 480000,
+        "tributo": "PGDAS-D",
         "payload": {
-          "pago_em": "2026-10-19"
+          "numero_recibo": "R-0003"
         }
       },
       "espera": {
@@ -593,15 +576,14 @@
             "titular_id": "T003",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago",
+            "estado": "disponibilizado",
             "transicoes": [
               "aguardando_insumo",
               "pronto",
               "processado",
               "validado",
               "liberado",
-              "disponibilizado",
-              "pago"
+              "disponibilizado"
             ]
           },
           {
@@ -736,7 +718,7 @@
             "titular_id": "T003",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 14
+            "quantidade": 13
           },
           {
             "titular_id": "T003",
@@ -772,7 +754,7 @@
             "titular_id": "T003",
             "competencia": "202609",
             "nome": "guia.paga",
-            "quantidade": 1
+            "quantidade": 0
           },
           {
             "titular_id": "T003",

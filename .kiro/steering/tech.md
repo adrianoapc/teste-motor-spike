@@ -6,7 +6,7 @@ inclusion: always
 
 | Item | Decisão |
 |---|---|
-| Banco | PostgreSQL 16, esquema pronto em `db/migrations/` (V001–V005). Um banco por spike: `spike_dotnet`, `spike_python` |
+| Banco | PostgreSQL 16, esquema pronto em `db/migrations/` (V001–V006). Um banco por spike: `spike_dotnet`, `spike_python` |
 | Acesso ao banco | SQL explícito. **Proibido** gerar migração por ORM ou alterar o esquema |
 | Contêiner | Uma imagem por spike, `Dockerfile` em `spikes/<linguagem>/`, ouvindo na porta **8080** do contêiner |
 | Configuração | Só por variável de ambiente. String de conexão em `MOTOR_DB` |

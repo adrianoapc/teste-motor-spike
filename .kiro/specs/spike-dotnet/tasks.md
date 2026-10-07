@@ -54,21 +54,29 @@ Regras: uma tarefa por vez, na ordem. Ao terminar cada uma, rodar os testes; nas
   - Revisar `README.md`, `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 12_
 
-## Fase 2 · invalidação, exceções e override
+## Fase 2 · invalidação, exceções, override e protocolo de entrega
 
-Antes da tarefa 11: `git merge origin/main` (traz a semântica v2, os cenários novos e o verificador com `--fase`). A partir de agora, a regressão da fase 1 é `--todos cenarios --fase 1`.
+Antes da tarefa 11: `git merge origin/main` (traz a semântica **v3**, a migração V006, os cenários novos, inclusive o C10, e o verificador com `--fase`, INV-14, INV-15 e I6). Recriar o banco da spike (`docker compose down -v && docker compose up -d`) para aplicar a V006. A partir de agora, a regressão da fase 1 é `--todos cenarios --fase 1`.
 
-- [ ] 11. Reavaliação em passos (§7.4) e regressão
+- [ ] 11. Semântica v3: versão da regra e fim no protocolo
+  - Ler a versão em uso das regras pelo `status` (nunca `versao = 1`).
+  - Retirar todo caminho para `pago` e o evento `guia.paga`.
+  - `documento.disponibilizado` com `fato_id` da guia de entrada do E11.
+  - Rodar `--fase 1` e confirmar 2/2 (o C1 agora encerra no protocolo).
+  - Registrar em `METRICAS.md` (seção Fase 2) quanto do código mudou e quanto tempo levou: é a medida de manutenção da mudança de domínio.
+  - _Requisitos: 20.1–20.4_
+
+- [ ] 12. Reavaliação em passos (§7.4) e regressão
   - Conferir que a reavaliação dá no máximo um passo por entregável por volta, em ordem de `tipo`, lendo o estado atual das dependências. Ajustar se preciso.
   - Rodar `--fase 1` e confirmar 2/2.
   - _Requisitos: 13_
 
-- [ ] 12. Exceções: abertura única e resolução (§9.4)
+- [ ] 13. Exceções: abertura única e resolução (§9.4)
   - Abertura única por (entregável, tipo) ou (caso, tipo); resolução `fato_alterado`; divergência A não abre exceção.
   - Testes unitários das regras de exceção.
   - _Requisitos: 15_
 
-- [ ] 13. Invalidação e cascata (§11)
+- [ ] 14. Invalidação e cascata (§11)
   - Sementes, tabela por estado, cascata com visitados, caso encerrado, ordem dentro da transação (§11.4).
   - `ConcluirTarefa`: não invalida o próprio entregável; liga a saída mesmo com `sem_mudanca` (§8, item 4).
   - CF-09: par de maior diferença (§9.1).
@@ -76,20 +84,27 @@ Antes da tarefa 11: `git merge origin/main` (traz a semântica v2, os cenários 
   - Verificador: `--cenario cenarios/c4-r6-guia-retificada-duas-vezes.json`, depois C3, C2, C5, C8.
   - _Requisitos: 14, 17_
 
-- [ ] 14. Override (§8.1)
+- [ ] 15. Override (§8.1)
   - Rota, validação 422 → 404 → 409, efeitos e evento `conferencia.override`.
   - Verificador: `--cenario cenarios/c9-override-conferencia.json`.
   - _Requisitos: 16_
 
-- [ ] 15. Fechamento da fase 2
-  - `--todos cenarios --fase 2 --limpar --relatorio resultado-fase2-dotnet.json` com 8/8.
+- [ ] 16. Acompanhamento depois do protocolo (§10.3)
+  - Ler o estado do E11 antes da reavaliação; aplicar a tabela de §10.3 depois dela, em caso aberto ou encerrado, sem transição.
+  - Resoluções `reenviado` e `recebido`; evento `documento.recebido`; `recebimento_pendente` só sem confirmação vigente.
+  - Testes unitários da tabela de §10.3.
+  - Verificador: `--cenario cenarios/c10-acompanhamento-apos-protocolo.json`.
+  - _Requisitos: 20.5–20.8_
+
+- [ ] 17. Fechamento da fase 2
+  - `--todos cenarios --fase 2 --limpar --relatorio resultado-fase2-dotnet.json` com 9/9.
   - `METRICAS.md` (seção Fase 2), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 18_
 
 ## Fase 3 · escala
 
-- [ ] 16. Cenário C6
+- [ ] 18. Cenário C6
   - Rodar `--cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-dotnet.json` com só esta spike no ar.
   - Se não cumprir os limites: medir onde está o tempo antes de mudar (registrar em `DUVIDAS.md`), e só então otimizar ou passar para `eventos.fila`.
-  - Fechar com `--todos cenarios --fase 3` (9/9) e a seção "Fase 3" em `METRICAS.md`.
+  - Fechar com `--todos cenarios --fase 3` (10/10) e a seção "Fase 3" em `METRICAS.md`.
   - _Requisitos: 19_

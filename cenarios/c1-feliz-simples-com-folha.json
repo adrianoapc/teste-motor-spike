@@ -2,7 +2,7 @@
   "id": "C1",
   "fase": 1,
   "nome": "Feliz: Simples Nacional com folha e pró-labore",
-  "descricao": "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11, encerramento pelo E12, idempotência de fato e eventos.",
+  "descricao": "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11 até o protocolo de entrega, encerramento pelo E12 no protocolo (sem esperar pagamento), versão em uso da regra (v2), idempotência de fato e eventos.",
   "secoes_semantica": [
     "§5",
     "§6",
@@ -13,7 +13,7 @@
     "§12"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v1",
+    "fechamento.entregaveis v2",
     "fiscal.tolerancia v1",
     "fiscal.parametros v1"
   ],
@@ -476,24 +476,6 @@
       }
     },
     {
-      "acao": "publicar_fato",
-      "corpo": {
-        "titular_id": "T001",
-        "competencia": "202609",
-        "tipo": "guia_paga",
-        "fonte": "banco",
-        "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "DAS",
-        "valor_centavos": 600000,
-        "payload": {
-          "pago_em": "2026-10-18"
-        }
-      },
-      "espera": {
-        "efeito": "novo"
-      }
-    },
-    {
       "acao": "aguardar_fila"
     },
     {
@@ -505,7 +487,8 @@
           {
             "titular_id": "T001",
             "competencia": "202609",
-            "estado": "encerrado"
+            "estado": "encerrado",
+            "regra_entregaveis_versao": 2
           }
         ],
         "entregaveis": [
@@ -609,15 +592,14 @@
             "titular_id": "T001",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago",
+            "estado": "disponibilizado",
             "transicoes": [
               "aguardando_insumo",
               "pronto",
               "processado",
               "validado",
               "liberado",
-              "disponibilizado",
-              "pago"
+              "disponibilizado"
             ]
           },
           {
@@ -751,7 +733,7 @@
             "titular_id": "T001",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 13
+            "quantidade": 12
           },
           {
             "titular_id": "T001",
@@ -786,8 +768,14 @@
           {
             "titular_id": "T001",
             "competencia": "202609",
+            "nome": "documento.recebido",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T001",
+            "competencia": "202609",
             "nome": "guia.paga",
-            "quantidade": 1
+            "quantidade": 0
           },
           {
             "titular_id": "T001",

@@ -1,8 +1,8 @@
 {
   "id": "C3",
   "fase": 2,
-  "nome": "R1: nota cancelada depois da apuração, com DAS já pago",
-  "descricao": "Simples sem folha. Depois de o DAS ser pago (e antes do recibo do PGDAS-D), uma nota é cancelada. O faturamento novo invalida o E01 e, em cascata, E03 e E04; o E11 pago ganha exceção de diferença paga. O E01 diverge do OneFlow até ele sincronizar. O analista refaz a apuração (a nova versão do apurado não invalida o próprio E03, §8 item 4). A divisão antiga diverge (B); a refeita tem 1 centavo de diferença (A) e não bloqueia. O recibo encerra o caso com a diferença paga ainda aberta.",
+  "nome": "R1: nota cancelada depois da apuração, com o DAS já protocolado",
+  "descricao": "Simples sem folha. Depois de o DAS ser protocolado ao cliente (e antes do recibo do PGDAS-D), uma nota é cancelada. O faturamento novo invalida o E01 e, em cascata, E03 e E04; o E11, já disponibilizado, ganha exceção de substituição (se o cliente já pagou o DAS antigo, a diferença é da Regularidade Fiscal, fora do fechamento). O E01 diverge do OneFlow até ele sincronizar. O analista refaz a apuração (a nova versão do apurado não invalida o próprio E03, §8 item 4). A divisão antiga diverge (B); a refeita tem 1 centavo de diferença (A) e não bloqueia. O recibo encerra o caso com a substituição ainda aberta.",
   "secoes_semantica": [
     "§8",
     "§9.2",
@@ -12,7 +12,7 @@
     "§11.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v1",
+    "fechamento.entregaveis v2",
     "fiscal.tolerancia v1"
   ],
   "titulares": [
@@ -170,29 +170,11 @@
       }
     },
     {
-      "acao": "publicar_fato",
-      "corpo": {
-        "titular_id": "T004",
-        "competencia": "202609",
-        "tipo": "guia_paga",
-        "fonte": "banco",
-        "observado_em": "2026-10-01T09:00:00-03:00",
-        "tributo": "DAS",
-        "valor_centavos": 600000,
-        "payload": {
-          "pago_em": "2026-10-15"
-        }
-      },
-      "espera": {
-        "efeito": "novo"
-      }
-    },
-    {
       "acao": "aguardar_fila"
     },
     {
       "acao": "verificar",
-      "nome": "DAS pago, caso aberto esperando o recibo do PGDAS-D",
+      "nome": "DAS protocolado, caso aberto esperando o recibo do PGDAS-D",
       "esperado": {
         "casos": [
           {
@@ -206,7 +188,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago"
+            "estado": "disponibilizado"
           },
           {
             "titular_id": "T004",
@@ -265,7 +247,7 @@
     },
     {
       "acao": "verificar",
-      "nome": "cancelamento: E01 diverge do OneFlow, cascata invalida E03 e E04, DAS pago vira exceção de diferença",
+      "nome": "cancelamento: E01 diverge do OneFlow, cascata invalida E03 e E04, DAS já protocolado vira exceção de substituição",
       "esperado": {
         "entregaveis": [
           {
@@ -302,7 +284,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago"
+            "estado": "disponibilizado"
           }
         ],
         "excecoes": [
@@ -310,7 +292,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "entregavel": "E11",
-            "tipo": "diferenca_paga",
+            "tipo": "substituicao",
             "estados": [
               "aberta:"
             ],
@@ -600,15 +582,14 @@
             "titular_id": "T004",
             "competencia": "202609",
             "tipo": "E11",
-            "estado": "pago",
+            "estado": "disponibilizado",
             "transicoes": [
               "aguardando_insumo",
               "pronto",
               "processado",
               "validado",
               "liberado",
-              "disponibilizado",
-              "pago"
+              "disponibilizado"
             ]
           },
           {
@@ -689,7 +670,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "entregavel": "E11",
-            "tipo": "diferenca_paga",
+            "tipo": "substituicao",
             "estados": [
               "aberta:"
             ]
@@ -763,7 +744,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 13
+            "quantidade": 12
           },
           {
             "titular_id": "T004",
@@ -793,7 +774,7 @@
             "titular_id": "T004",
             "competencia": "202609",
             "nome": "guia.paga",
-            "quantidade": 1
+            "quantidade": 0
           },
           {
             "titular_id": "T004",
