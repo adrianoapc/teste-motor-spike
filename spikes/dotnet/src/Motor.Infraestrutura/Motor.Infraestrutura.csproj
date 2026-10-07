@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Motor.Infraestrutura</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.2" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Motor.Aplicacao\Motor.Aplicacao.csproj" />
+    <ProjectReference Include="..\Motor.Dominio\Motor.Dominio.csproj" />
+  </ItemGroup>
+</Project>
