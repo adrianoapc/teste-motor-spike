@@ -51,11 +51,27 @@ class UnidadeDeTrabalho(Protocol):
     def criar_entregavel(
         self, caso_id: str, tipo: str, executor: str, area: str
     ) -> Entregavel: ...
+    def transicao_criacao(
+        self, entregavel: Entregavel, ator: str, regra_versao_id: str
+    ) -> None:
+        """Linha de criação: de_estado NULL → aguardando_insumo (§4.1)."""
+        ...
     def entregaveis_do_caso_para_atualizar(self, caso_id: str) -> list[Entregavel]:
         """Entregáveis do caso com SELECT ... FOR UPDATE, em ordem de tipo."""
         ...
 
     def buscar_entregavel(self, caso_id: str, tipo: str) -> Entregavel | None: ...
+    def entregaveis_do_caso(self, caso_id: str) -> list[Entregavel]:
+        """Entregáveis do caso em ordem de tipo (sem trava — só leitura)."""
+        ...
+
+    def tarefas_abertas_do_caso(self, caso_id: str) -> list[tuple[str, str]]:
+        """[(tarefa_id, entregavel_tipo)] das tarefas abertas do caso."""
+        ...
+
+    def excecoes_abertas_do_caso(self, caso_id: str) -> list[tuple[str, str, str]]:
+        """[(excecao_id, tipo, classe)] das exceções abertas do caso."""
+        ...
     def transicionar(
         self,
         entregavel: Entregavel,

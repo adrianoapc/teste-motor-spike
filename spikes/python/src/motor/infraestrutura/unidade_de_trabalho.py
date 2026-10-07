@@ -210,6 +210,18 @@ class UnidadeDeTrabalhoSQL:
         assert row is not None
         return self._entregavel(row)
 
+    def transicao_criacao(
+        self, entregavel: Entregavel, ator: str, regra_versao_id: str
+    ) -> None:
+        self._exec(
+            "INSERT INTO fechamento.entregavel_transicao "
+            "(entregavel_id, caso_id, de_estado, para_estado, motivo, "
+            " causado_por_tipo, causado_por_id, ator, regra_versao_id) "
+            "VALUES (%s,%s,NULL,'aguardando_insumo','abrir_competencia',"
+            " 'comando',NULL,%s,%s)",
+            (entregavel.id, entregavel.caso_id, ator, regra_versao_id),
+        )
+
     def entregaveis_do_caso_para_atualizar(self, caso_id: str) -> list[Entregavel]:
         rows = self._todos(
             "SELECT * FROM fechamento.entregavel WHERE caso_id = %s "
@@ -224,6 +236,30 @@ class UnidadeDeTrabalhoSQL:
             (caso_id, tipo),
         )
         return self._entregavel(row) if row else None
+
+    def entregaveis_do_caso(self, caso_id: str) -> list[Entregavel]:
+        rows = self._todos(
+            "SELECT * FROM fechamento.entregavel WHERE caso_id = %s ORDER BY tipo",
+            (caso_id,),
+        )
+        return [self._entregavel(r) for r in rows]
+
+    def tarefas_abertas_do_caso(self, caso_id: str) -> list[tuple[str, str]]:
+        rows = self._todos(
+            "SELECT t.id, e.tipo FROM trabalho.tarefa_humana t "
+            "JOIN fechamento.entregavel e ON e.id = t.entregavel_id "
+            "WHERE t.caso_id = %s AND t.estado = 'aberta' ORDER BY e.tipo",
+            (caso_id,),
+        )
+        return [(str(r["id"]), str(r["tipo"])) for r in rows]
+
+    def excecoes_abertas_do_caso(self, caso_id: str) -> list[tuple[str, str, str]]:
+        rows = self._todos(
+            "SELECT id, tipo, classe FROM trabalho.excecao "
+            "WHERE caso_id = %s AND estado = 'aberta' ORDER BY aberta_em",
+            (caso_id,),
+        )
+        return [(str(r["id"]), str(r["tipo"]), str(r["classe"])) for r in rows]
 
     def estado_do_entregavel_por_id(self, entregavel_id: str) -> str:
         row = self._um(
