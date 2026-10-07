@@ -13,7 +13,7 @@ Contexto e decisões: spec do spike v0.3 e ADR-014 no projeto Rissi.
 Requisito: Docker (Docker Desktop, OrbStack ou Colima) e Python 3.12+ para o verificador.
 
 ```sh
-docker compose up -d                             # Postgres 16, MinIO e migrações nos dois bancos
+docker compose up -d                             # Postgres 16, emulador de GCS (fake-gcs-server) e migrações nos dois bancos
 docker compose logs migrar                       # deve terminar com "migrações ok"
 
 docker compose --profile dotnet up -d --build    # spike .NET   → http://localhost:8081
