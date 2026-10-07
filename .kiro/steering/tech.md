@@ -21,7 +21,7 @@ inclusion: always
 ## Como subir
 
 ```sh
-docker compose up -d                       # Postgres, MinIO e migrações
+docker compose up -d                       # Postgres, emulador de GCS (fake-gcs-server) e migrações
 docker compose --profile dotnet up -d --build   # spike .NET em http://localhost:8081
 docker compose --profile python up -d --build   # spike Python em http://localhost:8082
 ```
