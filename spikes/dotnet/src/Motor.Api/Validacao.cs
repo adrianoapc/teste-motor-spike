@@ -30,6 +30,20 @@ public static class Validacao
         return true;
     }
 
+    /// <summary>Lê valor_centavos conforme o contrato (int64 ou null). Ausente ou JSON null => válido, valor null.
+    /// Presente com tipo não-numérico (ex.: "600000"), fracionário, ou fora da faixa int64 => INVÁLIDO (422) —
+    /// nunca silenciosamente convertido para null, o que gravaria um fato materialmente diferente.</summary>
+    public static bool ValorCentavosValido(JsonElement raiz, out long? valor)
+    {
+        valor = null;
+        if (!raiz.TryGetProperty("valor_centavos", out var v) || v.ValueKind == JsonValueKind.Null)
+            return true; // ausente ou null explícito: ok
+        if (v.ValueKind != JsonValueKind.Number) return false; // string/bool/objeto/array: inválido
+        if (!v.TryGetInt64(out var n)) return false; // fracionário ou fora da faixa int64: inválido
+        valor = n;
+        return true;
+    }
+
     public static bool EmpresaValida(JsonElement e, out string motivo)
     {
         motivo = "";

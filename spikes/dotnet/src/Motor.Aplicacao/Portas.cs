@@ -73,6 +73,11 @@ public interface ICatalogoRepo
 
 public interface ICasoRepo
 {
+    /// <summary>Trava transacional (pg_advisory_xact_lock) na chave do CASO (titular+competência).
+    /// Tomada tanto na abertura quanto na publicação de fato para que uma transação sempre
+    /// observe o estado comitado da outra — sem isto, abrir e publicar o mesmo (titular,competência)
+    /// em paralelo deixa o entregável preso em aguardando_insumo (§6).</summary>
+    Task TravarCasoAsync(string titularId, Competencia competencia);
     Task<Caso?> PorChaveAsync(string titularId, Competencia competencia);
     Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
         string carteira, Guid regraVersaoId);
@@ -86,6 +91,9 @@ public interface IEntregavelRepo
     /// <summary>Carrega os entregáveis do caso COM trava de linha (FOR UPDATE), ordenados por tipo.</summary>
     Task<IReadOnlyList<Entregavel>> DoCasoComTravaAsync(Guid casoId);
     Task<Entregavel?> PorChaveAsync(Guid casoId, string tipo);
+    /// <summary>Como PorChaveAsync, mas trava a LINHA (FOR UPDATE) — para reivindicar o
+    /// entregável antes de validar estado em conclusão de tarefa concorrente (§8).</summary>
+    Task<Entregavel?> PorChaveComTravaAsync(Guid casoId, string tipo);
     Task<Entregavel> CriarAsync(Guid casoId, string tipo, string executor, string area);
     Task GravarDependenciaAsync(Guid entregavelId, Guid dependeDeId, EstadoEntregavel estadoMinimo);
     Task<IReadOnlyList<Dependencia>> DependenciasDoAsync(Guid entregavelId);

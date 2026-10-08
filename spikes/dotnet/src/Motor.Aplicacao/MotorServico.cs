@@ -26,6 +26,10 @@ public sealed class MotorServico
         {
             await using var uow = await _fabrica.AbrirAsync();
             var r = uow.Repos;
+            // Serializa abertura e publicação de fato do mesmo (titular, competência): sem esta trava
+            // compartilhada, um publisher e um opener concorrentes não enxergam o estado não-comitado
+            // um do outro e o entregável fica preso em aguardando_insumo (§6).
+            await r.Casos.TravarCasoAsync(emp.TitularId, competencia);
             var existente = await r.Casos.PorChaveAsync(emp.TitularId, competencia);
             if (existente is not null)
             {
@@ -109,6 +113,10 @@ public sealed class MotorServico
     /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.</summary>
     private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar)
     {
+        // Serializa com a abertura do mesmo (titular, competência): garante que publicar e abrir
+        // em paralelo não deixem o entregável preso em aguardando_insumo (§6). Advisory locks são
+        // reentrantes na mesma transação, então o caminho de conclusão (que já abriu o caso) é seguro.
+        await r.Casos.TravarCasoAsync(cmd.TitularId, cmd.Competencia);
         // Serializa publicações concorrentes da MESMA chave: sem isto, dois publishers leem o mesmo
         // vigente, calculam a mesma versão e um perde no índice único — virando 500 em vez de nova_versao.
         await r.Fatos.TravarChaveAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
@@ -163,7 +171,11 @@ public sealed class MotorServico
 
         var caso = await r.Casos.PorChaveAsync(titularId, competencia);
         if (caso is null) return Falha(ConcluirErro.NaoEncontrado, "caso inexistente");
-        var ent = await r.Entregaveis.PorChaveAsync(caso.Id, tipo);
+        // Trava o caso (mesma chave da abertura/publicação) e reivindica a LINHA do entregável antes de
+        // validar estado: duas conclusões concorrentes do mesmo entregável pronto não podem ambas ler
+        // 'pronto' e uma cair em 500 no UPDATE otimista — a perdedora reencontra estado != pronto e vira 409 (§8).
+        await r.Casos.TravarCasoAsync(titularId, competencia);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
         if (ent is null) return Falha(ConcluirErro.NaoEncontrado, "entregável inexistente");
         if (ent.Estado != EstadoEntregavel.Pronto || ent.Executor == "sistema")
             return Falha(ConcluirErro.Conflito, "entregável não está pronto ou é de sistema");

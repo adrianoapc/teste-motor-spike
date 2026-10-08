@@ -145,6 +145,18 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
         return r is null ? null : Mapear(r.Value);
     }
 
+    public async Task TravarCasoAsync(string titularId, Competencia competencia)
+    {
+        // Lock de 2 inteiros derivado de (titular, competência); liberado no fim da transação.
+        // Prefixo "caso|" dá um keyspace distinto do lock de chave de fato ("…|tipo|tributo"),
+        // evitando colisão espúria entre os dois tipos de trava.
+        var chave = $"caso|{titularId}|{competencia}";
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(chave));
+        var k1 = BitConverter.ToInt32(bytes, 0);
+        var k2 = BitConverter.ToInt32(bytes, 4);
+        await Conn.ExecuteAsync("SELECT pg_advisory_xact_lock(@k1, @k2)", new { k1, k2 }, Tx);
+    }
+
     public async Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
         string carteira, Guid regraVersaoId)
     {
@@ -204,6 +216,14 @@ internal sealed class EntregavelRepo : RepoBase, IEntregavelRepo
     {
         var r = await Conn.QuerySingleOrDefaultAsync<(Guid, Guid, string, string, string, string, int)?>(
             $"SELECT {Cols} FROM fechamento.entregavel WHERE caso_id = @c AND tipo = @t",
+            new { c = casoId, t = tipo }, Tx);
+        return r is null ? null : Mapear(r.Value);
+    }
+
+    public async Task<Entregavel?> PorChaveComTravaAsync(Guid casoId, string tipo)
+    {
+        var r = await Conn.QuerySingleOrDefaultAsync<(Guid, Guid, string, string, string, string, int)?>(
+            $"SELECT {Cols} FROM fechamento.entregavel WHERE caso_id = @c AND tipo = @t FOR UPDATE",
             new { c = casoId, t = tipo }, Tx);
         return r is null ? null : Mapear(r.Value);
     }

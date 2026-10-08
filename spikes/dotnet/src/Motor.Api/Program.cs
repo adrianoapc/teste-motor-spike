@@ -104,9 +104,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
             return Erro(422, "corpo_invalido", "observado_em ausente ou inválido");
 
         var tributo = raiz.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
-        long? valor = null;
-        if (raiz.TryGetProperty("valor_centavos", out var v) && v.ValueKind == JsonValueKind.Number)
-            valor = v.GetInt64();
+        if (!Validacao.ValorCentavosValido(raiz, out var valor))
+            return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
         var payload = raiz.TryGetProperty("payload", out var p) && p.ValueKind == JsonValueKind.Object
             ? p.Clone() : JsonDocument.Parse("{}").RootElement.Clone();
         var origemRef = raiz.TryGetProperty("origem_ref", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
@@ -150,9 +149,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
         foreach (var s in saidas.EnumerateArray())
         {
             var tributo = s.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
-            long? valor = null;
-            if (s.TryGetProperty("valor_centavos", out var v) && v.ValueKind == JsonValueKind.Number)
-                valor = v.GetInt64();
+            if (!Validacao.ValorCentavosValido(s, out var valor))
+                return Erro(422, "corpo_invalido", "saida.valor_centavos deve ser inteiro (int64) ou null");
             var payload = s.TryGetProperty("payload", out var p) && p.ValueKind == JsonValueKind.Object
                 ? p.Clone() : JsonDocument.Parse("{}").RootElement.Clone();
             lista.Add(new MotorServico.SaidaDto(tributo, valor, payload));
