@@ -26,9 +26,10 @@ public sealed class MotorServico
         {
             await using var uow = await _fabrica.AbrirAsync();
             var r = uow.Repos;
-            // Serializa abertura e publicação de fato do mesmo (titular, competência): sem esta trava
-            // compartilhada, um publisher e um opener concorrentes não enxergam o estado não-comitado
-            // um do outro e o entregável fica preso em aguardando_insumo (§6).
+            // Serializa abertura e publicação de fato do mesmo TITULAR (lock por titular, não por
+            // competência): a reavaliação lê fatos de outras competências via competencia_relativa,
+            // então sem esta trava um publisher e um opener concorrentes não enxergam o estado
+            // não-comitado um do outro e o entregável fica preso em aguardando_insumo (§6).
             await r.Casos.TravarCasoAsync(emp.TitularId, competencia);
             var existente = await r.Casos.PorChaveAsync(emp.TitularId, competencia);
             if (existente is not null)
@@ -113,9 +114,10 @@ public sealed class MotorServico
     /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.</summary>
     private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar)
     {
-        // Serializa com a abertura do mesmo (titular, competência): garante que publicar e abrir
-        // em paralelo não deixem o entregável preso em aguardando_insumo (§6). Advisory locks são
-        // reentrantes na mesma transação, então o caminho de conclusão (que já abriu o caso) é seguro.
+        // Serializa com a abertura e com outras publicações do mesmo TITULAR: a reavaliação lê fatos
+        // de outras competências (competencia_relativa), então publicar e abrir em paralelo não podem
+        // deixar o entregável preso em aguardando_insumo (§6). Advisory locks são reentrantes na mesma
+        // transação, então o caminho de conclusão (que já tomou o lock) é seguro.
         await r.Casos.TravarCasoAsync(cmd.TitularId, cmd.Competencia);
         // Serializa publicações concorrentes da MESMA chave: sem isto, dois publishers leem o mesmo
         // vigente, calculam a mesma versão e um perde no índice único — virando 500 em vez de nova_versao.

@@ -73,10 +73,12 @@ public interface ICatalogoRepo
 
 public interface ICasoRepo
 {
-    /// <summary>Trava transacional (pg_advisory_xact_lock) na chave do CASO (titular+competência).
-    /// Tomada tanto na abertura quanto na publicação de fato para que uma transação sempre
-    /// observe o estado comitado da outra — sem isto, abrir e publicar o mesmo (titular,competência)
-    /// em paralelo deixa o entregável preso em aguardando_insumo (§6).</summary>
+    /// <summary>Trava transacional (pg_advisory_xact_lock) por TITULAR. Tomada na abertura, na
+    /// publicação de fato e na conclusão para que uma transação sempre observe o estado comitado
+    /// da outra. É por titular (não por titular+competência) porque a reavaliação de um caso aberto
+    /// lê fatos de outras competências do mesmo titular (entradas competencia_relativa -1/-2 do C7):
+    /// publicar o fato de 202607 destrava o E03 do caso 202609. O parâmetro competencia é mantido
+    /// na assinatura por clareza no call-site, mas não entra na chave do lock.</summary>
     Task TravarCasoAsync(string titularId, Competencia competencia);
     Task<Caso?> PorChaveAsync(string titularId, Competencia competencia);
     Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,

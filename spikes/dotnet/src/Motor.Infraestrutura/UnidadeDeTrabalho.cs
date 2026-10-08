@@ -147,10 +147,14 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
 
     public async Task TravarCasoAsync(string titularId, Competencia competencia)
     {
-        // Lock de 2 inteiros derivado de (titular, competência); liberado no fim da transação.
-        // Prefixo "caso|" dá um keyspace distinto do lock de chave de fato ("…|tipo|tributo"),
-        // evitando colisão espúria entre os dois tipos de trava.
-        var chave = $"caso|{titularId}|{competencia}";
+        // Lock por TITULAR (competência ignorada de propósito). A reavaliação de um caso aberto lê
+        // fatos de OUTRAS competências do mesmo titular (entradas competencia_relativa -1/-2 do C7),
+        // então publicar o fato de 202607 pode destravar o E03 do caso 202609. Travar só
+        // (titular,competência) deixaria publisher e opener de competências diferentes em locks
+        // distintos — um não veria o estado não-comitado do outro, e o E03 ficaria preso em
+        // aguardando_insumo. O lock por titular garante exclusão mútua entre QUALQUER abertura e
+        // QUALQUER publicação do titular; liberado no fim da transação.
+        var chave = $"caso|{titularId}";
         var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(chave));
         var k1 = BitConverter.ToInt32(bytes, 0);
         var k2 = BitConverter.ToInt32(bytes, 4);

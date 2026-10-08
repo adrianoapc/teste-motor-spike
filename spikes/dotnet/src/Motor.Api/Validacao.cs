@@ -44,6 +44,22 @@ public static class Validacao
         return true;
     }
 
+    /// <summary>Lê payload conforme o contrato (objeto). Ausente => válido, usa {} (default do contrato).
+    /// Presente com qualquer tipo que não seja objeto (null explícito, array, número, string, bool)
+    /// => INVÁLIDO (422) — nunca substituído silenciosamente por {}, o que gravaria fato diferente.</summary>
+    public static bool PayloadValido(JsonElement raiz, out JsonElement payload)
+    {
+        payload = default;
+        if (!raiz.TryGetProperty("payload", out var p))
+        {
+            payload = JsonDocument.Parse("{}").RootElement.Clone(); // ausente: default do contrato
+            return true;
+        }
+        if (p.ValueKind != JsonValueKind.Object) return false; // presente com tipo errado: inválido
+        payload = p.Clone();
+        return true;
+    }
+
     public static bool EmpresaValida(JsonElement e, out string motivo)
     {
         motivo = "";

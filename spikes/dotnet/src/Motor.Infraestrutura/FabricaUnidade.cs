@@ -22,10 +22,21 @@ public sealed class FabricaUnidade : IFabricaUnidade
 
     public async Task<bool> BancoRespondeAsync()
     {
-        await using var conn = new NpgsqlConnection(_conexao);
-        await conn.OpenAsync();
-        var um = await conn.ExecuteScalarAsync<int>("SELECT 1");
-        return um == 1;
+        // Probe de readiness: uma falha de conexão (banco inalcançável, recusado, timeout) deve virar
+        // resultado "não saudável" (=> 503 banco_indisponivel na rota), nunca uma exceção não tratada
+        // que produziria 500. Capturamos as falhas de banco/rede e devolvemos false.
+        try
+        {
+            await using var conn = new NpgsqlConnection(_conexao);
+            await conn.OpenAsync();
+            var um = await conn.ExecuteScalarAsync<int>("SELECT 1");
+            return um == 1;
+        }
+        catch (Exception ex) when (ex is NpgsqlException or System.Data.Common.DbException
+            or System.Net.Sockets.SocketException or TimeoutException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public async Task<(int pendentes, int comErro)> ContarFilaAsync()

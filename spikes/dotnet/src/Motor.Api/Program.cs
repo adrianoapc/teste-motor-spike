@@ -106,8 +106,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
         var tributo = raiz.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
         if (!Validacao.ValorCentavosValido(raiz, out var valor))
             return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
-        var payload = raiz.TryGetProperty("payload", out var p) && p.ValueKind == JsonValueKind.Object
-            ? p.Clone() : JsonDocument.Parse("{}").RootElement.Clone();
+        if (!Validacao.PayloadValido(raiz, out var payload))
+            return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON");
         var origemRef = raiz.TryGetProperty("origem_ref", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
 
         var cmd = new PublicarFatoCmd(titular, Competencia.Analisar(compTexto), tipo, tributo, valor, payload, fonte, origemRef, observadoEm);
@@ -148,11 +148,13 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
         var lista = new List<MotorServico.SaidaDto>();
         foreach (var s in saidas.EnumerateArray())
         {
+            if (s.ValueKind != JsonValueKind.Object)
+                return Erro(422, "corpo_invalido", "cada saída deve ser um objeto JSON");
             var tributo = s.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
             if (!Validacao.ValorCentavosValido(s, out var valor))
                 return Erro(422, "corpo_invalido", "saida.valor_centavos deve ser inteiro (int64) ou null");
-            var payload = s.TryGetProperty("payload", out var p) && p.ValueKind == JsonValueKind.Object
-                ? p.Clone() : JsonDocument.Parse("{}").RootElement.Clone();
+            if (!Validacao.PayloadValido(s, out var payload))
+                return Erro(422, "corpo_invalido", "saida.payload deve ser um objeto JSON");
             lista.Add(new MotorServico.SaidaDto(tributo, valor, payload));
         }
 
