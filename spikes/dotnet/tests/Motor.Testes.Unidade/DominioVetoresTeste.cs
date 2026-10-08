@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Motor.Aplicacao;
 using Motor.Dominio.Conferencias;
 using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
@@ -73,6 +74,42 @@ public class DominioVetoresTeste
         var hash = EntradaHash.Calcular("CF-01", fatos,
             Guid.Parse("00000000-0000-0000-0000-0000000000aa"));
         Assert.Equal("4e0ad4ed509cc1fa2e908b6ef9253d5927588b01a9001b8195c7185e75c878ca", hash);
+    }
+
+    // entrada_hash independe da ordem de entrada: a mesma lista em ordem inversa produz o mesmo
+    // hash (ordenação canônica por fato_id). Garante o invariante que o fatos_usados persistido
+    // precisa reproduzir (review Codex P2: fatos_usados tem de ser gravado nessa mesma ordem).
+    [Fact]
+    public void EntradaHash_independe_da_ordem_de_entrada()
+    {
+        var a = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var b = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var ordem1 = new[] { new FatoUsado(a, 1), new FatoUsado(b, 2) };
+        var ordem2 = new[] { new FatoUsado(b, 2), new FatoUsado(a, 1) };
+        var rv = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
+        Assert.Equal(EntradaHash.Calcular("CF-01", ordem1, rv),
+                     EntradaHash.Calcular("CF-01", ordem2, rv));
+    }
+
+    // ----- CF-06: diferença textual escapa control chars (review Codex P2) -----
+    [Fact]
+    public void Cf06_diferenca_com_control_char_gera_json_valido()
+    {
+        var caso = new Caso(Guid.NewGuid(), "T001", Competencia.Analisar("202609"),
+            JsonDocument.Parse("{\"regime\":\"SN\"}").RootElement.Clone(), "cart", Guid.NewGuid(), "aberto", 1);
+        // guia[DAS] com competencia_impressa contendo \n (ex.: valor OCR mal formado)
+        var guia = new FatoVigente(Guid.NewGuid(), "T001", Competencia.Analisar("202609"),
+            "guia", "DAS", 1, 600000,
+            JsonDocument.Parse("{\"competencia_impressa\":\"2026\\n09\"}").RootElement.Clone(),
+            "hash");
+        var item = default(ItemEntregavel);
+        var calc = CalculadoraConferencias.Calcular("CF-06", caso, item!, new[] { guia }, 0);
+        Assert.NotNull(calc.Textual);
+        Assert.False(calc.Textual!.Value.Igual);
+        // o ponto do fix: a diferença é um JsonElement válido mesmo com o control char
+        var dif = calc.Textual.Value.Diferenca;
+        Assert.Equal("2026\n09", dif.GetProperty("impressa").GetString());
+        Assert.Equal("202609", dif.GetProperty("esperada").GetString());
     }
 
     // ----- Competência: somar meses, virada de ano (req 5.1) -----

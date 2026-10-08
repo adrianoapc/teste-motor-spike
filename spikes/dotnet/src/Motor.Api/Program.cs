@@ -51,6 +51,8 @@ app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =
     using (doc)
     {
         var raiz = doc.RootElement;
+        if (raiz.ValueKind != JsonValueKind.Object)
+            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
             return Erro(422, "corpo_invalido", "competência ausente ou inválida");
         if (!raiz.TryGetProperty("ator", out var ator) || ator.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(ator.GetString()))
@@ -87,6 +89,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
     using (doc)
     {
         var raiz = doc.RootElement;
+        if (raiz.ValueKind != JsonValueKind.Object)
+            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
         if (!Validacao.CampoTextoNaoVazio(raiz, "titular_id", out var titular))
             return Erro(422, "corpo_invalido", "titular_id ausente");
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
@@ -135,6 +139,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
     using (doc)
     {
         var raiz = doc.RootElement;
+        if (raiz.ValueKind != JsonValueKind.Object)
+            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
         if (!raiz.TryGetProperty("saidas", out var saidas) || saidas.ValueKind != JsonValueKind.Array || saidas.GetArrayLength() == 0)

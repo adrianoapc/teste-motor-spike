@@ -88,7 +88,9 @@ public static class CalculadoraConferencias
             ? ci.GetString()! : "";
         var esperada = caso.Competencia.ToString();
         var igual = string.Equals(impressa, esperada, StringComparison.Ordinal);
-        var dif = Json($"{{\"esperada\":\"{esperada}\",\"impressa\":\"{Escapar(impressa)}\"}}");
+        // Serializa via JsonSerializer: 'impressa' pode conter control chars (ex.: OCR com \n),
+        // que o escape manual (só aspas/barra) deixaria passar e quebraria JsonDocument.Parse.
+        var dif = JsonObjeto(new { esperada, impressa });
         return new CalculoConferencia(null, null, new[] { U(guia) }, Textual: new ComparacaoTextual(igual, dif));
     }
 
@@ -161,11 +163,16 @@ public static class CalculadoraConferencias
         => caso.Snapshot.TryGetProperty("regime", out var r) && r.ValueKind == JsonValueKind.String
             ? r.GetString()! : "SN";
 
-    private static string Escapar(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
-
     private static JsonElement Json(string s)
     {
         using var doc = JsonDocument.Parse(s);
+        return doc.RootElement.Clone();
+    }
+
+    private static JsonElement JsonObjeto(object valor)
+    {
+        var texto = JsonSerializer.Serialize(valor);
+        using var doc = JsonDocument.Parse(texto);
         return doc.RootElement.Clone();
     }
 }

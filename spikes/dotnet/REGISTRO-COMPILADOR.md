@@ -11,6 +11,7 @@ Cada vez que o compilador C# (com `TreatWarningsAsErrors=true`) barrou um erro
 | 2026-10-06 | `src/Motor.Aplicacao/MotorServico.cs` | CS8130: não infere tipo da desconstrução `(id, versao)` | cascata do CS0103 acima (tipo de retorno desconhecido) |
 | 2026-10-06 | `tests/Motor.Testes.Unidade/DominioVetoresTeste.cs` | CS0103: `Contexto`/`Condicao` não existem no contexto (8×) | `using Motor.Dominio.Regras` faltando no teste |
 | 2026-10-06 | `src/Motor.Api/Program.cs` | CS0103: `Validacao` não existe no contexto (7×) | `using Motor.Api` faltando no `Program.cs` top-level |
+| 2026-10-08 | `src/Motor.Aplicacao/MotorServico.cs` | CS1061: `JsonElement` não tem `.Value` (2×) | review Codex P1: `ConteudoPorIdAsync` devolve `JsonElement?`; após `?? throw` o valor já é `JsonElement`, `.Value` sobra |
 
 Observações:
 

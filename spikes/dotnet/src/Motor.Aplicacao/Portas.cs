@@ -54,6 +54,10 @@ public interface IRegrasRepo
 {
     /// <summary>Versão em uso (status provisoria|ativa) de uma chave de regra. (id, conteudo)</summary>
     Task<(Guid Id, JsonElement Conteudo)?> VersaoEmUsoAsync(string chave);
+
+    /// <summary>Conteúdo de uma versão de regra pelo seu id — usado para carregar a versão
+    /// FIXADA no caso (caso.RegraVersaoId), e não a versão atualmente em uso. (§13, imutabilidade)</summary>
+    Task<JsonElement?> ConteudoPorIdAsync(Guid versaoId);
 }
 
 public sealed record EntregavelTipoCatalogo(string Chave, string Area, string? EventoPublicado);
@@ -70,7 +74,7 @@ public interface ICatalogoRepo
 public interface ICasoRepo
 {
     Task<Caso?> PorChaveAsync(string titularId, Competencia competencia);
-    Task<Caso> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
+    Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
         string carteira, Guid regraVersaoId);
     /// <summary>Casos ABERTOS do titular, com trava, para reavaliação após fato.</summary>
     Task<IReadOnlyList<Caso>> AbertosDoTitularAsync(string titularId);
@@ -92,6 +96,10 @@ public interface IEntregavelRepo
 
 public interface IFatoRepo
 {
+    /// <summary>Trava transacional (pg_advisory_xact_lock) na chave do fato, serializando
+    /// publicações concorrentes da MESMA chave para que a alocação de versão não colida
+    /// no índice único (titular_id, competencia, tipo, tributo, versao).</summary>
+    Task TravarChaveAsync(string titularId, Competencia competencia, string tipo, string tributo);
     Task<FatoVigente?> VigenteAsync(string titularId, Competencia competencia, string tipo, string tributo);
     /// <summary>Grava nova versão do fato e devolve (id, versao).</summary>
     Task<(Guid Id, int Versao)> GravarAsync(PublicarFatoCmd cmd, int versao, string hash, Guid? substituiId);

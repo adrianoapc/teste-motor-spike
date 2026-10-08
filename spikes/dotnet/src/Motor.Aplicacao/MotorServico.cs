@@ -40,6 +40,15 @@ public sealed class MotorServico
             var agora = await uow.AgoraAsync();
 
             var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira, regra.VersaoId);
+            if (caso is null)
+            {
+                // abertura concorrente venceu entre o SELECT e o INSERT: relê e reporta como existente.
+                var jaExiste = await r.Casos.PorChaveAsync(emp.TitularId, competencia)
+                    ?? throw new InvalidOperationException("conflito de abertura sem caso correspondente");
+                res.Existentes.Add((emp.TitularId, jaExiste.Id));
+                await uow.ConfirmarAsync();
+                continue;
+            }
             var ctx = Contexto.DeSnapshot(emp.Snapshot, competencia.MesDoTrimestre);
 
             // 1. criar entregáveis cujo quando casa, com transição de criação
@@ -100,6 +109,9 @@ public sealed class MotorServico
     /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.</summary>
     private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar)
     {
+        // Serializa publicações concorrentes da MESMA chave: sem isto, dois publishers leem o mesmo
+        // vigente, calculam a mesma versão e um perde no índice único — virando 500 em vez de nova_versao.
+        await r.Fatos.TravarChaveAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
         var hash = HashCanonico.HashFato(cmd.Payload, cmd.ValorCentavos);
         var vigente = await r.Fatos.VigenteAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
 
@@ -124,12 +136,14 @@ public sealed class MotorServico
     {
         var abertos = await r.Casos.AbertosDoTitularAsync(titularId);
         if (abertos.Count == 0) return;
-        var regraInfo = await r.Regras.VersaoEmUsoAsync("fechamento.entregaveis")
-            ?? throw new InvalidOperationException("regra fechamento.entregaveis sem versão em uso");
         var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
         foreach (var caso in abertos)
         {
-            var regra = new RegraEntregaveis(caso.RegraVersaoId, regraInfo.Conteudo);
+            // Carrega a versão de regra FIXADA no caso (não a em uso): reavaliar um caso antigo
+            // sob uma versão nova mudaria prontidão/saídas/itens contra a regra à qual ele se vinculou (§13).
+            var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
+                ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
+            var regra = new RegraEntregaveis(caso.RegraVersaoId, conteudo);
             var avaliar = new AvaliarCaso(r, regra, new Conferir(r, tol, tolVid, prolaboreBp));
             // estado_desde é gravado pelo banco (clock_timestamp); passamos um instante só por assinatura.
             await avaliar.ExecutarAsync(caso, DateTimeOffset.UtcNow);
@@ -154,9 +168,9 @@ public sealed class MotorServico
         if (ent.Estado != EstadoEntregavel.Pronto || ent.Executor == "sistema")
             return Falha(ConcluirErro.Conflito, "entregável não está pronto ou é de sistema");
 
-        var regraInfo = await r.Regras.VersaoEmUsoAsync("fechamento.entregaveis")
-            ?? throw new InvalidOperationException("regra sem versão em uso");
-        var regra = new RegraEntregaveis(caso.RegraVersaoId, regraInfo.Conteudo);
+        var conteudoRegra = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
+            ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
+        var regra = new RegraEntregaveis(caso.RegraVersaoId, conteudoRegra);
         var item = regra.Item(tipo);
         var saidaRegra = item?.Saida;
         if (saidas.Count == 0 || saidaRegra is null)

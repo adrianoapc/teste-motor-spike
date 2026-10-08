@@ -92,6 +92,14 @@ internal sealed class RegrasRepo : RepoBase, IRegrasRepo
         if (row is null) return null;
         return (row.Value.id, Json.Parse(row.Value.conteudo));
     }
+
+    public async Task<JsonElement?> ConteudoPorIdAsync(Guid versaoId)
+    {
+        var conteudo = await Conn.QuerySingleOrDefaultAsync<string?>(
+            @"SELECT conteudo::text FROM regras.regra_versao WHERE id = @id",
+            new { id = versaoId }, Tx);
+        return conteudo is null ? null : Json.Parse(conteudo);
+    }
 }
 
 internal sealed class CatalogoRepo : RepoBase, ICatalogoRepo
@@ -137,19 +145,24 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
         return r is null ? null : Mapear(r.Value);
     }
 
-    public async Task<Caso> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
+    public async Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
         string carteira, Guid regraVersaoId)
     {
+        // INSERT atômico tolerante a conflito: duas aberturas concorrentes do mesmo
+        // (titular, competência) não quebram com 23505 — a perdedora recebe id nulo (§ idempotência).
         var cmd = new NpgsqlCommand(
             @"INSERT INTO fechamento.caso_competencia
               (titular_id, competencia, snapshot, carteira, regra_entregaveis_versao_id, estado)
-              VALUES (@t, @c, @s, @ca, @rv, 'aberto') RETURNING id", Conn, Tx);
+              VALUES (@t, @c, @s, @ca, @rv, 'aberto')
+              ON CONFLICT (titular_id, competencia) DO NOTHING
+              RETURNING id", Conn, Tx);
         cmd.Parameters.AddWithValue("t", titularId);
         cmd.Parameters.AddWithValue("c", competencia.ToString());
         cmd.Parameters.Add(new NpgsqlParameter("s", NpgsqlDbType.Jsonb) { Value = snapshot.GetRawText() });
         cmd.Parameters.AddWithValue("ca", carteira);
         cmd.Parameters.AddWithValue("rv", regraVersaoId);
-        var id = (Guid)(await cmd.ExecuteScalarAsync())!;
+        var res = await cmd.ExecuteScalarAsync();
+        if (res is not Guid id) return null; // conflito: outra transação já abriu o caso
         return new Caso(id, titularId, competencia, snapshot, carteira, regraVersaoId, "aberto", 1);
     }
 
@@ -263,6 +276,16 @@ internal sealed class FatoRepo : RepoBase, IFatoRepo
 {
     public FatoRepo(NpgsqlConnection c, NpgsqlTransaction t) : base(c, t) { }
 
+    public async Task TravarChaveAsync(string titularId, Competencia competencia, string tipo, string tributo)
+    {
+        // Lock de 2 inteiros derivado da chave do fato; liberado automaticamente no fim da transação.
+        var chave = $"{titularId}|{competencia}|{tipo}|{tributo}";
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(chave));
+        var k1 = BitConverter.ToInt32(bytes, 0);
+        var k2 = BitConverter.ToInt32(bytes, 4);
+        await Conn.ExecuteAsync("SELECT pg_advisory_xact_lock(@k1, @k2)", new { k1, k2 }, Tx);
+    }
+
     private static FatoVigente Mapear((Guid id, string titular, string comp, string tipo, string tributo,
         int versao, long? valor, string payload, string hash) r) =>
         new(r.id, r.titular, Competencia.Analisar(r.comp.Trim()), r.tipo, r.tributo, r.versao,
@@ -325,8 +348,12 @@ internal sealed class ConferenciaRepo : RepoBase, IConferenciaRepo
         if (existente is { } ex)
             return (ex.id, ParseResultado(ex.res));
 
+        // Mesma ordenação canônica usada por EntradaHash.Calcular (fato_id ordinal): o audit
+        // persistido tem de reproduzir exatamente a entrada representada por entrada_hash (§9.2).
         var fatosUsadosJson = JsonSerializer.Serialize(
-            c.FatosUsados.Select(f => new { fato_id = f.FatoId, versao = f.Versao }));
+            c.FatosUsados
+                .OrderBy(f => f.FatoId.ToString("D"), StringComparer.Ordinal)
+                .Select(f => new { fato_id = f.FatoId, versao = f.Versao }));
 
         var cmd = new NpgsqlCommand(
             @"INSERT INTO conferencias.conferencia
