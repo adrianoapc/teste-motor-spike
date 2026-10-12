@@ -73,3 +73,69 @@ conferências nem duas transições.
 Nenhuma divergência entre a base comum e a semântica exigiu parar o trabalho. O
 esquema, o contrato e as regras provisórias foram suficientes para C1 e C7 sem
 nenhuma alteração em `db/`, `contrato/`, `cenarios/`, `verificador/`.
+
+---
+
+## Semântica v3 (07/10/2026) — decisões ao implementar as fases 2 e 3
+
+Com o merge da `main`, a base comum passou à semântica **v3** (V006: o fechamento
+termina no protocolo de entrega, o pagamento sai do fechamento) e aos cenários
+C2–C10. Decisões tomadas para passar os 10 cenários, todas dentro de
+`spikes/dotnet/`:
+
+### 8. Estado `pago` aposentado (§4, V006)
+
+A V006 marca `pago` como `aposentado` e remove a transição `disponibilizado →
+pago`. **Decisão:** removido do motor todo o caminho de pagamento — o laço de
+avaliação não tenta mais `disponibilizado → pago`, e o evento `guia.paga` não é
+mais emitido. O enum `EstadoEntregavel.Pago` permanece só para desserializar
+transições históricas, mas nenhuma transição nova o alcança. O que acontece com a
+guia depois do protocolo é da Regularidade Fiscal (§15).
+
+### 9. `documento.disponibilizado` carrega o `fato_id` da guia (INV-14, §10.1)
+
+O evento de protocolo precisa levar `entregavel_id` **e** `fato_id` = versão
+vigente da **guia de entrada do E11** (DAS no SN, IRPJ no LP). **Decisão:** no
+momento da transição `liberado → disponibilizado`, lemos a guia vigente do caso e
+gravamos os dois ids no payload. O mesmo vale para o reenvio (§10.3). Sem isso o
+INV-14 reprova (era a única falha do C1/C8 pós-merge).
+
+### 10. Invalidação por nova versão de fato (§11)
+
+**Decisão:** sementes = entregáveis com a **versão anterior** do fato ligada em
+`entregavel_fato` (qualquer papel), menos o entregável sendo concluído (§8.4),
+agrupadas por caso. Caso aberto: tabela por estado de §11.2 com cascata (fila,
+cada entregável tratado no máximo uma vez por publicação) a partir de quem foi
+para `invalidado`; `disponibilizado` não transiciona e abre `substituicao`. Caso
+encerrado (§11.3): nenhuma transição, uma exceção `competencia_encerrada` por caso
+(abertura única). Exceções `CF-` do entregável que saiu de `divergente` são
+resolvidas com `fato_alterado`.
+
+### 11. `/override` (§8.1) — fecha a lacuna da fase 2 anotada em §6
+
+**Decisão:** rota `POST /casos/{t}/{c}/entregaveis/{tipo}/override`, validação na
+ordem corpo(422) → inexistente(404) → estado(409). A conferência vigente de uma
+CF é a de maior `em`; o override exige entregável `divergente` e conf vigente
+`divergente`+`B` sem override anterior. Após gravar o override e resolver as
+exceções da CF, o entregável só vai a `validado` se **nenhuma outra** CF vigente
+estiver `divergente`+`B` sem override.
+
+### 12. Acompanhamento depois do protocolo (§10.3)
+
+**Decisão:** aplicado em `PublicarFato`, **depois** da invalidação e da
+reavaliação, e só quando o E11 do caso **já estava** em `disponibilizado` *antes*
+desta publicação (estado lido antes de reavaliar). Assim o `documento_disponibilizado`
+que leva `liberado → disponibilizado` é protocolo (§10.1), e só uma **nova versão**
+com o E11 já disponibilizado é reenvio. `entrega_falhou`/`recebimento_pendente`
+abrem exceção classe `O` (abertura única); `entrega_confirmada` emite
+`recebimento.confirmado` e resolve as pendências; `recebimento_pendente` só abre
+se não existir `entrega_confirmada` vigente. Vale para caso aberto **ou**
+encerrado.
+
+### 13. Lock por titular cobre a invalidação cross-competência
+
+O lock de abertura/publicação já era por **titular** (não por titular+competência,
+decisão da fase 1 para o C7). Isso continua correto na v3: a invalidação do C5
+(alteração retroativa) toca um caso de competência diferente da do fato publicado,
+e o lock por titular garante que a transação enxergue o estado comitado de todos
+os casos do titular.

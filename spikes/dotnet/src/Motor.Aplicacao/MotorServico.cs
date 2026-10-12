@@ -111,8 +111,11 @@ public sealed class MotorServico
         return res;
     }
 
-    /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.</summary>
-    private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar)
+    /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.
+    /// entregavelConcluido: quando chamado de ConcluirTarefa (§8.4), a invalidação NÃO atinge o próprio
+    /// entregável sendo concluído.</summary>
+    private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar,
+        Guid? entregavelConcluido = null)
     {
         // Serializa com a abertura e com outras publicações do mesmo TITULAR: a reavaliação lê fatos
         // de outras competências (competencia_relativa), então publicar e abrir em paralelo não podem
@@ -126,18 +129,34 @@ public sealed class MotorServico
         var vigente = await r.Fatos.VigenteAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
 
         if (vigente is not null && vigente.Hash == hash)
+        {
+            // sem_mudança: nada grava, nenhuma invalidação nem acompanhamento (§6, §10.3).
             return new ResultadoFato(vigente.Id, vigente.Versao, EfeitoFato.SemMudanca);
+        }
 
         var novaVersao = (vigente?.Versao ?? 0) + 1;
         var (id, versao) = await r.Fatos.GravarAsync(cmd, novaVersao, hash, vigente?.Id);
         var efeito = vigente is null ? EfeitoFato.Novo : EfeitoFato.NovaVersao;
 
-        // evento fato.publicado — caso_id só se existe caso do titular NAQUELA competência
+        // 1. evento fato.publicado — caso_id só se existe caso do titular NAQUELA competência
         var caso = await r.Casos.PorChaveAsync(cmd.TitularId, cmd.Competencia);
         await r.Eventos.GravarComIdAsync("fato.publicado", caso?.Id, null, "fato_id", id);
 
+        // Estado do E11 do caso ANTES da reavaliação desta publicação — decide protocolo vs reenvio (§10.3).
+        var e11Antes = caso is null ? null
+            : (await r.Entregaveis.PorChaveAsync(caso.Id, "E11"))?.Estado;
+
+        // 2. invalidação (§11): só quando nova_versao e a versão anterior estava ligada a entregáveis.
+        if (efeito == EfeitoFato.NovaVersao && vigente is not null)
+            await InvalidarPorNovaVersaoAsync(r, vigente.Id, id, entregavelConcluido);
+
+        // 3. reavaliação dos casos abertos do titular (§7.4).
         if (reavaliar)
             await ReavaliarAbertosAsync(r, cmd.TitularId);
+
+        // 4. acompanhamento depois do protocolo (§10.3): depois de invalidação e reavaliação.
+        if (caso is not null)
+            await AcompanhamentoAsync(r, caso, cmd, id, e11Antes);
 
         return new ResultadoFato(id, versao, efeito);
     }
@@ -198,7 +217,7 @@ public sealed class MotorServico
         {
             var cmd = new PublicarFatoCmd(caso.TitularId, caso.Competencia, tipoSaida, s.Tributo,
                 s.ValorCentavos, s.Payload, "tarefa", null, agora);
-            var rf = await PublicarFatoInternoAsync(r, cmd, reavaliar: false);
+            var rf = await PublicarFatoInternoAsync(r, cmd, reavaliar: false, entregavelConcluido: ent.Id);
             await r.Entregaveis.LigarFatoAsync(ent.Id, rf.FatoId, "saida");
         }
 
@@ -242,6 +261,222 @@ public sealed class MotorServico
         return new ConcluirResultado(ConcluirErro.None, final, null);
 
         static ConcluirResultado Falha(ConcluirErro e, string msg) => new(e, null, msg);
+    }
+
+    // ---- Invalidação por nova versão de fato já usado (§11) ----
+    private async Task InvalidarPorNovaVersaoAsync(IRepositorios r, Guid fatoAnteriorId, Guid fatoNovoId, Guid? entregavelConcluido)
+    {
+        // Sementes: entregáveis que tinham a VERSÃO ANTERIOR do fato ligada (qualquer papel),
+        // menos o entregável que está sendo concluído (§8.4). Agrupe por caso (§11.1).
+        var sementes = (await r.Entregaveis.ComFatoLigadoAsync(fatoAnteriorId))
+            .Where(e => e.Id != entregavelConcluido)
+            .ToList();
+        if (sementes.Count == 0) return;
+
+        var porCaso = sementes.GroupBy(e => e.CasoId);
+        foreach (var grupo in porCaso)
+        {
+            var caso = await r.Casos.PorIdAsync(grupo.Key);
+            if (caso is null) continue;
+
+            if (caso.Estado == "encerrado")
+            {
+                // §11.3: nenhuma transição; UMA exceção competencia_encerrada por caso (abertura única).
+                var exId = await r.Excecoes.AbrirUnicaSemEntregavelAsync(caso.Id, "competencia_encerrada", "O", caso.Carteira);
+                if (exId is { } eid)
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, null, "excecao_id", eid);
+                continue;
+            }
+
+            // §11.2: caso aberto, regra por estado, com cascata a partir de quem foi para invalidado.
+            // Cada entregável é tratado no máximo uma vez por publicação.
+            var tratados = new HashSet<Guid>();
+            var fila = new Queue<Entregavel>(grupo.OrderBy(e => e.Tipo));
+            while (fila.Count > 0)
+            {
+                var e = fila.Dequeue();
+                if (!tratados.Add(e.Id)) continue;
+                // relê o estado atual (uma semente pode já ter sido invalidada em cascata)
+                var atual = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, e.Tipo) ?? e;
+                var foiInvalidado = await AplicarInvalidacaoEstadoAsync(r, caso, atual, fatoNovoId);
+                if (foiInvalidado)
+                {
+                    foreach (var dep in await r.Entregaveis.DependentesDeAsync(caso.Id, atual.Id))
+                        if (!tratados.Contains(dep.Id))
+                            fila.Enqueue(dep);
+                }
+            }
+        }
+    }
+
+    /// <summary>Aplica a tabela de §11.2 a um entregável de caso aberto. Devolve true se foi para invalidado.</summary>
+    private async Task<bool> AplicarInvalidacaoEstadoAsync(IRepositorios r, Caso caso, Entregavel e, Guid fatoNovoId)
+    {
+        var agora = DateTimeOffset.UtcNow;
+        switch (e.Estado)
+        {
+            case EstadoEntregavel.Pronto:
+            case EstadoEntregavel.Processado:
+            case EstadoEntregavel.Divergente:
+            case EstadoEntregavel.Validado:
+            case EstadoEntregavel.Liberado:
+                var saiuDeDivergente = e.Estado == EstadoEntregavel.Divergente;
+                await r.Entregaveis.TransicionarAsync(e, new NovaTransicao(
+                    e.Id, caso.Id, e.Estado, EstadoEntregavel.Invalidado, "fato_alterado",
+                    "fato", fatoNovoId.ToString(), "sistema", caso.RegraVersaoId), agora);
+                await r.Eventos.GravarComIdAsync("entregavel.invalidado", caso.Id, e.Id, "entregavel_id", e.Id);
+                await r.Tarefas.CancelarAbertasAsync(e.Id);
+                if (saiuDeDivergente)
+                    await r.Excecoes.ResolverCfAbertasAsync(e.Id, "fato_alterado");
+                return true;
+
+            case EstadoEntregavel.Disponibilizado:
+                // Estado não muda; abre substituicao (abertura única §9.4). O pacote já protocolado
+                // precisa ser substituído (§11.2).
+                var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, e.Id, "substituicao", "O", caso.Carteira);
+                if (exId is { } eid)
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e.Id, "excecao_id", eid);
+                return false;
+
+            default:
+                // aguardando_insumo, invalidado, encerrado: nada
+                return false;
+        }
+    }
+
+    // ---- Acompanhamento depois do protocolo (§10.3) ----
+    private async Task AcompanhamentoAsync(IRepositorios r, Caso caso, PublicarFatoCmd cmd, Guid fatoNovoId,
+        EstadoEntregavel? e11Antes)
+    {
+        // Só vale para o E11 e seu tributo de guia (DAS no SN, IRPJ no LP).
+        var e11 = await r.Entregaveis.PorChaveAsync(caso.Id, "E11");
+        if (e11 is null) return;
+        var tributoGuia = TributoDaGuia(caso);
+        if (cmd.Tributo != tributoGuia) return;
+
+        var regra = cmd.Tipo;
+        var acomp = await AcompanhamentoRegraAsync(r, caso);
+        if (acomp is null) return;
+
+        // Reenvio: documento_disponibilizado em NOVA versão com o E11 JÁ em disponibilizado antes
+        // desta publicação (§10.3). O protocolo (§10.1), que leva liberado->disponibilizado, não é reenvio.
+        if (regra == acomp.Value.DisponibilizadoTipo && e11Antes == EstadoEntregavel.Disponibilizado)
+        {
+            var guia = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, "guia", tributoGuia);
+            if (guia is not null)
+                await r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e11.Id,
+                    "entregavel_id", e11.Id, "fato_id", guia.Id);
+            else
+                await r.Eventos.GravarComIdAsync("documento.disponibilizado", caso.Id, e11.Id, "entregavel_id", e11.Id);
+            await r.Excecoes.ResolverPorTiposAsync(e11.Id, new[] { "entrega_falhou" }, "reenviado");
+            return;
+        }
+
+        // Os demais fatos de acompanhamento só valem quando o E11 já está em disponibilizado.
+        if (e11Antes != EstadoEntregavel.Disponibilizado) return;
+
+        if (regra == acomp.Value.FalhaTipo)
+        {
+            var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, e11.Id, "entrega_falhou", "O", caso.Carteira);
+            if (exId is { } eid)
+                await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e11.Id, "excecao_id", eid);
+        }
+        else if (regra == acomp.Value.ConfirmacaoTipo)
+        {
+            await r.Eventos.GravarComIdAsync("recebimento.confirmado", caso.Id, e11.Id, "entregavel_id", e11.Id);
+            await r.Excecoes.ResolverPorTiposAsync(e11.Id,
+                new[] { "entrega_falhou", "recebimento_pendente" }, "recebido");
+        }
+        else if (regra == acomp.Value.PendenciaTipo)
+        {
+            // Só se NÃO existe fato vigente entrega_confirmada com a mesma chave.
+            var confirmada = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia,
+                acomp.Value.ConfirmacaoTipo, tributoGuia);
+            if (confirmada is null)
+            {
+                var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, e11.Id, "recebimento_pendente", "O", caso.Carteira);
+                if (exId is { } eid)
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e11.Id, "excecao_id", eid);
+            }
+        }
+    }
+
+    private readonly record struct AcompRegra(string DisponibilizadoTipo, string FalhaTipo, string ConfirmacaoTipo, string PendenciaTipo);
+
+    private async Task<AcompRegra?> AcompanhamentoRegraAsync(IRepositorios r, Caso caso)
+    {
+        var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId);
+        if (conteudo is not { } c) return null;
+        var regra = new RegraEntregaveis(caso.RegraVersaoId, c);
+        var e11 = regra.Item("E11");
+        if (e11?.PosValidacao is not { } pv) return null;
+        var dispTipo = pv.TryGetProperty("disponibilizado_quando", out var dq) && dq.ValueKind == JsonValueKind.Object
+            && dq.TryGetProperty("tipo", out var dqt) ? dqt.GetString()! : "documento_disponibilizado";
+        if (!e11.Bruto.TryGetProperty("acompanhamento", out var ac) || ac.ValueKind != JsonValueKind.Object)
+            return null;
+        string Tipo(string chave, string padrao) =>
+            ac.TryGetProperty(chave, out var o) && o.ValueKind == JsonValueKind.Object
+            && o.TryGetProperty("tipo", out var t) ? t.GetString()! : padrao;
+        return new AcompRegra(dispTipo, Tipo("falha", "entrega_falhou"),
+            Tipo("confirmacao", "entrega_confirmada"), Tipo("pendencia", "recebimento_pendente"));
+    }
+
+    private static string TributoDaGuia(Caso caso)
+    {
+        var regime = caso.Snapshot.TryGetProperty("regime", out var r) && r.ValueKind == JsonValueKind.String
+            ? r.GetString()! : "SN";
+        return regime == "SN" ? "DAS" : "IRPJ";
+    }
+
+    // ---- RegistrarOverride (§8.1) ----
+    public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido }
+    public sealed record OverrideResultado(OverrideErro Erro, Entregavel? Entregavel, string? Mensagem);
+
+    public async Task<OverrideResultado> RegistrarOverrideAsync(string titularId, Competencia competencia,
+        string tipo, string ator, string cf, string motivo)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "caso inexistente");
+        await r.Casos.TravarCasoAsync(titularId, competencia);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
+        if (ent is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "entregável inexistente");
+
+        // 3. estado != divergente, conf vigente inexistente/≠divergente-B/já com override -> 409
+        if (ent.Estado != EstadoEntregavel.Divergente)
+            return new OverrideResultado(OverrideErro.Conflito, null, "entregável não está divergente");
+        var conf = await r.Conferencias.VigenteDaCfAsync(ent.Id, cf);
+        if (conf is null || conf.Resultado != "divergente" || conf.Severidade != "B" || conf.TemOverride)
+            return new OverrideResultado(OverrideErro.Conflito, null, "conferência não elegível a override");
+
+        var agora = await uow.AgoraAsync();
+
+        // 1. grava override na conferência vigente
+        await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo);
+        // 2. resolve exceções abertas daquele entregável com tipo = cf (resolucao override)
+        await r.Excecoes.ResolverPorTiposAsync(ent.Id, new[] { cf }, "override");
+        // 3. evento conferencia.override
+        await r.Eventos.GravarComIdAsync("conferencia.override", caso.Id, ent.Id, "conferencia_id", conf.Id);
+
+        // 4. se nenhuma outra CF divergente B sem override: divergente -> validado + evento do tipo
+        if (!await r.Conferencias.TemOutraDivergenteBSemOverrideAsync(ent.Id, conf.Id))
+        {
+            await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
+                ent.Id, caso.Id, ent.Estado, EstadoEntregavel.Validado, "override",
+                "conferencia", conf.Id.ToString(), ator, caso.RegraVersaoId), agora);
+            var cat = await r.Catalogo.EntregavelTipoAsync(tipo);
+            if (cat?.EventoPublicado is { } nome)
+                await r.Eventos.GravarComIdAsync(nome, caso.Id, ent.Id, "entregavel_id", ent.Id);
+        }
+
+        // 5. reavalia casos abertos do titular (propagação)
+        await ReavaliarAbertosAsync(r, caso.TitularId);
+
+        var final = await r.Entregaveis.PorChaveAsync(caso.Id, tipo);
+        await uow.ConfirmarAsync();
+        return new OverrideResultado(OverrideErro.None, final, null);
     }
 
     private static async Task<(Tolerancia tol, Guid versaoId, int prolaboreBp)> CarregarFiscalAsync(IRepositorios r)

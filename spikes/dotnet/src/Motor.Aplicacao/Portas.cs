@@ -81,6 +81,8 @@ public interface ICasoRepo
     /// na assinatura por clareza no call-site, mas não entra na chave do lock.</summary>
     Task TravarCasoAsync(string titularId, Competencia competencia);
     Task<Caso?> PorChaveAsync(string titularId, Competencia competencia);
+    /// <summary>Caso por id (para agrupar sementes de invalidação por caso, §11.1).</summary>
+    Task<Caso?> PorIdAsync(Guid casoId);
     Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
         string carteira, Guid regraVersaoId);
     /// <summary>Casos ABERTOS do titular, com trava, para reavaliação após fato.</summary>
@@ -102,6 +104,12 @@ public interface IEntregavelRepo
     /// <summary>Aplica a transição: UPDATE estado/estado_desde/version + INSERT na transição (§4.1).</summary>
     Task TransicionarAsync(Entregavel atual, NovaTransicao transicao, DateTimeOffset agora);
     Task LigarFatoAsync(Guid entregavelId, Guid fatoId, string papel);
+    /// <summary>Entregáveis (qualquer caso) que têm o fato dado ligado em entregavel_fato,
+    /// qualquer papel — sementes da invalidação (§11.1).</summary>
+    Task<IReadOnlyList<Entregavel>> ComFatoLigadoAsync(Guid fatoId);
+    /// <summary>Entregáveis do mesmo caso que dependem (depende_de_id) do entregável dado —
+    /// cascata da invalidação (§11.2).</summary>
+    Task<IReadOnlyList<Entregavel>> DependentesDeAsync(Guid casoId, Guid dependeDeId);
 }
 
 public interface IFatoRepo
@@ -129,7 +137,22 @@ public interface IConferenciaRepo
     /// <summary>Insere se não existir (idempotência por cf+entregavel+entrada_hash); devolve
     /// (id, resultado) da conferência vigente para aquela chave.</summary>
     Task<(Guid Id, ResultadoConferencia Resultado)> InserirOuReaproveitarAsync(NovaConferencia c);
+
+    /// <summary>Conferência VIGENTE de uma CF num entregável = a mais recente (maior em) daquela
+    /// CF naquele entregável (§8.1).</summary>
+    Task<ConferenciaVigente?> VigenteDaCfAsync(Guid entregavelId, string cf);
+
+    /// <summary>Grava override (autor, motivo, em) na conferência vigente da CF (§8.1).</summary>
+    Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo);
+
+    /// <summary>Existe ALGUMA conferência vigente divergente, severidade B, sem override, em
+    /// qualquer CF deste entregável, exceto a conferência dada (§8.1 passo 4)?</summary>
+    Task<bool> TemOutraDivergenteBSemOverrideAsync(Guid entregavelId, Guid excetoConferenciaId);
 }
+
+/// <summary>Conferência vigente de uma CF num entregável (§8.1).</summary>
+public sealed record ConferenciaVigente(
+    Guid Id, string Resultado, string Severidade, bool TemOverride);
 
 public interface ITarefaRepo
 {
@@ -142,6 +165,22 @@ public interface ITarefaRepo
 public interface IExcecaoRepo
 {
     Task<Guid> AbrirAsync(Guid casoId, Guid entregavelId, string tipo, string classe, string dono);
+
+    /// <summary>Abre uma exceção de entregável só se NÃO houver outra aberta do mesmo tipo para o
+    /// mesmo entregável (§9.4 abertura única). Devolve o id novo, ou null se já existia aberta.</summary>
+    Task<Guid?> AbrirUnicaAsync(Guid casoId, Guid entregavelId, string tipo, string classe, string dono);
+
+    /// <summary>Abre uma exceção SEM entregável (competencia_encerrada, §11.3) só se não houver
+    /// outra aberta do mesmo tipo para o mesmo caso. Devolve o id novo, ou null se já existia.</summary>
+    Task<Guid?> AbrirUnicaSemEntregavelAsync(Guid casoId, string tipo, string classe, string dono);
+
+    /// <summary>Resolve (estado=resolvida, resolucao, resolvida_em=now) as exceções ABERTAS do
+    /// entregável cujo tipo COMEÇA com 'CF-' (§9.4 resolução por fato novo).</summary>
+    Task ResolverCfAbertasAsync(Guid entregavelId, string resolucao);
+
+    /// <summary>Resolve as exceções ABERTAS do entregável cujo tipo está na lista dada
+    /// (acompanhamento §10.3: entrega_falhou, recebimento_pendente).</summary>
+    Task ResolverPorTiposAsync(Guid entregavelId, IReadOnlyList<string> tipos, string resolucao);
 }
 
 public interface IEventoRepo
@@ -149,4 +188,8 @@ public interface IEventoRepo
     Task GravarAsync(string nome, Guid? casoId, Guid? entregavelId, JsonElement payload);
     /// <summary>Conveniência: payload de um único id.</summary>
     Task GravarComIdAsync(string nome, Guid? casoId, Guid? entregavelId, string chave, Guid valor);
+    /// <summary>Conveniência: payload com dois ids (ex.: documento.disponibilizado leva
+    /// entregavel_id e fato_id da guia de entrada do E11, §10.1/§12).</summary>
+    Task GravarComDoisIdsAsync(string nome, Guid? casoId, Guid? entregavelId,
+        string chave1, Guid valor1, string chave2, Guid valor2);
 }

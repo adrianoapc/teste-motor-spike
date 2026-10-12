@@ -71,19 +71,17 @@ public sealed class AvaliarCaso
                 }
                 else if (e.Estado == EstadoEntregavel.Liberado && item.PosValidacao is not null)
                 {
+                    // Protocolo (§10.1): disponibiliza quando chega o fato disponibilizado_quando com o
+                    // tributo da guia de entrada do E11. O evento leva o fato_id da GUIA vigente (INV-14).
                     if (await FatoPosExisteAsync(caso, item, "disponibilizado_quando"))
                     {
+                        var guia = await GuiaDeEntradaAsync(caso);
                         await Transicionar(caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato", null, "sistema", agora);
-                        await _r.Eventos.GravarComIdAsync("documento.disponibilizado", caso.Id, e.Id, "entregavel_id", e.Id);
-                        mudou = true;
-                    }
-                }
-                else if (e.Estado == EstadoEntregavel.Disponibilizado && item.PosValidacao is not null)
-                {
-                    if (await FatoPosExisteAsync(caso, item, "pago_quando"))
-                    {
-                        await Transicionar(caso, e, EstadoEntregavel.Pago, "guia_paga", "fato", null, "sistema", agora);
-                        await _r.Eventos.GravarComIdAsync("guia.paga", caso.Id, e.Id, "entregavel_id", e.Id);
+                        if (guia is not null)
+                            await _r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e.Id,
+                                "entregavel_id", e.Id, "fato_id", guia.Id);
+                        else
+                            await _r.Eventos.GravarComIdAsync("documento.disponibilizado", caso.Id, e.Id, "entregavel_id", e.Id);
                         mudou = true;
                     }
                 }
@@ -138,6 +136,11 @@ public sealed class AvaliarCaso
             ? r.GetString()! : "SN";
         return regime == "SN" ? "DAS" : "IRPJ";
     }
+
+    /// <summary>Fato vigente da guia de entrada do E11 (tributo por regime). É o fato_id que o
+    /// evento documento.disponibilizado carrega (§10.1, INV-14) e que o acompanhamento usa.</summary>
+    private async Task<FatoVigente?> GuiaDeEntradaAsync(Caso caso)
+        => await _r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, "guia", TributoDaGuia(caso));
 
     private async Task<bool> EntradasDepsSatisfeitasAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
     {

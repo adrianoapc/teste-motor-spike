@@ -174,6 +174,43 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
     }
 });
 
+// ---- POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override (§8.1) ----
+app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
+    async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
+{
+    if (!Regex.IsMatch(competencia, "^[0-9]{4}(0[1-9]|1[0-2])$"))
+        return Erro(422, "corpo_invalido", "competência inválida");
+    JsonDocument doc;
+    try { doc = await JsonDocument.ParseAsync(req.Body); }
+    catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
+    using (doc)
+    {
+        var raiz = doc.RootElement;
+        if (raiz.ValueKind != JsonValueKind.Object)
+            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
+        if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
+            return Erro(422, "corpo_invalido", "ator ausente");
+        if (!Validacao.CampoTextoNaoVazio(raiz, "cf", out var cf) || !Regex.IsMatch(cf, "^CF-[0-9]{2}$"))
+            return Erro(422, "corpo_invalido", "cf ausente ou fora do padrão CF-nn");
+        if (!Validacao.CampoTextoNaoVazio(raiz, "motivo", out var motivo) || motivo.Length < 5)
+            return Erro(422, "corpo_invalido", "motivo ausente ou com menos de 5 caracteres");
+
+        var res = await motor.RegistrarOverrideAsync(titularId, Competencia.Analisar(competencia), tipo, ator, cf, motivo);
+        return res.Erro switch
+        {
+            MotorServico.OverrideErro.NaoEncontrado => Erro(404, "nao_encontrado", res.Mensagem ?? "não encontrado"),
+            MotorServico.OverrideErro.Conflito => Erro(409, "override_nao_permitido", res.Mensagem ?? "estado não permite"),
+            MotorServico.OverrideErro.Invalido => Erro(422, "corpo_invalido", res.Mensagem ?? "corpo inválido"),
+            _ => Results.Json(new
+            {
+                entregavel_id = res.Entregavel!.Id,
+                tipo = res.Entregavel.Tipo,
+                estado = res.Entregavel.Estado.Nome(),
+            }, jsonOpts),
+        };
+    }
+});
+
 // ---- GET /casos/{titular_id}/{competencia} ----
 app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string competencia, IFabricaUnidade fab) =>
 {

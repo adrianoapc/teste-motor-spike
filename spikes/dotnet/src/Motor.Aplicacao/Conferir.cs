@@ -107,10 +107,11 @@ public sealed class Conferir
 
         if (efetivo == ResultadoConferencia.Divergente && severidade == "B")
         {
-            // divergência bloqueante: exceção + eventos (§9.3)
-            var excId = await _r.Excecoes.AbrirAsync(caso.Id, e.Id, cf, classe, caso.Carteira);
+            // divergência bloqueante: exceção (abertura única §9.4) + eventos (§9.3)
+            var excId = await _r.Excecoes.AbrirUnicaAsync(caso.Id, e.Id, cf, classe, caso.Carteira);
             await _r.Eventos.GravarComIdAsync("conferencia.divergente", caso.Id, e.Id, "conferencia_id", confId);
-            await _r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e.Id, "excecao_id", excId);
+            if (excId is { } eid)
+                await _r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e.Id, "excecao_id", eid);
         }
     }
 

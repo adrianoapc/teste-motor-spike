@@ -21,8 +21,8 @@
 | **E07** | Pró-labore | **humano** | `tem_prolabore = true` | (conclusão humana) | E03 | CF-08 |
 | **E08** | Guias do DP | sistema | `tem_folha` **ou** `tem_prolabore` | `guia[INSS]` (sempre); `guia[FGTS]` **só se `tem_folha`** | E06, E07 | CF-09 |
 | **E10** | Obrigações acessórias | sistema | sempre | `recibo_obrigacao` tributo **PGDAS-D (SN)** / **DCTFWEB (LP)** | E03 | CF-12 |
-| **E11** | Entrega e acompanhamento | sistema | sempre | `guia` tributo **DAS (SN)** / **IRPJ (LP)** + pós-validação `documento_disponibilizado` → `guia_paga` | E03, E04, E08 | CF-05, CF-06 |
-| **E12** | Encerramento da competência | sistema | sempre (`encerra_caso`) | — | E01, E02, E03, E04, E05, E06, E07, E08, E10, **E11 ≥ pago** | — |
+| **E11** | Protocolo de entrega ao cliente | sistema | sempre | `guia` tributo **DAS (SN)** / **IRPJ (LP)** + pós-validação `documento_disponibilizado` → `disponibilizado` (protocolo) | E03, E04, E08 | CF-05, CF-06 |
+| **E12** | Encerramento da competência | sistema | sempre (`encerra_caso`) | — | E01, E02, E03, E04, E05, E06, E07, E08, E10, **E11 ≥ disponibilizado** | — |
 
 > **Nota**: não existe **E09** na regra — a numeração salta de E08 para E10.
 
@@ -45,39 +45,56 @@
 | `tem_folha` **ou** `tem_prolabore` | materializa **E08** |
 | `tem_taxa_municipal = true` | materializa **E05** |
 
-## Pós-validação do E11 (semântica §10.1)
+## Pós-validação e acompanhamento do E11 (semântica v3 §10.1, §10.3)
 
 Liberação automática. A partir de `liberado`:
 
-| Gatilho | Transição |
-|---------|-----------|
-| fato `documento_disponibilizado` (mesmo tributo da guia de entrada) | `liberado → disponibilizado` |
-| fato `guia_paga` (mesmo tributo) | `disponibilizado → pago` |
+| Gatilho | Transição / efeito |
+|---------|--------------------|
+| fato `documento_disponibilizado` (mesmo tributo da guia de entrada) | `liberado → disponibilizado` (**protocolo**); evento `documento.disponibilizado` com `entregavel_id` **e** `fato_id` da guia (INV-14) |
+
+**O fechamento termina no protocolo.** Não há mais estado `pago` (aposentado na
+V006) nem evento `guia.paga` — o pagamento é da Regularidade Fiscal (§15).
+
+Depois do protocolo (E11 já em `disponibilizado`), o **acompanhamento** (§10.3)
+não muda estado nem reabre o caso:
+
+| Fato (mesmo tributo da guia) | Efeito |
+|------------------------------|--------|
+| `documento_disponibilizado` (**nova versão**) | **reenvio**: novo evento `documento.disponibilizado`; resolve `entrega_falhou` como `reenviado` |
+| `entrega_falhou` | exceção `entrega_falhou` classe `O` (abertura única); evento `excecao.aberta` |
+| `entrega_confirmada` | evento `recebimento.confirmado`; resolve `entrega_falhou`/`recebimento_pendente` como `recebido` |
+| `recebimento_pendente` | exceção `recebimento_pendente` classe `O` (só se não há `entrega_confirmada` vigente) |
 
 ## Encerramento (E12, semântica §10.2)
 
 O E12 depende de **todos os demais entregáveis que existem no caso** (E11 em
-`pago`). Como só são materializados os entregáveis aplicáveis às flags/regime,
-um caso **LP sem folha e sem pró-labore** encerra com **6 entregáveis**
-(E01, E03, E04, E10, E11, E12) — sem E02, E05, E06, E07, E08. Um caso **SN com
-folha e pró-labore** encerra com **10** (todos menos E05, quando sem taxa
-municipal). Quando o E12 chega a `validado`, há transição imediata
+`disponibilizado`). Como só são materializados os entregáveis aplicáveis às
+flags/regime, um caso **LP sem folha e sem pró-labore** encerra com **6
+entregáveis** (E01, E03, E04, E10, E11, E12) — sem E02, E05, E06, E07, E08. Um
+caso **SN com folha e pró-labore** encerra com **10** (todos menos E05, quando
+sem taxa municipal). Quando o E12 chega a `validado`, há transição imediata
 `validado → encerrado` e o caso passa a `estado = 'encerrado'` (evento
-`fechamento.concluido`).
+`fechamento.concluido`). Depois do encerramento, nenhuma transição ocorre em
+entregável do caso (INV-15).
 
 ## Executores
 
 - **Humanos** (exigem `POST .../entregaveis/{tipo}/concluir`): **E03, E06, E07**.
 - **Sistema** (avançam sozinhos quando insumo/dependência chegam): todos os demais.
 
-## Evidência de execução (sessão de 2026-10-07)
+## Evidência de execução (semântica v3)
 
-Reproduzido manualmente contra o spike em `http://localhost:8081`, dois casos na
-competência `202609`:
+Verificador oficial contra o spike em `http://localhost:8081`, todas as fases:
 
-- **C1 · T001** (SN, com folha e pró-labore) → encerrado com **10** entregáveis.
-- **C7 · T002** (LP, sem folha/pró-labore) → encerrado com **6** entregáveis.
-  O caminho até o encerramento do LP (E10 `DCTFWEB`, E11 `IRPJ`) vai **além** do
-  que o cenário C7 oficial exercita — o C7 do verificador para na conclusão do
-  E03. Isto foi exploração manual guiada pela config e **não** altera a barra de
-  aceite, que segue `C1 + C7 = 2/2` via `verificador/verificador.py`.
+```
+python verificador/verificador.py --api http://localhost:8081 \
+  --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --limpar
+→ RESULTADO: todos passaram (10/10)
+```
+
+Cobre C1–C10 (fases 1–3): feliz SN/LP, reabertura após entrega, nota cancelada
+com DAS protocolado, guia retificada duas vezes, alteração retroativa em
+competência encerrada, escala (4.500 casos), override de conferência e
+acompanhamento depois do protocolo. Testes do projeto: Unidade 27/27,
+Arquitetura 3/3, build 0 avisos / 0 erros.

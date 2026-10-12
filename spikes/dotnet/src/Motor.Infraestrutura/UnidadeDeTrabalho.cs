@@ -145,6 +145,14 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
         return r is null ? null : Mapear(r.Value);
     }
 
+    public async Task<Caso?> PorIdAsync(Guid casoId)
+    {
+        var r = await Conn.QuerySingleOrDefaultAsync<(Guid, string, string, string, string, Guid, string, int)?>(
+            $"SELECT {Cols} FROM fechamento.caso_competencia WHERE id = @id",
+            new { id = casoId }, Tx);
+        return r is null ? null : Mapear(r.Value);
+    }
+
     public async Task TravarCasoAsync(string titularId, Competencia competencia)
     {
         // Lock por TITULAR (competência ignorada de propósito). A reavaliação de um caso aberto lê
@@ -294,6 +302,29 @@ internal sealed class EntregavelRepo : RepoBase, IEntregavelRepo
               VALUES (@e, @f, @p) ON CONFLICT DO NOTHING",
             new { e = entregavelId, f = fatoId, p = papel }, Tx);
     }
+
+    public async Task<IReadOnlyList<Entregavel>> ComFatoLigadoAsync(Guid fatoId)
+    {
+        var rows = await Conn.QueryAsync<(Guid, Guid, string, string, string, string, int)>(
+            $@"SELECT {Cols} FROM fechamento.entregavel e
+               WHERE EXISTS (SELECT 1 FROM fechamento.entregavel_fato ef
+                             WHERE ef.entregavel_id = e.id AND ef.fato_id = @f)
+               ORDER BY e.tipo FOR UPDATE",
+            new { f = fatoId }, Tx);
+        return rows.Select(Mapear).ToList();
+    }
+
+    public async Task<IReadOnlyList<Entregavel>> DependentesDeAsync(Guid casoId, Guid dependeDeId)
+    {
+        var rows = await Conn.QueryAsync<(Guid, Guid, string, string, string, string, int)>(
+            $@"SELECT {Cols} FROM fechamento.entregavel e
+               WHERE e.caso_id = @c
+                 AND EXISTS (SELECT 1 FROM fechamento.entregavel_dependencia d
+                             WHERE d.entregavel_id = e.id AND d.depende_de_id = @dd)
+               ORDER BY e.tipo FOR UPDATE",
+            new { c = casoId, dd = dependeDeId }, Tx);
+        return rows.Select(Mapear).ToList();
+    }
 }
 
 internal sealed class FatoRepo : RepoBase, IFatoRepo
@@ -410,6 +441,43 @@ internal sealed class ConferenciaRepo : RepoBase, IConferenciaRepo
         return (r2.id, ParseResultado(r2.res));
     }
 
+    public async Task<ConferenciaVigente?> VigenteDaCfAsync(Guid entregavelId, string cf)
+    {
+        var r = await Conn.QuerySingleOrDefaultAsync<(Guid id, string res, string sev, bool temOv)?>(
+            @"SELECT id, resultado AS res, severidade AS sev, (override_autor IS NOT NULL) AS temOv
+              FROM conferencias.conferencia
+              WHERE entregavel_id = @e AND cf = @cf
+              ORDER BY em DESC LIMIT 1",
+            new { e = entregavelId, cf }, Tx);
+        return r is null ? null : new ConferenciaVigente(r.Value.id, r.Value.res, r.Value.sev, r.Value.temOv);
+    }
+
+    public async Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo)
+    {
+        await Conn.ExecuteAsync(
+            @"UPDATE conferencias.conferencia
+              SET override_autor = @a, override_motivo = @m, override_em = now()
+              WHERE id = @id",
+            new { id = conferenciaId, a = autor, m = motivo }, Tx);
+    }
+
+    public async Task<bool> TemOutraDivergenteBSemOverrideAsync(Guid entregavelId, Guid excetoConferenciaId)
+    {
+        // Conferência vigente (maior em) por CF deste entregável; alguma divergente B sem override,
+        // além da que acabou de receber override (§8.1 passo 4).
+        var n = await Conn.ExecuteScalarAsync<int>(
+            @"WITH vigente AS (
+                  SELECT DISTINCT ON (cf) id, resultado, severidade, override_autor
+                  FROM conferencias.conferencia
+                  WHERE entregavel_id = @e
+                  ORDER BY cf, em DESC
+              )
+              SELECT count(*) FROM vigente
+              WHERE id <> @exc AND resultado = 'divergente' AND severidade = 'B' AND override_autor IS NULL",
+            new { e = entregavelId, exc = excetoConferenciaId }, Tx);
+        return n > 0;
+    }
+
     private static string NomeResultado(ResultadoConferencia r) => r switch
     {
         ResultadoConferencia.Ok => "ok",
@@ -473,6 +541,51 @@ internal sealed class ExcecaoRepo : RepoBase, IExcecaoRepo
               VALUES (@c, @e, @t, @cl, @d, 'aberta') RETURNING id",
             new { c = casoId, e = entregavelId, t = tipo, cl = classe, d = dono }, Tx);
     }
+
+    public async Task<Guid?> AbrirUnicaAsync(Guid casoId, Guid entregavelId, string tipo, string classe, string dono)
+    {
+        // Abertura única (§9.4): insere só se não houver outra aberta do mesmo tipo p/ o mesmo entregável.
+        return await Conn.QuerySingleOrDefaultAsync<Guid?>(
+            @"INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, estado)
+              SELECT @c, @e, @t, @cl, @d, 'aberta'
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM trabalho.excecao
+                  WHERE entregavel_id = @e AND tipo = @t AND estado = 'aberta')
+              RETURNING id",
+            new { c = casoId, e = entregavelId, t = tipo, cl = classe, d = dono }, Tx);
+    }
+
+    public async Task<Guid?> AbrirUnicaSemEntregavelAsync(Guid casoId, string tipo, string classe, string dono)
+    {
+        // Abertura única por CASO (§11.3): entregavel_id nulo; chave = (caso_id, tipo).
+        return await Conn.QuerySingleOrDefaultAsync<Guid?>(
+            @"INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, estado)
+              SELECT @c, NULL, @t, @cl, @d, 'aberta'
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM trabalho.excecao
+                  WHERE caso_id = @c AND entregavel_id IS NULL AND tipo = @t AND estado = 'aberta')
+              RETURNING id",
+            new { c = casoId, t = tipo, cl = classe, d = dono }, Tx);
+    }
+
+    public async Task ResolverCfAbertasAsync(Guid entregavelId, string resolucao)
+    {
+        await Conn.ExecuteAsync(
+            @"UPDATE trabalho.excecao
+              SET estado = 'resolvida', resolucao = @r, resolvida_em = now()
+              WHERE entregavel_id = @e AND estado = 'aberta' AND tipo LIKE 'CF-%'",
+            new { e = entregavelId, r = resolucao }, Tx);
+    }
+
+    public async Task ResolverPorTiposAsync(Guid entregavelId, IReadOnlyList<string> tipos, string resolucao)
+    {
+        if (tipos.Count == 0) return;
+        await Conn.ExecuteAsync(
+            @"UPDATE trabalho.excecao
+              SET estado = 'resolvida', resolucao = @r, resolvida_em = now()
+              WHERE entregavel_id = @e AND estado = 'aberta' AND tipo = ANY(@tipos)",
+            new { e = entregavelId, r = resolucao, tipos = tipos.ToArray() }, Tx);
+    }
 }
 
 internal sealed class EventoRepo : RepoBase, IEventoRepo
@@ -494,6 +607,18 @@ internal sealed class EventoRepo : RepoBase, IEventoRepo
     public async Task GravarComIdAsync(string nome, Guid? casoId, Guid? entregavelId, string chave, Guid valor)
     {
         var payload = JsonSerializer.Serialize(new Dictionary<string, string> { [chave] = valor.ToString() });
+        using var doc = JsonDocument.Parse(payload);
+        await GravarAsync(nome, casoId, entregavelId, doc.RootElement);
+    }
+
+    public async Task GravarComDoisIdsAsync(string nome, Guid? casoId, Guid? entregavelId,
+        string chave1, Guid valor1, string chave2, Guid valor2)
+    {
+        var payload = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            [chave1] = valor1.ToString(),
+            [chave2] = valor2.ToString(),
+        });
         using var doc = JsonDocument.Parse(payload);
         await GravarAsync(nome, casoId, entregavelId, doc.RootElement);
     }
