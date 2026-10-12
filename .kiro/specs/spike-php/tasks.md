@@ -102,7 +102,7 @@ Antes da tarefa 11: `git merge origin/main`, para trazer correções da base fei
 
 ## Fase 3 · escala
 
-- [ ] 18. Cenário C6
+- [x] 18. Cenário C6
   - Rodar `--cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-php.json` com só esta spike no ar.
   - Se não cumprir os limites: medir onde está o tempo antes de mudar (registrar em `DUVIDAS.md`), e só então otimizar ou passar para `eventos.fila`.
   - Fechar com `--todos cenarios --fase 3` (10/10) e a seção "Fase 3" em `METRICAS.md`.

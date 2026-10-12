@@ -67,3 +67,38 @@ Modelo em `docs/regras-do-jogo.md` §4. Fase 1 (cenários C1 e C7).
 
 ### Rede de proteção (fase 2)
 - Erros barrados pelo PHPStan antes de teste nesta fase: 2 (nullsafe redundante no `??`, propriedade injetada não lida). Ver `REGISTRO-COMPILADOR.md`.
+
+---
+
+## Fase 3 — escala (cenário C6)
+
+### Correção
+- Verificador (2026-10-12, só a spike-php no ar): `--cenario c6 --limpar` → **C6 PASSOU (336 checagens, 0 falhas)**.
+- Regressão completa: `--todos cenarios --fase 3 --limpar` → **RESULTADO: todos passaram (10/10)**.
+- Totais conferidos: 4.500 casos, **40.306 entregáveis**, 300 fatos `guia[INSS]`.
+
+### Escala (medido, processamento SÍNCRONO, sem fila assíncrona)
+| Métrica | Limite | Medido | Margem |
+|---|---|---|---|
+| Abrir 4.500 casos (lotes de 500) | < 300 s | **82.9 s** | 3,6× |
+| 300 guias INSS, 20 requisições simultâneas (p95) | < 30 s | **0.099 s** | ~300× |
+| 300 guias — erros HTTP | 0 | **0** | — |
+| I1 (entregáveis por estado) | < 2 s | 0.026 s | — |
+| I2 (tempo em divergente) | < 2 s | 0.079 s | — |
+| I3 (exceções por tipo) | < 2 s | 0.001 s | — |
+| I4 (acerto de primeira) | < 2 s | 0.034 s | — |
+| I5 (entregáveis travados) | < 2 s | 0.196 s | — |
+| I6 (protocolo e recebimento) | < 2 s | 0.013 s | — |
+
+### Observações da fase 3
+- **Nenhuma otimização foi necessária.** O processamento síncrono dentro da requisição
+  (uma transação por empresa na abertura; `AvaliarCaso` com `SELECT … FOR UPDATE` nos
+  entregáveis do caso) cumpriu todos os limites com folga larga, inclusive sob 20
+  publicações de guia simultâneas, sem deadlock e sem transição duplicada.
+- A fila assíncrona (`eventos.fila`) e o modo worker do FrankenPHP (Octane) ficaram
+  **fora de uso** — a medida não mostrou necessidade (Requisito 19.4). `/admin/fila`
+  continua devolvendo `pendentes = 0` porque todo o efeito é gravado dentro da
+  requisição.
+- O ponto mais lento é a abertura (82.9 s / 4.500 = ~18 ms por caso), dominada pela
+  transação por empresa com criação de ~9 entregáveis e a prontidão inicial. Está bem
+  abaixo do limite, então não houve o que otimizar.

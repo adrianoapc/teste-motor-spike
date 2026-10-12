@@ -10,3 +10,6 @@
 /storage/logs/*
 /bootstrap/cache/*
 !.gitkeep
+
+# relatórios gerados pelo verificador
+resultado-*.json
