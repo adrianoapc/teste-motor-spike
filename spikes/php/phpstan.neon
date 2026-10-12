@@ -1,0 +1,20 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/pestphp/pest/extension.neon
+
+parameters:
+    level: max
+    paths:
+        - app
+        - routes
+        - tests
+    # A DSL de arquitetura do Pest (arch()->expect()->toUse()) é resolvida em
+    # tempo de execução por __call e não tem tipagem estática no nível max.
+    # Não é baseline nem @phpstan-ignore (proibidos pelo Requisito 12.1): é só
+    # o escopo de análise. Todo o app/ segue sob max. Ver DUVIDAS.md D5.
+    excludePaths:
+        - tests/Arquitetura/CamadasTest.php
+    # Sem baseline e sem @phpstan-ignore (Requisito 12.1).
+    treatPhpDocTypesAsCertain: true
+    reportUnmatchedIgnoredErrors: true
+    tmpDir: storage/phpstan

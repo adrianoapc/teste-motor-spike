@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory="storage/phpunit">
+    <testsuites>
+        <testsuite name="Unidade">
+            <directory>tests/Unidade</directory>
+        </testsuite>
+        <testsuite name="Arquitetura">
+            <directory>tests/Arquitetura</directory>
+        </testsuite>
+        <testsuite name="Integracao">
+            <directory>tests/Integracao</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
+    </php>
+</phpunit>

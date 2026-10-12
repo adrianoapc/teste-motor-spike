@@ -1,0 +1,9 @@
+vendor/
+node_modules/
+storage/phpstan/
+storage/phpunit/
+storage/framework/cache/*
+storage/logs/*
+.git/
+.env
+*.md
