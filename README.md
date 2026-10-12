@@ -2,22 +2,23 @@
 
 Protótipo **descartável** para decidir duas coisas com medida:
 1. se o motor do fechamento funciona como **tabela de prontidão em Postgres**;
-2. qual linguagem é melhor para o núcleo do sistema novo: **.NET 10** ou **Python**.
+2. qual linguagem é melhor para o núcleo do sistema novo: **.NET 10**, **Python** ou **PHP**.
 
-As duas spikes implementam o mesmo comportamento e passam pelo mesmo juiz. Quem perde sai; quem ganha é reescrita com rigor de produção depois do ADR-013. A **base comum** (esquema, cenários, verificador, contrato) não é descartável: vira o ponto de partida do motor de produção.
+As três spikes implementam o mesmo comportamento e passam pelo mesmo juiz. Quem perde sai; quem ganha é reescrita com rigor de produção depois do ADR-013. A **base comum** (esquema, cenários, verificador, contrato) não é descartável: vira o ponto de partida do motor de produção.
 
-Contexto e decisões: spec do spike v0.3 e ADR-014 no projeto Rissi.
+Contexto e decisões: spec do spike v0.5 e ADR-014 no projeto Rissi. A spike PHP entrou em 12/10, já na semântica v3 (ver `docs/regras-do-jogo.md` §2).
 
 ## Subir no Mac
 
 Requisito: Docker (Docker Desktop, OrbStack ou Colima) e Python 3.12+ para o verificador.
 
 ```sh
-docker compose up -d                             # Postgres 16, emulador de GCS (fake-gcs-server) e migrações nos dois bancos
+docker compose up -d                             # Postgres 16, emulador de GCS (fake-gcs-server) e migrações nos três bancos
 docker compose logs migrar                       # deve terminar com "migrações ok"
 
 docker compose --profile dotnet up -d --build    # spike .NET   → http://localhost:8081
 docker compose --profile python up -d --build    # spike Python → http://localhost:8082
+docker compose --profile php up -d --build       # spike PHP    → http://localhost:8083
 ```
 
 Tudo fica preso em `127.0.0.1`. Nada é exposto para a rede.
@@ -35,6 +36,10 @@ python verificador/verificador.py --api http://localhost:8081 \
 python verificador/verificador.py --api http://localhost:8082 \
   --db postgresql://spike:spike@localhost:5432/spike_python \
   --todos cenarios --fase 2 --limpar --relatorio resultado-python.json
+
+python verificador/verificador.py --api http://localhost:8083 \
+  --db postgresql://spike:spike@localhost:5432/spike_php \
+  --todos cenarios --fase 2 --limpar --relatorio resultado-php.json
 ```
 
 O verificador chama a API de cada cenário, confere o banco, checa 15 invariantes (transições, versões de fatos, eventos, conferências, exceções, tarefas, override, protocolo com a guia, caso encerrado imutável) e mede as 6 consultas de indicador. `--fase N` roda as fases 1 a N.
@@ -52,7 +57,7 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 | Pasta | O quê | Quem altera |
 |---|---|---|
 | `db/` | Esquema (V001–V006), regras **provisórias**, script de migração | Só o Adriano |
-| `contrato/openapi.yaml` | API idêntica nas duas spikes | Só o Adriano |
+| `contrato/openapi.yaml` | API idêntica nas três spikes | Só o Adriano |
 | `docs/semantica-do-motor.md` | **O que** o motor faz. Fonte da verdade | Só o Adriano |
 | `docs/regras-do-jogo.md` | Como as spikes são comparadas | Só o Adriano |
 | `cenarios/` | C1 a C10, em três fases (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
@@ -62,12 +67,13 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 | `.kiro/` | Orientações e specs para o Kiro implementar cada spike | Só o Adriano |
 | `spikes/dotnet/` | Spike .NET 10 | Kiro (spec `spike-dotnet`) |
 | `spikes/python/` | Spike Python | Kiro (spec `spike-python`) |
+| `spikes/php/` | Spike PHP | Kiro (spec `spike-php`) |
 
 ## Como usar com o Kiro
 
 1. Abrir o repositório no Kiro.
-2. Abrir a spec `spike-dotnet` (ou `spike-python`) e executar as tarefas em ordem.
-3. Fazer as duas em sessões separadas, sem uma ler a pasta da outra.
+2. Abrir a spec `spike-dotnet`, `spike-python` ou `spike-php` e executar as tarefas em ordem.
+3. Fazer cada uma em sessão separada, sem uma ler a pasta de outra.
 4. Ao fim de cada tarefa com verificador, guardar o `--relatorio`.
 
 ## Dados

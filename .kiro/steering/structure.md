@@ -7,10 +7,10 @@ inclusion: always
 ```
 docker-compose.yml          base comum (SÓ LEITURA)
 db/
-  init/                     cria os bancos spike_dotnet e spike_python (SÓ LEITURA)
-  migrations/V001..V005     esquema e regras provisórias (SÓ LEITURA)
+  init/                     cria os bancos spike_dotnet, spike_python e spike_php (SÓ LEITURA)
+  migrations/V001..V006     esquema e regras provisórias (SÓ LEITURA)
   scripts/migrar.sh         aplica as migrações (SÓ LEITURA)
-contrato/openapi.yaml       contrato HTTP idêntico nas duas spikes (SÓ LEITURA)
+contrato/openapi.yaml       contrato HTTP idêntico nas três spikes (SÓ LEITURA)
 docs/
   semantica-do-motor.md     O QUE o motor faz. Fonte da verdade (SÓ LEITURA)
   regras-do-jogo.md         como as spikes são comparadas (SÓ LEITURA)
@@ -19,8 +19,10 @@ verificador/                juiz comum (SÓ LEITURA)
 massa/, anonimizacao/       scripts de dados (SÓ LEITURA)
 .kiro/specs/spike-dotnet/   spec da spike .NET
 .kiro/specs/spike-python/   spec da spike Python
+.kiro/specs/spike-php/      spec da spike PHP
 spikes/dotnet/              ÚNICA pasta editável pela spike .NET
 spikes/python/              ÚNICA pasta editável pela spike Python
+spikes/php/                 ÚNICA pasta editável pela spike PHP
 ```
 
 ## Dentro de cada spike (camadas)
@@ -38,4 +40,4 @@ Arquivos obrigatórios em cada spike:
 - `README.md`: como construir, testar e rodar.
 - `DUVIDAS.md`: tudo o que a semântica não respondeu e a decisão tomada.
 - `METRICAS.md`: preenchido ao final (modelo em `docs/regras-do-jogo.md`).
-- `REGISTRO-COMPILADOR.md`: cada vez que o compilador (.NET) ou o mypy (Python) barrar um erro antes de qualquer teste, uma linha com data, arquivo e o tipo do erro.
+- `REGISTRO-COMPILADOR.md`: cada vez que o compilador (.NET), o mypy (Python) ou o PHPStan (PHP) barrar um erro antes de qualquer teste, uma linha com data, arquivo e o tipo do erro.

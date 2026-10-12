@@ -5,6 +5,11 @@ set -eu
 export PGOPTIONS="${PGOPTIONS:-} -c client_min_messages=warning"
 BANCO="$1"
 DIR="$(cd "$(dirname "$0")/../migrations" && pwd)"
+# Cria o banco se ainda não existir (volume criado antes de uma spike nova entrar).
+if [ "$(psql -tA -d postgres -c "SELECT 1 FROM pg_database WHERE datname = '$BANCO'")" != "1" ]; then
+  psql -v ON_ERROR_STOP=1 -q -d postgres -c "CREATE DATABASE $BANCO"
+  echo "  banco $BANCO criado"
+fi
 psql -v ON_ERROR_STOP=1 -q -d "$BANCO" -c "CREATE TABLE IF NOT EXISTS public.migracao_aplicada (arquivo text PRIMARY KEY, aplicada_em timestamptz NOT NULL DEFAULT now());"
 for f in "$DIR"/V*.sql; do
   nome="$(basename "$f")"
