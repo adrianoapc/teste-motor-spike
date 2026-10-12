@@ -15,12 +15,14 @@ class EstadoEntregavel(StrEnum):
     VALIDADO = "validado"
     LIBERADO = "liberado"
     DISPONIBILIZADO = "disponibilizado"
-    PAGO = "pago"
+    PAGO = "pago"  # aposentado na v3 (§4): ordem nula, nenhuma transição leva a ele
     ENCERRADO = "encerrado"
     DIVERGENTE = "divergente"
     INVALIDADO = "invalidado"
 
 
+# Ordem do caminho principal (§4 v3). `pago` é aposentado: ordem nula, pulando
+# de disponibilizado(6) direto para encerrado(8).
 _ORDEM: dict[str, int] = {
     EstadoEntregavel.AGUARDANDO_INSUMO: 1,
     EstadoEntregavel.PRONTO: 2,
@@ -28,7 +30,6 @@ _ORDEM: dict[str, int] = {
     EstadoEntregavel.VALIDADO: 4,
     EstadoEntregavel.LIBERADO: 5,
     EstadoEntregavel.DISPONIBILIZADO: 6,
-    EstadoEntregavel.PAGO: 7,
     EstadoEntregavel.ENCERRADO: 8,
 }
 

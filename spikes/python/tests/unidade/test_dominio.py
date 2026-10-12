@@ -82,7 +82,10 @@ def test_quando_campo_ausente_nao_casa_mas_objeto_vazio_casa() -> None:
 def test_ordem_do_caminho_principal() -> None:
     assert ordem(EstadoEntregavel.AGUARDANDO_INSUMO) == 1
     assert ordem(EstadoEntregavel.PRONTO) == 2
+    assert ordem(EstadoEntregavel.DISPONIBILIZADO) == 6
     assert ordem(EstadoEntregavel.ENCERRADO) == 8
+    # v3 (§4): `pago` aposentado — ordem nula, nenhuma transição leva a ele.
+    assert ordem(EstadoEntregavel.PAGO) is None
     assert ordem(EstadoEntregavel.DIVERGENTE) is None
     assert ordem(EstadoEntregavel.INVALIDADO) is None
 
@@ -90,7 +93,9 @@ def test_ordem_do_caminho_principal() -> None:
 def test_pelo_menos() -> None:
     assert pelo_menos(EstadoEntregavel.VALIDADO, EstadoEntregavel.PRONTO) is True
     assert pelo_menos(EstadoEntregavel.PRONTO, EstadoEntregavel.VALIDADO) is False
-    assert pelo_menos(EstadoEntregavel.PAGO, EstadoEntregavel.PAGO) is True
+    # v3: `pago` tem ordem nula, logo nunca é ≥ a nada (nem a si mesmo).
+    assert pelo_menos(EstadoEntregavel.PAGO, EstadoEntregavel.PAGO) is False
+    assert pelo_menos(EstadoEntregavel.DISPONIBILIZADO, EstadoEntregavel.VALIDADO) is True
     assert pelo_menos(EstadoEntregavel.DIVERGENTE, EstadoEntregavel.AGUARDANDO_INSUMO) is False
     assert pelo_menos(EstadoEntregavel.PAGO, EstadoEntregavel.INVALIDADO) is False
 

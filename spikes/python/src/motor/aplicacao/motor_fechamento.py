@@ -252,17 +252,13 @@ def _passo(
         pos = item.pos_validacao
         if pos is not None and _fato_pos(uow, caso, pos, "disponibilizado_quando"):
             tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None, "sistema")
+            fato_id = _guia_vigente_e11(uow, caso)
             uow.gravar_evento(
-                "documento.disponibilizado", caso.id, ent.id, {"entregavel_id": ent.id}
+                "documento.disponibilizado",
+                caso.id,
+                ent.id,
+                {"entregavel_id": ent.id, "fato_id": fato_id},
             )
-            return True
-        return False
-
-    if estado == E.DISPONIBILIZADO:
-        pos = item.pos_validacao
-        if pos is not None and _fato_pos(uow, caso, pos, "pago_quando"):
-            tr(E.PAGO, "guia_paga", "fato", None, "sistema")
-            uow.gravar_evento("guia.paga", caso.id, ent.id, {"entregavel_id": ent.id})
             return True
         return False
 
@@ -324,6 +320,18 @@ def _ligar_entradas(
             uow.ligar_fato(ent.id, f.id, "entrada")
 
 
+def _tributo_guia_e11(caso: Caso) -> str:
+    """Tributo da guia de entrada do E11: DAS no SN, IRPJ no LP (§10.1)."""
+    return "DAS" if caso.snapshot.get("regime") == "SN" else "IRPJ"
+
+
+def _guia_vigente_e11(uow: UnidadeDeTrabalho, caso: Caso) -> str | None:
+    """fato_id da versão vigente da guia de entrada do E11, se existir (§10.1)."""
+    tributo = _tributo_guia_e11(caso)
+    f = uow.fato_vigente(caso.titular_id, caso.competencia, "guia", tributo)
+    return f.id if f is not None else None
+
+
 def _fato_pos(
     uow: UnidadeDeTrabalho, caso: Caso, pos: Mapping[str, object], chave: str
 ) -> bool:
@@ -332,7 +340,7 @@ def _fato_pos(
     if not isinstance(gatilho, Mapping):
         return False
     tipo = str(gatilho["tipo"])
-    tributo = "DAS" if caso.snapshot.get("regime") == "SN" else "IRPJ"
+    tributo = _tributo_guia_e11(caso)
     return uow.fato_vigente(caso.titular_id, caso.competencia, tipo, tributo) is not None
 
 
