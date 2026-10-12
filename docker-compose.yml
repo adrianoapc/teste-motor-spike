@@ -3,6 +3,7 @@
 #   docker compose up -d                      # base
 #   docker compose --profile dotnet up -d     # base + spike .NET  (porta 8081)
 #   docker compose --profile python up -d     # base + spike Python (porta 8082)
+#   docker compose --profile php up -d        # base + spike PHP    (porta 8083)
 # Só localhost. Nada é exposto para a rede.
 
 name: teste-motor-spike
@@ -36,7 +37,7 @@ services:
       PGPASSWORD: spike
     volumes:
       - ./db:/db:ro
-    entrypoint: ["/bin/sh", "-c", "/db/scripts/migrar.sh spike_dotnet && /db/scripts/migrar.sh spike_python"]
+    entrypoint: ["/bin/sh", "-c", "/db/scripts/migrar.sh spike_dotnet && /db/scripts/migrar.sh spike_python && /db/scripts/migrar.sh spike_php"]
     restart: "no"
 
   gcs:
@@ -68,6 +69,17 @@ services:
       MOTOR_DB: "postgresql://spike:spike@postgres:5432/spike_python"
     ports:
       - "127.0.0.1:8082:8080"
+
+  spike-php:
+    profiles: ["php"]
+    build: ./spikes/php
+    depends_on:
+      migrar:
+        condition: service_completed_successfully
+    environment:
+      MOTOR_DB: "pgsql://spike:spike@postgres:5432/spike_php"
+    ports:
+      - "127.0.0.1:8083:8080"
 
 volumes:
   pgdata:

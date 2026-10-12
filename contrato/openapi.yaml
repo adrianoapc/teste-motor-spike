@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Motor do fechamento — contrato comum do spike
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
     Contrato que as DUAS spikes (.NET 10 e Python) implementam exatamente igual.
     Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
@@ -98,7 +98,10 @@ paths:
 
   /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override:
     post:
-      summary: RegistrarOverride de conferência divergente (usado a partir do cenário 2)
+      summary: RegistrarOverride de conferência divergente (semântica §8.1; cenário C9)
+      description: |
+        Validação nesta ordem: 422 (corpo), 404 (caso ou entregável), 409 (entregável fora de
+        'divergente', ou a conferência vigente da CF não é divergente B sem override).
       parameters:
         - $ref: "#/components/parameters/TitularId"
         - $ref: "#/components/parameters/Competencia"
@@ -110,7 +113,7 @@ paths:
             schema: { $ref: "#/components/schemas/OverrideRequest" }
       responses:
         "200":
-          description: Override registrado; entregável divergente → validado
+          description: Override registrado. Estado devolvido é o do entregável depois do override (validado, se não restar divergência B)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EntregavelEstado" }

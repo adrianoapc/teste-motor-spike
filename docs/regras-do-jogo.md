@@ -1,35 +1,40 @@
-# Regras do jogo: como as duas spikes são comparadas
+# Regras do jogo: como as três spikes são comparadas
 
-**v1 · 06/10/2026.** Base: spec do spike v0.3 §4.3 e §4.4 (projeto Rissi).
+**v2 · 12/10/2026.** Base: spec do spike v0.5 §4.3 e §4.4 (projeto Rissi). v2: entra a spike PHP.
 
 ## 1 · O que é comum e ninguém altera
 
 `db/`, `contrato/`, `cenarios/`, `verificador/`, `docs/`, `massa/`, `anonimizacao/`, `docker-compose.yml`, `.kiro/steering/`.
 
-Se uma spike achar erro na base comum, ela **para** e registra em `DUVIDAS.md`. A correção é feita na base, pelo Adriano, e vale para as duas.
+Se uma spike achar erro na base comum, ela **para** e registra em `DUVIDAS.md`. A correção é feita na base, pelo Adriano, e vale para todas.
 
 ## 2 · Condições iguais
 
-- Mesmo agente (Kiro), com o mesmo modelo, para as duas.
-- Mesma spec (`.kiro/specs/spike-dotnet` e `.kiro/specs/spike-python` diferem só na pilha).
+- Mesmo agente (Kiro), com o mesmo modelo, para as três.
+- Mesma spec (`.kiro/specs/spike-dotnet`, `spike-python` e `spike-php` diferem só na pilha e, na PHP, no ponto de partida; ver abaixo).
 - Mesmos cenários, mesmo verificador, mesma máquina para medir tempo.
-- Medição de escala com uma spike de cada vez (as duas usam o mesmo servidor Postgres).
-- Uma spike não lê a pasta da outra.
+- Medição de escala com uma spike de cada vez (todas usam o mesmo servidor Postgres).
+- Uma spike não lê a pasta de outra.
+
+**A spike PHP entrou depois (12/10), já com a semântica v3 e a V006.** Ela faz na fase 1 o que as outras fizeram na tarefa 11 (fim no protocolo), então não passa pela mudança de domínio. Consequências:
+- No critério 8, a fase 2 dela mede só a v2 e o acompanhamento depois do protocolo; a parte v3 fica "não se aplica".
+- Para comparar as três em manutenção, vale o **teste comum de manutenção** (§3, critério 8): a mesma mudança de regra pedida às três depois da fase 2.
+- Tempo de relógio e esforço do agente comparam fase com fase, não data com data.
 
 ## 3 · O que é medido
 
 | # | Critério | Como medir | Onde fica |
 |---|---|---|---|
-| 1 | Correção | Verificador nos cenários da fase | saída do verificador (`--relatorio`) |
-| 2 | Invariantes | INV-1 a INV-9 do verificador | idem |
-| 3 | Indicadores | I1–I5 rodam em < 2 s | idem |
+| 1 | Correção | Verificador com `--fase N` (regressão das fases anteriores incluída) | saída do verificador (`--relatorio`) |
+| 2 | Invariantes | INV-1 a INV-15 do verificador | idem |
+| 3 | Indicadores | I1–I6 rodam em < 2 s | idem |
 | 4 | Tamanho | Linhas de código e arquivos por camada, sem testes e sem arquivos gerados | `METRICAS.md` |
-| 5 | Rede de proteção | Erros barrados pelo compilador ou mypy antes de teste | `REGISTRO-COMPILADOR.md` |
+| 5 | Rede de proteção | Erros barrados pelo compilador (.NET), mypy (Python) ou PHPStan (PHP) antes de teste | `REGISTRO-COMPILADOR.md` |
 | 6 | Esforço do agente | Tarefas concluídas, retrabalhos, intervenções humanas, tempo de relógio | `METRICAS.md` |
 | 7 | Dúvidas | Quantas e de que tipo; quantas viraram invenção sem registro (avaliado na revisão) | `DUVIDAS.md` e revisão |
-| 8 | Manutenção | Mesma alteração pedida nas duas, depois da fase 1 | `METRICAS.md` |
+| 8 | Manutenção | A fase 2 é um teste de manutenção em duas camadas: a semântica v2 muda regras sobre código pronto (§7.4, §8 item 4, §9.1 CF-09) e a **v3 muda o domínio** (fim no protocolo, estado `pago` aposentado, regra trocada de versão pela V006). Medir retrabalho e tempo da fase 2 em separado, e a tarefa 11 (v3) à parte. **Teste comum (as três):** depois da fase 2, a mesma mudança de regra nas três (proposta: as regras validadas com o Rafael em 08/10, como nova versão de `fiscal.tolerancia` e `fechamento.entregaveis`), medindo tempo até passar no verificador | `METRICAS.md` (seções Fase 2 e Manutenção) |
 | 9 | Imagem | Tamanho da imagem e tempo de subida até `/health` responder | `METRICAS.md` |
-| 10 | Escala | Cenário 6 (fase 2) | relatório do verificador |
+| 10 | Escala | Cenário C6 (fase 3), uma spike de cada vez | relatório do verificador |
 
 ## 4 · Modelo de `METRICAS.md`
 
@@ -58,7 +63,7 @@ Se uma spike achar erro na base comum, ela **para** e registra em `DUVIDAS.md`. 
 - Tempo de relógio do início ao verificador passando:
 
 ## Rede de proteção
-- Erros barrados pelo compilador/mypy antes de teste: n (ver REGISTRO-COMPILADOR.md)
+- Erros barrados pelo compilador/mypy/PHPStan antes de teste: n (ver REGISTRO-COMPILADOR.md)
 
 ## Imagem
 - Tamanho da imagem: MB
