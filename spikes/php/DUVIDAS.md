@@ -50,3 +50,23 @@ registrar o resto aqui.
   no evento é o da guia vigente do tributo do regime (DAS no SN, IRPJ no LP).
 - **D11. `/admin/fila` síncrono.** Processamento dentro da requisição (decisão fixa);
   a fila fica sempre vazia e `pendentes = 0` quando a resposta volta (Requisito 10.2).
+
+## Fase 2 — invalidação, exceções, override, acompanhamento
+
+- **D12. Tarefa 11 (v3) não se aplica.** A spike nasceu na v3 com a V006 em uso, então
+  não há mudança de domínio a absorver. Registrado em `METRICAS.md` (seção Fase 2).
+- **D13. Ordem na publicação de fato (§11.4).** `PublicarFato`: grava a versão e o
+  evento `fato.publicado`; lê o estado do E11 **antes** de reavaliar (para o §10.3);
+  roda a invalidação (§11) se `nova_versao`; reavalia os casos abertos do titular; por
+  fim aplica o acompanhamento (§10.3) se o E11 já estava `disponibilizado`.
+- **D14. Invalidação exclui o próprio entregável concluído (§8 item 4).** Em
+  `ConcluirTarefa`, a saída publicada com `nova_versao` dispara a invalidação, mas o
+  entregável que está sendo concluído é excluído das sementes.
+- **D15. Override emite o evento do tipo (§8.1 item 4).** Quando o override leva o
+  entregável a `validado`, publica-se o evento do tipo (ex.: `insumos.completos` no
+  E01) via catálogo — por isso o C9 conta `insumos.completos = 2` (um por override, um
+  pela reconferência depois da invalidação).
+- **D16. Reconferência depois da invalidação gera nova linha de conferência.** Como o
+  `entrada_hash` muda (novas versões de fato), a idempotência (§9.2) não bloqueia: o
+  C9 fica com `conferencias_total = 2` para a mesma CF-01 (`divergente:B`, depois
+  `ok:B`), e o override gravado na primeira conferência permanece.

@@ -34,6 +34,7 @@ final readonly class ConcluirTarefa
         private RepositorioRegras $regras,
         private Transicionador $transicionador,
         private AvaliarCaso $avaliar,
+        private Invalidador $invalidador,
     ) {}
 
     /**
@@ -126,7 +127,12 @@ final readonly class ConcluirTarefa
         );
         $this->eventos->gravar('fato.publicado', $caso->id, null, ['fato_id' => $fato->id]);
         $this->entregaveis->ligarFato($entregavel->id, $fato->id, 'saida');
-        // Fase 1: sem invalidação (§11 é fase 2).
+
+        // Se nova_versao e o fato anterior estava ligado, invalida (§11) — exceto o
+        // próprio entregável que está sendo concluído (§8 item 4).
+        if ($vigente !== null) {
+            $this->invalidador->invalidar($vigente->id, $fato->id, $entregavel->id);
+        }
     }
 
     private function agoraDoBanco(): string

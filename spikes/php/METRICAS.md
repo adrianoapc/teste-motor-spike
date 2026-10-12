@@ -36,3 +36,34 @@ Modelo em `docs/regras-do-jogo.md` §4. Fase 1 (cenários C1 e C7).
 - O motor passou C1 (fluxo feliz SN completo até o encerramento no protocolo) e C7 (LP, 3º mês do trimestre, com entrada por `competencia_relativa`) sem nenhuma correção de lógica no portão — a semântica v3 foi implementada direto da fonte da verdade.
 - Esta spike já nasceu na v3 (fim no protocolo, estado `pago` aposentado, regra v2 em uso pela V006): a fase 1 já cobre os itens 1-4 do Requisito 20.
 - Fases 2 (invalidação/exceções/override/acompanhamento) e 3 (escala C6) ficam fora desta entrega.
+
+---
+
+## Fase 2 (cenários C2, C3, C4, C5, C8, C9, C10 + regressão C1, C7)
+
+### Correção
+- Verificador (2026-10-12): `--todos cenarios --fase 2 --limpar` → **RESULTADO: todos passaram (9/9)**.
+  - C1 (170), C2 (154), C3 (152), C4 (116), C5 (146), C7 (92), C8 (122), C9 (83), C10 (151) checagens, 0 falhas.
+- Invariantes INV-1 a INV-15: todas ok. Indicadores I1-I6 < 2 s.
+- Passou 9/9 na primeira execução completa, sem correção de lógica.
+
+### Tamanho ao fim da fase 2 (sem testes e sem gerados)
+| Camada | Arquivos | Linhas | Δ fase 1 |
+|---|---|---|---|
+| dominio | 20 | 817 | 0 |
+| aplicacao | 29 | 2039 | +3 arq, +354 |
+| infraestrutura | 12 | 887 | 0 |
+| api | 8 | 317 | +1 arq, +32 |
+
+- A fase 2 acrescentou 3 serviços de aplicação (`Invalidador` §11, `Acompanhar` §10.3, `RegistrarOverride` §8.1) e 1 controller (`OverrideController`). O domínio e a infraestrutura **não mudaram** — os ganchos já existiam na fase 1.
+
+### Esforço — tarefa 11 (v3)
+- **Tarefa 11 não se aplica a esta spike.** A mudança de domínio v3 (fim no protocolo, estado `pago` aposentado) já estava feita na fase 1, porque a spike nasceu na v3 com a V006 em uso. A medida de "manutenção da v3" (retrabalho/tempo de absorver a mudança de domínio) só existe nas spikes .NET e Python, que começaram na v1/v2. Para o comparativo de manutenção vale o teste comum do §3 critério 8.
+
+### Esforço — fase 2
+- Tarefas concluídas: 11-17 (7/7).
+- Vezes que uma tarefa foi refeita: 0 (verificador 9/9 na primeira execução completa).
+- Intervenções humanas: 0 de domínio (o usuário só autorizou prosseguir).
+
+### Rede de proteção (fase 2)
+- Erros barrados pelo PHPStan antes de teste nesta fase: 2 (nullsafe redundante no `??`, propriedade injetada não lida). Ver `REGISTRO-COMPILADOR.md`.
