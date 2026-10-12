@@ -31,3 +31,34 @@ Não especificado. Decisão (design): instante atual do servidor (`now()` do ban
 §9.2 diz "lista ordenada por `fato_id`". Para CF numéricas usamos os fatos vigentes do caso
 que entram na fórmula (esperado e obtido). Para CF-06/CF-12 (sem par numérico) usamos os
 fatos efetivamente lidos pela regra. Ordenado por `fato_id` em todos os casos.
+
+## D6 — Semântica v3 (Task 11): fim no protocolo de entrega
+
+Após `git merge origin/main`, a base comum passou para a **semântica v3** (`docs/semantica-do-motor.md`)
+e a V006 trocou a regra `fechamento.entregaveis` da v1 pela v2. Decisões/mudanças aplicadas na Task 11:
+
+- **Estado `pago` aposentado (§4).** Removido o caminho `disponibilizado → pago` e o evento
+  `guia.paga` do motor. Em `estados.py`, `pago` fica no enum como rótulo histórico mas **sem
+  ordem** (`ordem(pago) is None`), então nunca é alvo de transição nem é `≥` a nada. O caminho
+  principal pula de `disponibilizado(6)` direto para `encerrado(8)`.
+- **`documento.disponibilizado` carrega `fato_id` da guia (§10.1).** O evento agora inclui
+  `{"entregavel_id", "fato_id"}`, onde `fato_id` é a versão vigente da guia de entrada do E11
+  (DAS no SN, IRPJ no LP). É o que a Regularidade Fiscal usa para agendar a checagem de
+  pagamento (§15). Fechou a falha `INV-14` que derrubava C1, C8 e C10.
+- **Regra em uso lida por `status`.** A leitura já era `status IN ('provisoria','ativa')`
+  (nunca `versao = 1`), então a troca v1→v2 da V006 foi absorvida sem mudança nesse ponto.
+
+Resultado: `--fase 1 --limpar` volta a 2/2 (C1 170 checagens, C7 92). No conjunto completo,
+Task 11 levou 2/10 → **4/10** (C1, C6, C7, C8).
+
+## D7 — Revisão da fase 1 (achado para a Task 12)
+
+**Latente, ainda não corrigido:** `_regra_do_caso()` relê `regra_entregaveis_em_uso()` em vez
+de usar o `caso.regra_entregaveis_versao_id` gravado na abertura. O `Caso` já carrega esse id.
+Enquanto só existe **uma** versão em uso (fase 1 e início da fase 2, pós-V006) o comportamento
+é idêntico; mas §2 exige que o caso **sempre** use a versão com que foi aberto, mesmo que outra
+seja publicada depois. Correção pertence à **Task 12** (reavaliação em passos e versão fixa do
+caso): ler a regra por `versao_id` do caso, com cache por `versao_id` dentro da transação.
+Fora isso, a revisão da base da fase 1 (domínio: hash canônico, arredondamento meio-para-o-par,
+competência com virada de ano, ordem de estados; infra: unidade de trabalho com uma transação
+por comando e `FOR UPDATE`) não encontrou divergência com a semântica v3.

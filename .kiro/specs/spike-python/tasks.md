@@ -58,7 +58,7 @@ Regras: uma tarefa por vez, na ordem. Ao terminar cada uma, rodar os testes; nas
 
 Antes da tarefa 11: `git merge origin/main` (traz a semântica **v3**, a migração V006, os cenários novos, inclusive o C10, e o verificador com `--fase`, INV-14, INV-15 e I6). Recriar o banco da spike (`docker compose down -v && docker compose up -d`) para aplicar a V006. A partir de agora, a regressão da fase 1 é `--todos cenarios --fase 1`.
 
-- [ ] 11. Semântica v3: versão da regra e fim no protocolo
+- [x] 11. Semântica v3: versão da regra e fim no protocolo
   - Ler a versão em uso das regras pelo `status` (nunca `versao = 1`).
   - Retirar todo caminho para `pago` e o evento `guia.paga`.
   - `documento.disponibilizado` com `fato_id` da guia de entrada do E11.
