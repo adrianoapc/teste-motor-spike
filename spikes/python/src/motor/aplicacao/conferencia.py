@@ -67,10 +67,10 @@ def conferir(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Calcula, classifica e grava uma conferência (idempotente).
 
-    Devolve (resultado, severidade) com a severidade COMPUTADA (A/B/I/S), não a
+    Devolve (resultado, severidade, conferencia_id) com a severidade COMPUTADA (A/B/I/S), não a
     do catálogo: uma divergência A não bloqueia nem abre exceção (§9.2).
     Resultado é 'ok' ou 'divergente'. Fato ausente → divergente classe 'S'.
     """
@@ -156,7 +156,8 @@ def conferir(
     except _FatoAusente as e:
         return _gravar(
             uow, caso, entregavel, cf, tipo, tol.versao_id, fatos_usados,
-            "divergente", None, None, {"erro": f"fato ausente: {e.chave}"}, "S", classe="S",
+            "divergente", None, None, {"erro": f"fato ausente: {e.chave}"}, tipo.severidade,
+            classe="S",
         )
 
     assert esperado is not None and obtido is not None
@@ -190,7 +191,7 @@ def _gravar(
     diferenca: dict[str, object],
     severidade: str,
     classe: str | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     from motor.aplicacao.registros import TipoConferencia
 
     assert isinstance(tipo, TipoConferencia)
@@ -200,7 +201,7 @@ def _gravar(
     existente = uow.conferencia_existente(cf, entregavel.id, eh)
     if existente is not None:
         return existente
-    uow.inserir_conferencia(
+    conferencia_id = uow.inserir_conferencia(
         cf=cf,
         caso_id=caso.id,
         entregavel_id=entregavel.id,
@@ -214,4 +215,4 @@ def _gravar(
         severidade=severidade,
         classe=classe_final,
     )
-    return (resultado, severidade)
+    return (resultado, severidade, conferencia_id)

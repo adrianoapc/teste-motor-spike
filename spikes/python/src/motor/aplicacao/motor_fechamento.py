@@ -98,9 +98,12 @@ def publicar_fato(
     observado_em: str,
     reavaliar: bool = True,
     excluir_entregavel_id: str | None = None,
+    origem_ref: str | None = None,
 ) -> tuple[str, int, str]:
     """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
     h = hash_fato(payload, valor_centavos)
+    # Serializa a alocação de versão por chave do fato (concorrência).
+    uow.travar_chave_fato(titular_id, competencia, tipo, tributo)
     vigente = uow.fato_vigente(titular_id, competencia, tipo, tributo)
 
     if vigente is not None and vigente.hash == h:
@@ -113,7 +116,7 @@ def publicar_fato(
 
     fato = uow.inserir_fato(
         titular_id, competencia, tipo, tributo, versao, valor_centavos,
-        dict(payload), fonte, observado_em, h, substitui_id,
+        dict(payload), fonte, observado_em, h, substitui_id, origem_ref,
     )
 
     caso_do_fato = uow.buscar_caso(titular_id, competencia)
@@ -159,7 +162,7 @@ def concluir_tarefa(
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
         raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
-    ent = uow.buscar_entregavel(caso.id, tipo)
+    ent = uow.buscar_entregavel(caso.id, tipo, para_atualizar=True)
     if ent is None:
         raise _nao_encontrado(f"entregável inexistente: {tipo}")
     if ent.estado != E.PRONTO or ent.executor == "sistema":
@@ -220,7 +223,7 @@ def override_conferencia(
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
         raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
-    ent = uow.buscar_entregavel(caso.id, tipo)
+    ent = uow.buscar_entregavel(caso.id, tipo, para_atualizar=True)
     if ent is None:
         raise _nao_encontrado(f"entregável inexistente: {tipo}")
 
@@ -342,8 +345,8 @@ def _passo(
 
 # -- auxiliares ---------------------------------------------------------------
 def _regra_do_caso(uow: UnidadeDeTrabalho, caso: Caso) -> RegraEntregaveis:
-    # Fase 1: só existe uma versão em uso; o caso usa essa versão.
-    return uow.regra_entregaveis_em_uso()
+    # O caso usa a versão da regra fixada na abertura.
+    return uow.regra_entregaveis_da_versao(caso.regra_entregaveis_versao_id)
 
 
 def _dependencias_ok(uow: UnidadeDeTrabalho, ent: Entregavel) -> bool:
@@ -446,7 +449,7 @@ def _invalidar(
                 caso.id, None, "competencia_encerrada", "O", caso.carteira
             )
             if nova is not None:
-                uow.gravar_evento("excecao.aberta", caso.id, None, {})
+                uow.gravar_evento("excecao.aberta", caso.id, None, {"excecao_id": nova})
             continue
         for ent in sorted(ents, key=lambda e: e.tipo):
             _invalidar_entregavel(uow, caso, ent, fato_novo_id, visitados)
@@ -483,7 +486,7 @@ def _invalidar_entregavel(
         # Documento já protocolado precisa ser substituído (§11.2).
         nova = uow.abrir_excecao_unica(caso.id, ent.id, "substituicao", "O", caso.carteira)
         if nova is not None:
-            uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"entregavel_id": ent.id})
+            uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"excecao_id": nova})
     # aguardando_insumo, invalidado, encerrado: nada.
 
 
@@ -513,6 +516,8 @@ def _acompanhamento_pos_protocolo(
     item = regra.por_tipo.get("E11")
     acomp = _acompanhamento_do_item(item)
     pl: dict[str, object] = {"entregavel_id": e11.id}
+    if tributo != _tributo_guia_e11(caso):
+        return  # acompanhamento só vale para o tributo da guia do E11
 
     if tipo == "documento_disponibilizado" and efeito == "nova_versao":
         # Reenvio: novo protocolo + resolve entrega_falhou.
@@ -525,7 +530,7 @@ def _acompanhamento_pos_protocolo(
     elif tipo == acomp.get("falha"):
         nova = uow.abrir_excecao_unica(caso.id, e11.id, "entrega_falhou", "O", caso.carteira)
         if nova is not None:
-            uow.gravar_evento("excecao.aberta", caso.id, e11.id, pl)
+            uow.gravar_evento("excecao.aberta", caso.id, e11.id, {"excecao_id": nova})
     elif tipo == acomp.get("confirmacao"):
         uow.gravar_evento("recebimento.confirmado", caso.id, e11.id, pl)
         uow.resolver_excecoes(
@@ -540,7 +545,7 @@ def _acompanhamento_pos_protocolo(
                 caso.id, e11.id, "recebimento_pendente", "O", caso.carteira
             )
             if nova is not None:
-                uow.gravar_evento("excecao.aberta", caso.id, e11.id, pl)
+                uow.gravar_evento("excecao.aberta", caso.id, e11.id, {"excecao_id": nova})
 
 
 def _acompanhamento_do_item(item: ItemEntregavel | None) -> dict[str, str]:
@@ -576,28 +581,32 @@ def _conferir_entregavel(
     ctx = contexto_do_caso(caso)
     rv = regra.versao_id
     alguma_b_divergente = False
+    ultima_conferencia_id: str | None = None
     for cfobj in item.conferencias:
         cf_quando = cfobj.get("quando")
         cf_quando_lista = cf_quando if isinstance(cf_quando, list) else None
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        resultado, severidade = conferir(uow, caso, ent, cf)
+        resultado, severidade, conferencia_id = conferir(uow, caso, ent, cf)
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
         if resultado == "divergente" and severidade == "B":
             tipo_cf = uow.tipo_conferencia(cf)
             alguma_b_divergente = True
-            pl: dict[str, object] = {"entregavel_id": ent.id}
-            uow.gravar_evento("conferencia.divergente", caso.id, ent.id, pl)
+            ultima_conferencia_id = conferencia_id
+            uow.gravar_evento(
+                "conferencia.divergente", caso.id, ent.id, {"conferencia_id": conferencia_id}
+            )
             nova = uow.abrir_excecao_unica(
                 caso.id, ent.id, cf, tipo_cf.classe_padrao, caso.carteira
             )
             if nova is not None:
-                uow.gravar_evento("excecao.aberta", caso.id, ent.id, pl)
+                uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"excecao_id": nova})
 
     if alguma_b_divergente:
         uow.transicionar(
-            ent, E.DIVERGENTE, "conferencia_divergente", "conferencia", None, ator, rv
+            ent, E.DIVERGENTE, "conferencia_divergente", "conferencia",
+            ultima_conferencia_id, ator, rv
         )
     else:
         uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, "sistema", rv)

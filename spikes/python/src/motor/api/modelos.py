@@ -1,6 +1,7 @@
 """Modelos pydantic v2 de entrada e saída (contrato/openapi.yaml)."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,7 +48,7 @@ class FatoRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
     fonte: str = Field(min_length=1)
     origem_ref: str | None = None
-    observado_em: str
+    observado_em: datetime
 
 
 class FatoResponse(BaseModel):

@@ -19,6 +19,10 @@ from motor.aplicacao.registros import (
 )
 
 
+class ConflitoConcorrencia(Exception):
+    """Outra transação alterou o entregável entre a leitura e a escrita (→ 409)."""
+
+
 class UnidadeDeTrabalho(Protocol):
     """Operações de leitura/escrita numa única transação. `hora()` vem do banco."""
 
@@ -28,6 +32,9 @@ class UnidadeDeTrabalho(Protocol):
 
     # -- regras e catálogo ----------------------------------------------------
     def regra_entregaveis_em_uso(self) -> RegraEntregaveis: ...
+    def regra_entregaveis_da_versao(self, versao_id: str) -> RegraEntregaveis:
+        """Regra `fechamento.entregaveis` da versão fixada no caso (qualquer status)."""
+        ...
     def tolerancia_em_uso(self) -> Tolerancia: ...
     def parametros_em_uso(self) -> Parametros: ...
     def area_do_tipo(self, tipo: str) -> str: ...
@@ -60,7 +67,12 @@ class UnidadeDeTrabalho(Protocol):
         """Entregáveis do caso com SELECT ... FOR UPDATE, em ordem de tipo."""
         ...
 
-    def buscar_entregavel(self, caso_id: str, tipo: str) -> Entregavel | None: ...
+    def buscar_entregavel(
+        self, caso_id: str, tipo: str, para_atualizar: bool = False
+    ) -> Entregavel | None:
+        """Com `para_atualizar`, usa SELECT ... FOR UPDATE (serializa comandos concorrentes)."""
+        ...
+
     def entregaveis_do_caso(self, caso_id: str) -> list[Entregavel]:
         """Entregáveis do caso em ordem de tipo (sem trava — só leitura)."""
         ...
@@ -82,7 +94,10 @@ class UnidadeDeTrabalho(Protocol):
         ator: str,
         regra_versao_id: str,
     ) -> None:
-        """Regra de ouro (§4.1): estado + estado_desde + version++ + transição."""
+        """Regra de ouro (§4.1): estado + estado_desde + version++ + transição.
+
+        Levanta `ConflitoConcorrencia` se o estado no banco não é mais o lido.
+        """
         ...
 
     # -- dependências e fatos ligados ----------------------------------------
@@ -99,6 +114,12 @@ class UnidadeDeTrabalho(Protocol):
     def ligar_fato(self, entregavel_id: str, fato_id: str, papel: str) -> None: ...
 
     # -- fatos ----------------------------------------------------------------
+    def travar_chave_fato(
+        self, titular_id: str, competencia: str, tipo: str, tributo: str
+    ) -> None:
+        """Lock consultivo transacional por (titular, competência, tipo, tributo)."""
+        ...
+
     def fato_vigente(
         self, titular_id: str, competencia: str, tipo: str, tributo: str
     ) -> Fato | None: ...
@@ -118,13 +139,14 @@ class UnidadeDeTrabalho(Protocol):
         observado_em: str,
         hash_valor: str,
         substitui_id: str | None,
+        origem_ref: str | None = None,
     ) -> Fato: ...
 
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str] | None:
-        """(resultado, severidade) se já existe (idempotência §9.2), senão None."""
+    ) -> tuple[str, str, str] | None:
+        """(resultado, severidade, conferencia_id) se já existe (idempotência §9.2), senão None."""
         ...
 
     def inserir_conferencia(

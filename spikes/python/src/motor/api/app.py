@@ -25,6 +25,7 @@ from motor.api.modelos import (
 )
 from motor.aplicacao import motor_fechamento as mf
 from motor.aplicacao.motor_fechamento import ErroNegocio
+from motor.aplicacao.portas import ConflitoConcorrencia
 from motor.infraestrutura import banco
 from motor.infraestrutura.log import configurar_log
 from motor.infraestrutura.unidade_de_trabalho import unidade_de_trabalho
@@ -54,6 +55,16 @@ async def _tratar_negocio(_req: Request, exc: Exception) -> JSONResponse:
 
 
 app.add_exception_handler(ErroNegocio, _tratar_negocio)
+
+
+async def _tratar_concorrencia(_req: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"erro": "conflito_concorrencia", "mensagem": str(exc)},
+    )
+
+
+app.add_exception_handler(ConflitoConcorrencia, _tratar_concorrencia)
 
 
 @app.get("/health")
@@ -102,7 +113,8 @@ def publicar_fato(req: FatoRequest) -> FatoResponse:
             req.valor_centavos,
             req.payload,
             req.fonte,
-            req.observado_em,
+            req.observado_em.isoformat(),
+            origem_ref=req.origem_ref,
         )
     return FatoResponse(fato_id=fato_id, versao=versao, efeito=efeito)
 

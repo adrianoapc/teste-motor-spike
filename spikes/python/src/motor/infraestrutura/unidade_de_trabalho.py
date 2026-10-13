@@ -12,6 +12,7 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from motor.aplicacao.portas import ConflitoConcorrencia
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
@@ -66,6 +67,22 @@ class UnidadeDeTrabalhoSQL:
 
     def regra_entregaveis_em_uso(self) -> RegraEntregaveis:
         versao_id, conteudo = self._conteudo_regra("fechamento.entregaveis")
+        return self._montar_regra_entregaveis(versao_id, conteudo)
+
+    def regra_entregaveis_da_versao(self, versao_id: str) -> RegraEntregaveis:
+        row = self._um(
+            "SELECT id, conteudo FROM regras.regra_versao "
+            "WHERE id = %s AND regra_chave = 'fechamento.entregaveis'",
+            (versao_id,),
+        )
+        if row is None:
+            raise LookupError(f"versão de regra inexistente: {versao_id}")
+        return self._montar_regra_entregaveis(str(row["id"]), row["conteudo"])
+
+    @staticmethod
+    def _montar_regra_entregaveis(
+        versao_id: str, conteudo: dict[str, Any]
+    ) -> RegraEntregaveis:
         itens = [
             ItemEntregavel(
                 tipo=it["tipo"],
@@ -231,9 +248,12 @@ class UnidadeDeTrabalhoSQL:
         )
         return [self._entregavel(r) for r in rows]
 
-    def buscar_entregavel(self, caso_id: str, tipo: str) -> Entregavel | None:
+    def buscar_entregavel(
+        self, caso_id: str, tipo: str, para_atualizar: bool = False
+    ) -> Entregavel | None:
         row = self._um(
-            "SELECT * FROM fechamento.entregavel WHERE caso_id = %s AND tipo = %s",
+            "SELECT * FROM fechamento.entregavel WHERE caso_id = %s AND tipo = %s"
+            + (" FOR UPDATE" if para_atualizar else ""),
             (caso_id, tipo),
         )
         return self._entregavel(row) if row else None
@@ -280,12 +300,17 @@ class UnidadeDeTrabalhoSQL:
         regra_versao_id: str,
     ) -> None:
         de = entregavel.estado
-        self._exec(
-            "UPDATE fechamento.entregavel "
-            "SET estado = %s, estado_desde = clock_timestamp(), version = version + 1 "
-            "WHERE id = %s",
-            (para, entregavel.id),
-        )
+        with self._conn.cursor() as cur:
+            cur.execute(
+                "UPDATE fechamento.entregavel "
+                "SET estado = %s, estado_desde = clock_timestamp(), version = version + 1 "
+                "WHERE id = %s AND estado = %s",
+                (para, entregavel.id, de),
+            )
+            if cur.rowcount != 1:
+                raise ConflitoConcorrencia(
+                    f"entregável {entregavel.id} não está mais em {de}"
+                )
         self._exec(
             "INSERT INTO fechamento.entregavel_transicao "
             "(entregavel_id, caso_id, de_estado, para_estado, motivo, "
@@ -347,6 +372,12 @@ class UnidadeDeTrabalhoSQL:
             hash=row["hash"],
         )
 
+    def travar_chave_fato(
+        self, titular_id: str, competencia: str, tipo: str, tributo: str
+    ) -> None:
+        chave = f"{titular_id}|{competencia}|{tipo}|{tributo}"
+        self._exec("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (chave,))
+
     def fato_vigente(
         self, titular_id: str, competencia: str, tipo: str, tributo: str
     ) -> Fato | None:
@@ -380,12 +411,13 @@ class UnidadeDeTrabalhoSQL:
         observado_em: str,
         hash_valor: str,
         substitui_id: str | None,
+        origem_ref: str | None = None,
     ) -> Fato:
         row = self._um(
             "INSERT INTO fatos.fato "
             "(titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, "
-            " fonte, hash, substitui_id, observado_em) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+            " fonte, hash, substitui_id, observado_em, origem_ref) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 titular_id,
                 competencia,
@@ -398,6 +430,7 @@ class UnidadeDeTrabalhoSQL:
                 hash_valor,
                 substitui_id,
                 observado_em,
+                origem_ref,
             ),
         )
         assert row is not None
@@ -406,13 +439,13 @@ class UnidadeDeTrabalhoSQL:
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str, str] | None:
         row = self._um(
-            "SELECT resultado, severidade FROM conferencias.conferencia "
+            "SELECT id, resultado, severidade FROM conferencias.conferencia "
             "WHERE cf = %s AND entregavel_id = %s AND entrada_hash = %s",
             (cf, entregavel_id, entrada_hash),
         )
-        return (str(row["resultado"]), str(row["severidade"])) if row else None
+        return (str(row["resultado"]), str(row["severidade"]), str(row["id"])) if row else None
 
     def inserir_conferencia(
         self,
