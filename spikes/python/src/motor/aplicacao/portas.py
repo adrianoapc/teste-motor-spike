@@ -43,8 +43,12 @@ class UnidadeDeTrabalho(Protocol):
 
     # -- caso -----------------------------------------------------------------
     def buscar_caso(self, titular_id: str, competencia: str) -> Caso | None: ...
-    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
-        """Lock de transação por (titular, competência): serializa aberturas concorrentes."""
+    def travar_titular(self, titular_id: str) -> None:
+        """Lock de transação por titular (reentrante): nível 1 da ordem global de locks.
+
+        Ordem: 1) titular, 2) chave do fato, 3) linhas de entregável por tipo. Todo comando
+        que escreve (abrir, fatos, concluir, override) o toma ANTES de qualquer outro lock.
+        """
         ...
 
     def criar_caso(
@@ -151,6 +155,10 @@ class UnidadeDeTrabalho(Protocol):
         self, cf: str, entregavel_id: str, entrada_hash: str
     ) -> tuple[str, str, str, str] | None:
         """(resultado, severidade, conferencia_id, classe) se já existe (§9.2), senão None."""
+        ...
+
+    def marcar_conferencia_corrente(self, conferencia_id: str) -> None:
+        """Torna a conferência reaproveitada a mais recente (`em`), base do override (§8.1)."""
         ...
 
     def inserir_conferencia(

@@ -46,6 +46,8 @@ class _Fake:
     classes_excecao: list[str] = field(default_factory=list)
     fatos_caso: list[Fato] = field(default_factory=list)
     chamadas: list[str] = field(default_factory=list)
+    marcadas: list[str] = field(default_factory=list)
+    existente: tuple[str, str, str, str] | None = None
     inseridos: list[dict[str, object]] = field(default_factory=list)
     versoes_pedidas: list[str] = field(default_factory=list)
     confs: list[dict[str, object]] = field(default_factory=list)
@@ -61,8 +63,11 @@ class _Fake:
     def buscar_caso(self, titular_id: str, competencia: str) -> Caso | None:
         return self.caso
 
-    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
-        self.chamadas.append("lock-caso")
+    def travar_titular(self, titular_id: str) -> None:
+        self.chamadas.append("lock-titular")
+
+    def marcar_conferencia_corrente(self, conferencia_id: str) -> None:
+        self.marcadas.append(conferencia_id)
 
     def buscar_entregavel(
         self, caso_id: str, tipo: str, para_atualizar: bool = False
@@ -119,7 +124,7 @@ class _Fake:
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
     ) -> tuple[str, str, str, str] | None:
-        return None
+        return self.existente
 
     def inserir_conferencia(self, **kw: object) -> str:
         self.confs.append(dict(kw))
@@ -159,7 +164,7 @@ def test_publicar_fato_trava_chave_antes_de_ler_vigente_e_grava_origem_ref() -> 
         uow, "T1", "202609", "guia", "DAS", 100, {}, "api", "2026-09-01T00:00:00+00:00",  # type: ignore[arg-type]
         origem_ref="ref-123",
     )
-    assert uow.chamadas[:2] == ["lock", "vigente"]
+    assert uow.chamadas[:3] == ["lock-titular", "lock", "vigente"]
     assert uow.inseridos == [{"origem_ref": "ref-123", "versao": 1}]
 
 
@@ -232,7 +237,7 @@ def test_abrir_caso_trava_a_chave_antes_de_ler_o_caso_existente() -> None:
         uow, "202609", "ator", {"titular_id": "T1", "carteira": "C1"}  # type: ignore[arg-type]
     )
     assert (titular, caso_id, criado) == ("T1", "caso-1", False)
-    assert uow.chamadas == ["lock-caso"]
+    assert uow.chamadas == ["lock-titular"]
 
 
 def test_excecao_de_fato_ausente_herda_classe_s_da_conferencia() -> None:
@@ -271,3 +276,24 @@ def test_cf12_so_com_recibo_do_tributo_errado_e_fato_ausente() -> None:
     uow.fatos_caso = [_fato("recibo_obrigacao", "DCTFWEB")]
     resultado, _, _, classe = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
+
+
+def test_conferencia_reaproveitada_vira_a_corrente() -> None:
+    uow = _Fake()
+    uow.existente = ("divergente", "B", "conf-antiga", "O")
+    res = conferir(uow, uow.caso, _e11(), "CF-01")  # type: ignore[arg-type]
+    assert res == ("divergente", "B", "conf-antiga", "O")
+    assert uow.marcadas == ["conf-antiga"]
+    assert uow.confs == []  # nada novo inserido
+
+
+def test_comandos_que_escrevem_travam_o_titular_antes_de_qualquer_outra_coisa() -> None:
+    uow = _Fake()
+    ordem: list[str] = []
+    uow.travar_titular = lambda t: ordem.append("titular")  # type: ignore[method-assign]
+    uow.buscar_caso = lambda t, c: (ordem.append("caso"), None)[1]  # type: ignore[method-assign]
+    with pytest.raises(mf.ErroNegocio):
+        mf.concluir_tarefa(uow, "T1", "202609", "E1", "a", [])  # type: ignore[arg-type]
+    with pytest.raises(mf.ErroNegocio):
+        mf.override_conferencia(uow, "T1", "202609", "E1", "CF-01", "a", "motivo ok")  # type: ignore[arg-type]
+    assert ordem == ["titular", "caso", "titular", "caso"]

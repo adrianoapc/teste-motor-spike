@@ -43,8 +43,8 @@ def abrir_caso(
 ) -> tuple[str, str, bool]:
     """Devolve (titular_id, caso_id, criado). Idempotente por (titular, competência)."""
     titular_id = str(empresa["titular_id"])
-    # Serializa a chave: o concorrente espera o commit e então cai no ramo "existente".
-    uow.travar_abertura_caso(titular_id, competencia)
+    # Ordem global de locks (nível 1): titular. O concorrente espera o commit e cai em "existente".
+    uow.travar_titular(titular_id)
     existente = uow.buscar_caso(titular_id, competencia)
     if existente is not None:
         return (titular_id, existente.id, False)
@@ -104,7 +104,9 @@ def publicar_fato(
 ) -> tuple[str, int, str]:
     """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
     h = hash_fato(payload, valor_centavos)
-    # Serializa a alocação de versão por chave do fato (concorrência).
+    # Ordem global: 1) titular, 2) chave do fato, 3) linhas de entregável (por tipo).
+    # Reentrante: /concluir já travou o titular antes de chamar esta função.
+    uow.travar_titular(titular_id)
     uow.travar_chave_fato(titular_id, competencia, tipo, tributo)
     vigente = uow.fato_vigente(titular_id, competencia, tipo, tributo)
 
@@ -161,6 +163,7 @@ def concluir_tarefa(
     ator: str,
     saidas: Sequence[Mapping[str, object]],
 ) -> Entregavel:
+    uow.travar_titular(titular_id)  # nível 1 da ordem global; antes de qualquer linha
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
         raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
@@ -222,6 +225,7 @@ def override_conferencia(
         raise _invalido("corpo_invalido", f"cf/motivo inválidos: {cf!r}, motivo<5")
 
     # 2) caso/entregável inexistente → 404.
+    uow.travar_titular(titular_id)  # nível 1 da ordem global; antes de qualquer linha
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
         raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")

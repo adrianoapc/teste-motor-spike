@@ -201,6 +201,8 @@ def _gravar(
     eh = entrada_hash(cf, fatos_usados, tolerancia_versao_id)
     existente = uow.conferencia_existente(cf, entregavel.id, eh)
     if existente is not None:
+        # Reaproveitada (A→B→A): passa a ser a avaliação corrente do entregável.
+        uow.marcar_conferencia_corrente(existente[2])
         return existente
     conferencia_id = uow.inserir_conferencia(
         cf=cf,

@@ -171,10 +171,10 @@ class UnidadeDeTrabalhoSQL:
         )
         return self._caso(row) if row else None
 
-    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
+    def travar_titular(self, titular_id: str) -> None:
         self._exec(
             "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            (f"caso|{titular_id}|{competencia}",),
+            (f"titular|{titular_id}",),
         )
 
     def criar_caso(
@@ -455,6 +455,12 @@ class UnidadeDeTrabalhoSQL:
             return None
         return (
             str(row["resultado"]), str(row["severidade"]), str(row["id"]), str(row["classe"])
+        )
+
+    def marcar_conferencia_corrente(self, conferencia_id: str) -> None:
+        self._exec(
+            "UPDATE conferencias.conferencia SET em = clock_timestamp() WHERE id = %s",
+            (conferencia_id,),
         )
 
     def inserir_conferencia(
