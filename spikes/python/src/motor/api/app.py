@@ -20,6 +20,7 @@ from motor.api.modelos import (
     ExcecaoResumo,
     FatoRequest,
     FatoResponse,
+    OverrideRequest,
     TarefaResumo,
 )
 from motor.aplicacao import motor_fechamento as mf
@@ -114,6 +115,18 @@ def concluir(
     saidas = [s.model_dump() for s in req.saidas]
     with unidade_de_trabalho() as uow:
         ent = mf.concluir_tarefa(uow, titular_id, competencia, tipo, req.ator, saidas)
+    return EntregavelEstado(entregavel_id=ent.id, tipo=ent.tipo, estado=ent.estado)
+
+
+@app.post("/casos/{titular_id}/{competencia}/entregaveis/{tipo}/override")
+def override(
+    titular_id: str, competencia: str, tipo: str, req: OverrideRequest
+) -> EntregavelEstado:
+    """§8.1: override de uma divergência B; libera o entregável se não restar B."""
+    with unidade_de_trabalho() as uow:
+        ent = mf.override_conferencia(
+            uow, titular_id, competencia, tipo, req.cf, req.ator, req.motivo
+        )
     return EntregavelEstado(entregavel_id=ent.id, tipo=ent.tipo, estado=ent.estado)
 
 

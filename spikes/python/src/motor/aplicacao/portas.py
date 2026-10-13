@@ -123,8 +123,8 @@ class UnidadeDeTrabalho(Protocol):
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> str | None:
-        """Devolve o resultado se já existe (idempotência §9.2), senão None."""
+    ) -> tuple[str, str] | None:
+        """(resultado, severidade) se já existe (idempotência §9.2), senão None."""
         ...
 
     def inserir_conferencia(
@@ -155,6 +155,73 @@ class UnidadeDeTrabalho(Protocol):
     def criar_excecao(
         self, caso_id: str, entregavel_id: str, tipo: str, classe: str, dono: str
     ) -> str: ...
+
+    def excecao_aberta_existe(
+        self, caso_id: str, entregavel_id: str | None, tipo: str
+    ) -> bool:
+        """Abertura única (§9.4): há exceção aberta deste tipo para o alvo?
+
+        Quando `entregavel_id` é None a chave é (caso_id, tipo) — exceção sem
+        entregável, como `competencia_encerrada` (§11.3).
+        """
+        ...
+
+    def abrir_excecao_unica(
+        self, caso_id: str, entregavel_id: str | None, tipo: str, classe: str, dono: str
+    ) -> str | None:
+        """Abre a exceção só se ainda não há uma aberta do mesmo tipo (§9.4).
+
+        Devolve o id da exceção criada, ou None se já existia uma aberta.
+        """
+        ...
+
+    def resolver_excecoes(
+        self,
+        entregavel_id: str,
+        tipos_prefixo: str | None,
+        tipos_exatos: Sequence[str] | None,
+        resolucao: str,
+    ) -> None:
+        """Resolve exceções abertas de um entregável (§9.4, §10.3, §11).
+
+        `tipos_prefixo` casa por LIKE 'prefixo%' (ex.: 'CF-'); `tipos_exatos`
+        casa por igualdade a qualquer item da lista. Pelo menos um deve vir.
+        """
+        ...
+
+    def cancelar_tarefa_aberta(self, entregavel_id: str) -> None:
+        """Tarefa aberta do entregável → cancelada (§11.2)."""
+        ...
+
+    # -- invalidação (§11) ----------------------------------------------------
+    def entregaveis_com_fato(self, fato_id: str) -> list[Entregavel]:
+        """Entregáveis ligados a este fato (qualquer papel), para as sementes (§11.1)."""
+        ...
+
+    def caso_por_id(self, caso_id: str) -> Caso | None: ...
+
+    def dependentes_de(self, caso_id: str, depende_de_id: str) -> list[Entregavel]:
+        """Entregáveis do caso que dependem de `depende_de_id` (cascata §11.2)."""
+        ...
+
+    def saiu_de_divergente_tem_excecao_cf(self, entregavel_id: str) -> bool:
+        """Há conferência vigente divergente com exceção CF aberta? (resolução §11.2)."""
+        ...
+
+    # -- override (§8.1) ------------------------------------------------------
+    def conferencia_vigente(self, cf: str, entregavel_id: str) -> dict[str, object] | None:
+        """Conferência mais recente da cf no entregável (maior `em`), ou None."""
+        ...
+
+    def aplicar_override(self, conferencia_id: str, autor: str, motivo: str) -> None:
+        """Grava override_autor/motivo/em na conferência (§8.1)."""
+        ...
+
+    def ha_divergente_b_sem_override(
+        self, entregavel_id: str, exceto_cf: str
+    ) -> bool:
+        """Alguma CF (≠ exceto_cf) tem conferência vigente divergente B sem override?"""
+        ...
 
     # -- eventos --------------------------------------------------------------
     def gravar_evento(

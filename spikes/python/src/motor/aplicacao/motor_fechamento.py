@@ -1,6 +1,7 @@
 """Motor do fechamento: abertura, fatos, conclusão de tarefa e avaliação (§5–§10)."""
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 
 from motor.aplicacao.conferencia import conferir, contexto_do_caso
@@ -96,6 +97,7 @@ def publicar_fato(
     fonte: str,
     observado_em: str,
     reavaliar: bool = True,
+    excluir_entregavel_id: str | None = None,
 ) -> tuple[str, int, str]:
     """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
     h = hash_fato(payload, valor_centavos)
@@ -122,10 +124,23 @@ def publicar_fato(
         {"fato_id": fato.id},
     )
 
+    # §10.3: o estado do E11 é lido ANTES da reavaliação desta publicação.
+    e11_disponibilizado_antes = _e11_em_disponibilizado(uow, caso_do_fato)
+
+    # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR).
+    if efeito == "nova_versao" and vigente is not None:
+        _invalidar(uow, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
+
     if reavaliar:
+        # §11.4 passo 3: reavaliação dos casos abertos do titular.
         for caso in uow.casos_abertos_do_titular(titular_id):
             regra = _regra_do_caso(uow, caso)
             avaliar_caso(uow, caso, regra, ator="sistema")
+
+    # §10.3: acompanhamento depois do protocolo (gravado, não sem_mudanca).
+    _acompanhamento_pos_protocolo(
+        uow, caso_do_fato, tipo, tributo, efeito, e11_disponibilizado_antes
+    )
 
     return (fato.id, versao, efeito)
 
@@ -164,7 +179,7 @@ def concluir_tarefa(
         publicar_fato(
             uow, caso.titular_id, caso.competencia, saida_tipo, trib,
             _valor_opcional(s.get("valor_centavos")), payload_m,
-            "tarefa", agora, reavaliar=False,
+            "tarefa", agora, reavaliar=False, excluir_entregavel_id=ent.id,
         )
         fv = uow.fato_vigente(caso.titular_id, caso.competencia, saida_tipo, trib)
         if fv is not None:
@@ -175,6 +190,66 @@ def concluir_tarefa(
         ent, E.PROCESSADO, "tarefa_concluida", "tarefa", tarefa_id, ator, regra.versao_id
     )
     _conferir_entregavel(uow, caso, ent, regra, ator)
+
+    for caso_aberto in uow.casos_abertos_do_titular(caso.titular_id):
+        avaliar_caso(uow, caso_aberto, _regra_do_caso(uow, caso_aberto), ator="sistema")
+
+    atual = uow.buscar_entregavel(caso.id, tipo)
+    assert atual is not None
+    return atual
+
+
+# =============================================================================
+# Override de conferência (§8.1)
+# =============================================================================
+def override_conferencia(
+    uow: UnidadeDeTrabalho,
+    titular_id: str,
+    competencia: str,
+    tipo: str,
+    cf: str,
+    ator: str,
+    motivo: str,
+) -> Entregavel:
+    """Libera um `divergente` B via override (§8.1). Validação 422 → 404 → 409."""
+    # 1) corpo inválido → 422 (cf fora de CF-nn ou motivo curto).
+    if not re.fullmatch(r"CF-\d\d", cf) or len(motivo) < 5:
+        raise _invalido("corpo_invalido", f"cf/motivo inválidos: {cf!r}, motivo<5")
+
+    # 2) caso/entregável inexistente → 404.
+    caso = uow.buscar_caso(titular_id, competencia)
+    if caso is None:
+        raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
+    ent = uow.buscar_entregavel(caso.id, tipo)
+    if ent is None:
+        raise _nao_encontrado(f"entregável inexistente: {tipo}")
+
+    # 3) estado/conferência inválidos para override → 409.
+    conf = uow.conferencia_vigente(cf, ent.id)
+    if (
+        ent.estado != E.DIVERGENTE
+        or conf is None
+        or conf.get("resultado") != "divergente"
+        or conf.get("severidade") != "B"
+        or conf.get("override_autor") is not None
+    ):
+        raise _conflito("override_invalido", f"{tipo}/{cf} não permite override")
+
+    conf_id = str(conf["id"])
+    regra = _regra_do_caso(uow, caso)
+
+    # Efeito (§8.1).
+    uow.aplicar_override(conf_id, ator, motivo)
+    uow.resolver_excecoes(ent.id, None, [cf], "override")
+    uow.gravar_evento("conferencia.override", caso.id, ent.id, {"conferencia_id": conf_id})
+
+    if not uow.ha_divergente_b_sem_override(ent.id, exceto_cf=cf):
+        uow.transicionar(
+            ent, E.VALIDADO, "override", "conferencia", conf_id, ator, regra.versao_id
+        )
+        evento = uow.evento_publicado_do_tipo(ent.tipo)
+        if evento is not None:
+            uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
 
     for caso_aberto in uow.casos_abertos_do_titular(caso.titular_id):
         avaliar_caso(uow, caso_aberto, _regra_do_caso(uow, caso_aberto), ator="sistema")
@@ -332,6 +407,155 @@ def _guia_vigente_e11(uow: UnidadeDeTrabalho, caso: Caso) -> str | None:
     return f.id if f is not None else None
 
 
+# -- Invalidação (§11) --------------------------------------------------------
+_INVALIDAVEIS = frozenset(
+    {E.PRONTO, E.PROCESSADO, E.DIVERGENTE, E.VALIDADO, E.LIBERADO}
+)
+
+
+def _invalidar(
+    uow: UnidadeDeTrabalho,
+    fato_anterior_id: str,
+    fato_novo_id: str,
+    excluir_entregavel_id: str | None,
+) -> None:
+    """Invalidação por nova versão de fato já usado (§11).
+
+    Sementes = entregáveis ligados à versão ANTERIOR do fato, menos o
+    entregável sendo concluído (§8 item 4). Aplica a tabela por estado (§11.2),
+    casos encerrados por §11.3, e cascata pelos dependentes — cada entregável
+    tratado no máximo uma vez (§11.1).
+    """
+    sementes = uow.entregaveis_com_fato(fato_anterior_id)
+    visitados: set[str] = set()
+    if excluir_entregavel_id is not None:
+        visitados.add(excluir_entregavel_id)
+    # Agrupa por caso, em ordem de tipo do entregável (§11.4).
+    por_caso: dict[str, list[Entregavel]] = {}
+    for s in sementes:
+        if s.id in visitados:
+            continue
+        por_caso.setdefault(s.caso_id, []).append(s)
+    for caso_id, ents in por_caso.items():
+        caso = uow.caso_por_id(caso_id)
+        if caso is None:
+            continue
+        if caso.estado == "encerrado":
+            # §11.3: nada transiciona; uma exceção competencia_encerrada por caso.
+            nova = uow.abrir_excecao_unica(
+                caso.id, None, "competencia_encerrada", "O", caso.carteira
+            )
+            if nova is not None:
+                uow.gravar_evento("excecao.aberta", caso.id, None, {})
+            continue
+        for ent in sorted(ents, key=lambda e: e.tipo):
+            _invalidar_entregavel(uow, caso, ent, fato_novo_id, visitados)
+
+
+def _invalidar_entregavel(
+    uow: UnidadeDeTrabalho,
+    caso: Caso,
+    ent: Entregavel,
+    fato_novo_id: str,
+    visitados: set[str],
+) -> None:
+    """Aplica a tabela §11.2 a um entregável e cascateia pelos dependentes."""
+    if ent.id in visitados:
+        return
+    visitados.add(ent.id)
+    estado = uow.estado_do_entregavel_por_id(ent.id)
+    ent.estado = estado
+
+    if estado in _INVALIDAVEIS:
+        era_divergente = estado == E.DIVERGENTE
+        uow.transicionar(
+            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, "sistema",
+            caso.regra_entregaveis_versao_id,
+        )
+        uow.gravar_evento("entregavel.invalidado", caso.id, ent.id, {"entregavel_id": ent.id})
+        uow.cancelar_tarefa_aberta(ent.id)
+        if era_divergente:
+            uow.resolver_excecoes(ent.id, "CF-", None, "fato_alterado")
+        # Cascata: só a partir de quem foi para invalidado.
+        for dep in uow.dependentes_de(caso.id, ent.id):
+            _invalidar_entregavel(uow, caso, dep, fato_novo_id, visitados)
+    elif estado == E.DISPONIBILIZADO:
+        # Documento já protocolado precisa ser substituído (§11.2).
+        nova = uow.abrir_excecao_unica(caso.id, ent.id, "substituicao", "O", caso.carteira)
+        if nova is not None:
+            uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"entregavel_id": ent.id})
+    # aguardando_insumo, invalidado, encerrado: nada.
+
+
+# -- Acompanhamento depois do protocolo (§10.3) -------------------------------
+def _e11_em_disponibilizado(uow: UnidadeDeTrabalho, caso: Caso | None) -> bool:
+    if caso is None:
+        return False
+    e11 = uow.buscar_entregavel(caso.id, "E11")
+    return e11 is not None and e11.estado == E.DISPONIBILIZADO
+
+
+def _acompanhamento_pos_protocolo(
+    uow: UnidadeDeTrabalho,
+    caso: Caso | None,
+    tipo: str,
+    tributo: str,
+    efeito: str,
+    e11_disponibilizado_antes: bool,
+) -> None:
+    """Tabela §10.3: só com fato gravado e E11 já em disponibilizado antes."""
+    if caso is None or efeito == "sem_mudanca" or not e11_disponibilizado_antes:
+        return
+    e11 = uow.buscar_entregavel(caso.id, "E11")
+    if e11 is None:
+        return
+    regra = _regra_do_caso(uow, caso)
+    item = regra.por_tipo.get("E11")
+    acomp = _acompanhamento_do_item(item)
+    pl: dict[str, object] = {"entregavel_id": e11.id}
+
+    if tipo == "documento_disponibilizado" and efeito == "nova_versao":
+        # Reenvio: novo protocolo + resolve entrega_falhou.
+        fato_id = _guia_vigente_e11(uow, caso)
+        uow.gravar_evento(
+            "documento.disponibilizado", caso.id, e11.id,
+            {"entregavel_id": e11.id, "fato_id": fato_id},
+        )
+        uow.resolver_excecoes(e11.id, None, ["entrega_falhou"], "reenviado")
+    elif tipo == acomp.get("falha"):
+        nova = uow.abrir_excecao_unica(caso.id, e11.id, "entrega_falhou", "O", caso.carteira)
+        if nova is not None:
+            uow.gravar_evento("excecao.aberta", caso.id, e11.id, pl)
+    elif tipo == acomp.get("confirmacao"):
+        uow.gravar_evento("recebimento.confirmado", caso.id, e11.id, pl)
+        uow.resolver_excecoes(
+            e11.id, None, ["entrega_falhou", "recebimento_pendente"], "recebido"
+        )
+    elif tipo == acomp.get("pendencia"):
+        confirmada = uow.fato_vigente(
+            caso.titular_id, caso.competencia, str(acomp.get("confirmacao")), tributo
+        )
+        if confirmada is None:
+            nova = uow.abrir_excecao_unica(
+                caso.id, e11.id, "recebimento_pendente", "O", caso.carteira
+            )
+            if nova is not None:
+                uow.gravar_evento("excecao.aberta", caso.id, e11.id, pl)
+
+
+def _acompanhamento_do_item(item: ItemEntregavel | None) -> dict[str, str]:
+    """Extrai os tipos de acompanhamento do bloco `acompanhamento` do E11 (§10.3)."""
+    if item is None or item.acompanhamento is None:
+        return {}
+    bloco = item.acompanhamento
+    saida: dict[str, str] = {}
+    for chave in ("falha", "confirmacao", "pendencia"):
+        sub = bloco.get(chave)
+        if isinstance(sub, Mapping) and "tipo" in sub:
+            saida[chave] = str(sub["tipo"])
+    return saida
+
+
 def _fato_pos(
     uow: UnidadeDeTrabalho, caso: Caso, pos: Mapping[str, object], chave: str
 ) -> bool:
@@ -358,14 +582,17 @@ def _conferir_entregavel(
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        resultado = conferir(uow, caso, ent, cf)
-        if resultado == "divergente":
+        resultado, severidade = conferir(uow, caso, ent, cf)
+        # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
+        if resultado == "divergente" and severidade == "B":
             tipo_cf = uow.tipo_conferencia(cf)
-            if tipo_cf.severidade == "B":
-                alguma_b_divergente = True
-                uow.criar_excecao(caso.id, ent.id, cf, tipo_cf.classe_padrao, caso.carteira)
-                pl: dict[str, object] = {"entregavel_id": ent.id}
-                uow.gravar_evento("conferencia.divergente", caso.id, ent.id, pl)
+            alguma_b_divergente = True
+            pl: dict[str, object] = {"entregavel_id": ent.id}
+            uow.gravar_evento("conferencia.divergente", caso.id, ent.id, pl)
+            nova = uow.abrir_excecao_unica(
+                caso.id, ent.id, cf, tipo_cf.classe_padrao, caso.carteira
+            )
+            if nova is not None:
                 uow.gravar_evento("excecao.aberta", caso.id, ent.id, pl)
 
     if alguma_b_divergente:

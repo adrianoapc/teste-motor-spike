@@ -52,6 +52,7 @@ class ItemEntregavel:
     saida: dict[str, object] | None
     conferencias: list[dict[str, object]]
     pos_validacao: dict[str, object] | None = None
+    acompanhamento: dict[str, object] | None = None
     encerra_caso: bool = False
 
 

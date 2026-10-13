@@ -69,6 +69,14 @@ class ConcluirRequest(BaseModel):
     saidas: list[SaidaItem] = Field(min_length=1)
 
 
+class OverrideRequest(BaseModel):
+    # cf/motivo validados pelo motor (§8.1) para garantir a ordem 422 → 404 → 409.
+    model_config = ConfigDict(extra="forbid")
+    ator: str = Field(min_length=1)
+    cf: str
+    motivo: str
+
+
 class EntregavelEstado(BaseModel):
     entregavel_id: str
     tipo: str

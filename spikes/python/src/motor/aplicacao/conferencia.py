@@ -67,9 +67,11 @@ def conferir(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-) -> str:
-    """Calcula, classifica e grava uma conferência (idempotente). Devolve o resultado.
+) -> tuple[str, str]:
+    """Calcula, classifica e grava uma conferência (idempotente).
 
+    Devolve (resultado, severidade) com a severidade COMPUTADA (A/B/I/S), não a
+    do catálogo: uma divergência A não bloqueia nem abre exceção (§9.2).
     Resultado é 'ok' ou 'divergente'. Fato ausente → divergente classe 'S'.
     """
     tipo = uow.tipo_conferencia(cf)
@@ -188,7 +190,7 @@ def _gravar(
     diferenca: dict[str, object],
     severidade: str,
     classe: str | None = None,
-) -> str:
+) -> tuple[str, str]:
     from motor.aplicacao.registros import TipoConferencia
 
     assert isinstance(tipo, TipoConferencia)
@@ -212,4 +214,4 @@ def _gravar(
         severidade=severidade,
         classe=classe_final,
     )
-    return resultado
+    return (resultado, severidade)

@@ -76,6 +76,7 @@ class UnidadeDeTrabalhoSQL:
                 saida=it.get("saida"),
                 conferencias=it.get("conferencias") or [],
                 pos_validacao=it.get("pos_validacao"),
+                acompanhamento=it.get("acompanhamento"),
                 encerra_caso=bool(it.get("encerra_caso", False)),
             )
             for it in conteudo["entregaveis"]
@@ -405,13 +406,13 @@ class UnidadeDeTrabalhoSQL:
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> str | None:
+    ) -> tuple[str, str] | None:
         row = self._um(
-            "SELECT resultado FROM conferencias.conferencia "
+            "SELECT resultado, severidade FROM conferencias.conferencia "
             "WHERE cf = %s AND entregavel_id = %s AND entrada_hash = %s",
             (cf, entregavel_id, entrada_hash),
         )
-        return str(row["resultado"]) if row else None
+        return (str(row["resultado"]), str(row["severidade"])) if row else None
 
     def inserir_conferencia(
         self,
@@ -502,6 +503,133 @@ class UnidadeDeTrabalhoSQL:
         )
         assert row is not None
         return str(row["id"])
+
+    def excecao_aberta_existe(
+        self, caso_id: str, entregavel_id: str | None, tipo: str
+    ) -> bool:
+        if entregavel_id is None:
+            row = self._um(
+                "SELECT 1 FROM trabalho.excecao "
+                "WHERE caso_id = %s AND entregavel_id IS NULL "
+                "AND tipo = %s AND estado = 'aberta' LIMIT 1",
+                (caso_id, tipo),
+            )
+        else:
+            row = self._um(
+                "SELECT 1 FROM trabalho.excecao "
+                "WHERE entregavel_id = %s AND tipo = %s AND estado = 'aberta' LIMIT 1",
+                (entregavel_id, tipo),
+            )
+        return row is not None
+
+    def abrir_excecao_unica(
+        self, caso_id: str, entregavel_id: str | None, tipo: str, classe: str, dono: str
+    ) -> str | None:
+        if self.excecao_aberta_existe(caso_id, entregavel_id, tipo):
+            return None
+        row = self._um(
+            "INSERT INTO trabalho.excecao "
+            "(caso_id, entregavel_id, tipo, classe, dono, estado) "
+            "VALUES (%s,%s,%s,%s,%s,'aberta') RETURNING id",
+            (caso_id, entregavel_id, tipo, classe, dono),
+        )
+        assert row is not None
+        return str(row["id"])
+
+    def resolver_excecoes(
+        self,
+        entregavel_id: str,
+        tipos_prefixo: str | None,
+        tipos_exatos: Sequence[str] | None,
+        resolucao: str,
+    ) -> None:
+        condicoes: list[str] = []
+        params: list[object] = [resolucao, entregavel_id]
+        if tipos_prefixo is not None:
+            condicoes.append("tipo LIKE %s")
+            params.append(f"{tipos_prefixo}%")
+        if tipos_exatos:
+            condicoes.append("tipo = ANY(%s)")
+            params.append(list(tipos_exatos))
+        if not condicoes:
+            return
+        self._exec(
+            "UPDATE trabalho.excecao "
+            "SET estado = 'resolvida', resolucao = %s, resolvida_em = now() "
+            "WHERE entregavel_id = %s AND estado = 'aberta' "
+            f"AND ({' OR '.join(condicoes)})",
+            params,
+        )
+
+    def cancelar_tarefa_aberta(self, entregavel_id: str) -> None:
+        self._exec(
+            "UPDATE trabalho.tarefa_humana SET estado = 'cancelada' "
+            "WHERE entregavel_id = %s AND estado = 'aberta'",
+            (entregavel_id,),
+        )
+
+    # -- invalidação (§11) ----------------------------------------------------
+    def entregaveis_com_fato(self, fato_id: str) -> list[Entregavel]:
+        rows = self._todos(
+            "SELECT e.* FROM fechamento.entregavel e "
+            "JOIN fechamento.entregavel_fato ef ON ef.entregavel_id = e.id "
+            "WHERE ef.fato_id = %s ORDER BY e.tipo",
+            (fato_id,),
+        )
+        return [self._entregavel(r) for r in rows]
+
+    def caso_por_id(self, caso_id: str) -> Caso | None:
+        row = self._um(
+            "SELECT * FROM fechamento.caso_competencia WHERE id = %s", (caso_id,)
+        )
+        return self._caso(row) if row else None
+
+    def dependentes_de(self, caso_id: str, depende_de_id: str) -> list[Entregavel]:
+        rows = self._todos(
+            "SELECT e.* FROM fechamento.entregavel e "
+            "JOIN fechamento.entregavel_dependencia d ON d.entregavel_id = e.id "
+            "WHERE e.caso_id = %s AND d.depende_de_id = %s ORDER BY e.tipo",
+            (caso_id, depende_de_id),
+        )
+        return [self._entregavel(r) for r in rows]
+
+    def saiu_de_divergente_tem_excecao_cf(self, entregavel_id: str) -> bool:
+        row = self._um(
+            "SELECT 1 FROM trabalho.excecao "
+            "WHERE entregavel_id = %s AND estado = 'aberta' AND tipo LIKE 'CF-%%' LIMIT 1",
+            (entregavel_id,),
+        )
+        return row is not None
+
+    # -- override (§8.1) ------------------------------------------------------
+    def conferencia_vigente(self, cf: str, entregavel_id: str) -> dict[str, Any] | None:
+        return self._um(
+            "SELECT id, resultado, severidade, override_autor "
+            "FROM conferencias.conferencia "
+            "WHERE cf = %s AND entregavel_id = %s ORDER BY em DESC LIMIT 1",
+            (cf, entregavel_id),
+        )
+
+    def aplicar_override(self, conferencia_id: str, autor: str, motivo: str) -> None:
+        self._exec(
+            "UPDATE conferencias.conferencia "
+            "SET override_autor = %s, override_motivo = %s, override_em = now() "
+            "WHERE id = %s",
+            (autor, motivo, conferencia_id),
+        )
+
+    def ha_divergente_b_sem_override(self, entregavel_id: str, exceto_cf: str) -> bool:
+        row = self._um(
+            "SELECT 1 FROM ("
+            "  SELECT DISTINCT ON (cf) cf, resultado, severidade, override_autor "
+            "  FROM conferencias.conferencia WHERE entregavel_id = %s "
+            "  ORDER BY cf, em DESC"
+            ") v "
+            "WHERE v.cf <> %s AND v.resultado = 'divergente' "
+            "AND v.severidade = 'B' AND v.override_autor IS NULL LIMIT 1",
+            (entregavel_id, exceto_cf),
+        )
+        return row is not None
 
     # -- eventos --------------------------------------------------------------
     def gravar_evento(
