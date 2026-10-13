@@ -101,3 +101,38 @@ Medida pedida em `docs/regras-do-jogo.md` §3, critério 8.
 
 ## Imagem (fase 2)
 - Tamanho: **290 MB** (inalterado — nenhuma dependência nova).
+
+---
+
+# Fase 3 — escala
+
+Cenário C6, **só esta spike no ar** (dotnet e php parados; todas compartilham o mesmo Postgres).
+
+## Correção
+- Verificador (2026-10-12, commit `73f749d`, imagem `python:3.13-slim`):
+  - `--cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-python.json`
+    → **C6 PASSOU** (336 checagens, 0 falhas)
+  - `--todos cenarios --fase 3 --limpar` → **`RESULTADO: todos passaram (10/10)`**
+
+## Escala — limites do Requisito 19 vs. medido
+| Métrica | Limite | Medido | Folga |
+|---|---|---|---|
+| Abertura de 4.500 casos (lotes de 500) até `/admin/fila` = `pendentes 0` | < 300 s | **49,2 s** | 6× |
+| 300 publicações de guia, 20 requisições simultâneas, p95 | < 30 s | **0,139 s** | ~215× |
+| Erros HTTP no lote de fatos | 0 | **0** | — |
+
+Indicadores na escala (segundos): I1≈0,015 · I2≈0,029 · I3≈0,0007 · I4≈0,027 · I5≈0,31 · I6≈0,013.
+
+## Decisão sobre o mecanismo
+O processamento **síncrono dentro da requisição** cumpre os dois limites com folga larga
+(abertura 6× abaixo do teto, p95 ~215× abaixo). **Não** foi necessário passar para
+`eventos.fila` (§13) nem otimizar — `/admin/fila` segue sempre `{"pendentes":0,"com_erro":0}`,
+que é a verdade do modelo síncrono. A "tabela de prontidão própria em Postgres" aguentou a
+escala do spike sem assincronismo.
+
+## Observação de robustez (registrada em DUVIDAS.md, D8)
+Na primeira tentativa do C6 o Postgres reiniciou (pressão de memória do host com as três spikes
+no ar) e o pool do spike ficou com conexões mortas — `/health` passou a devolver 500 até o
+restart do contêiner. Fora do escopo da medição (o run válido foi com só esta spike no ar e o
+banco íntegro), mas aponta um endurecimento barato: `ConnectionPool(check=...)` para o pool
+descartar conexão morta sozinho.

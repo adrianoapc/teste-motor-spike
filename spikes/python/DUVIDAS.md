@@ -62,3 +62,17 @@ caso): ler a regra por `versao_id` do caso, com cache por `versao_id` dentro da 
 Fora isso, a revisão da base da fase 1 (domínio: hash canônico, arredondamento meio-para-o-par,
 competência com virada de ano, ordem de estados; infra: unidade de trabalho com uma transação
 por comando e `FOR UPDATE`) não encontrou divergência com a semântica v3.
+
+## D8 — Fase 3 (C6): mecanismo síncrono aguenta a escala; pool e restart do Postgres
+
+O C6 (4.500 casos + 300 guias em lote) passou com **só esta spike no ar**, dentro dos limites
+do Requisito 19 com folga larga: abertura em 49,2 s (teto 300 s) e p95 do lote 0,139 s
+(teto 30 s), 0 erros. **Decisão:** manter o processamento **síncrono dentro da requisição** —
+não foi preciso ir para `eventos.fila` (§13). Medidas em `METRICAS.md` (seção Fase 3).
+
+Observação de robustez (não corrigida, fora do escopo da medição): na primeira tentativa, com
+as três spikes no ar, o Postgres reiniciou (pressão de memória do host) e o pool do spike ficou
+com conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O `ConnectionPool` do
+psycopg aceita `check=ConnectionPool.check_connection`, que descartaria a conexão morta sozinho;
+é um endurecimento barato se o motor precisar sobreviver a quedas do banco em produção. No
+spike, o run válido foi feito com o banco íntegro e só esta spike contendo o Postgres.
