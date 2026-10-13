@@ -153,8 +153,8 @@ class UnidadeDeTrabalho(Protocol):
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str, str] | None:
-        """(resultado, severidade, conferencia_id, classe) se já existe (§9.2), senão None."""
+    ) -> tuple[str, str, str, str, bool] | None:
+        """(resultado, severidade, conferencia_id, classe, sobrescrita) se já existe (§9.2)."""
         ...
 
     def marcar_conferencia_corrente(self, conferencia_id: str) -> None:

@@ -47,7 +47,7 @@ class _Fake:
     fatos_caso: list[Fato] = field(default_factory=list)
     chamadas: list[str] = field(default_factory=list)
     marcadas: list[str] = field(default_factory=list)
-    existente: tuple[str, str, str, str] | None = None
+    existente: tuple[str, str, str, str, bool] | None = None
     inseridos: list[dict[str, object]] = field(default_factory=list)
     versoes_pedidas: list[str] = field(default_factory=list)
     confs: list[dict[str, object]] = field(default_factory=list)
@@ -123,7 +123,7 @@ class _Fake:
 
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str, str] | None:
+    ) -> tuple[str, str, str, str, bool] | None:
         return self.existente
 
     def inserir_conferencia(self, **kw: object) -> str:
@@ -193,7 +193,7 @@ def test_acompanhamento_lp_usa_irpj() -> None:
 def test_conferir_fato_ausente_mantem_severidade_do_catalogo_e_classe_s() -> None:
     uow = _Fake()
     ent = _e11()
-    resultado, severidade, conf_id, classe = conferir(uow, uow.caso, ent, "CF-01")  # type: ignore[arg-type]
+    resultado, severidade, conf_id, classe, _ = conferir(uow, uow.caso, ent, "CF-01")  # type: ignore[arg-type]
     assert (resultado, severidade, conf_id, classe) == ("divergente", "B", "conf-1", "S")
     assert uow.confs[0]["severidade"] == "B"
     assert uow.confs[0]["classe"] == "S"
@@ -266,7 +266,7 @@ def test_cf12_seleciona_o_recibo_do_tributo_exigido(
     certo = _fato("recibo_obrigacao", tributo_certo)
     errado = _fato("recibo_obrigacao", tributo_errado)
     uow.fatos_caso = [errado, certo]  # o errado vem primeiro: busca só por tipo o pegaria
-    resultado, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
     assert resultado == "ok"
     assert [u["fato_id"] for u in uow.confs[0]["fatos_usados"]] == [certo.id]  # type: ignore[attr-defined,union-attr]
 
@@ -274,15 +274,15 @@ def test_cf12_seleciona_o_recibo_do_tributo_exigido(
 def test_cf12_so_com_recibo_do_tributo_errado_e_fato_ausente() -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fato("recibo_obrigacao", "DCTFWEB")]
-    resultado, _, _, classe = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
 def test_conferencia_reaproveitada_vira_a_corrente() -> None:
     uow = _Fake()
-    uow.existente = ("divergente", "B", "conf-antiga", "O")
+    uow.existente = ("divergente", "B", "conf-antiga", "O", False)
     res = conferir(uow, uow.caso, _e11(), "CF-01")  # type: ignore[arg-type]
-    assert res == ("divergente", "B", "conf-antiga", "O")
+    assert res == ("divergente", "B", "conf-antiga", "O", False)
     assert uow.marcadas == ["conf-antiga"]
     assert uow.confs == []  # nada novo inserido
 
@@ -297,3 +297,21 @@ def test_comandos_que_escrevem_travam_o_titular_antes_de_qualquer_outra_coisa() 
     with pytest.raises(mf.ErroNegocio):
         mf.override_conferencia(uow, "T1", "202609", "E1", "CF-01", "a", "motivo ok")  # type: ignore[arg-type]
     assert ordem == ["titular", "caso", "titular", "caso"]
+
+
+def test_conferencia_reaproveitada_com_override_nao_bloqueia_nem_abre_excecao() -> None:
+    uow = _Fake()
+    uow.existente = ("divergente", "B", "conf-A", "O", True)  # A com override → B → A
+    regra = RegraEntregaveis(
+        versao_id="rv-antiga", estado_minimo_padrao="validado",
+        itens=[ItemEntregavel(
+            tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=[],
+            saida=None, conferencias=[{"cf": "CF-01"}],
+        )],
+    )
+    transicoes: list[str] = []
+    uow.transicionar = lambda ent, para, *a, **k: transicoes.append(para)  # type: ignore[attr-defined]
+    uow.evento_publicado_do_tipo = lambda t: None  # type: ignore[attr-defined]
+    mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    assert uow.excecoes == []
+    assert transicoes == ["validado"]

@@ -445,16 +445,18 @@ class UnidadeDeTrabalhoSQL:
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str, str] | None:
+    ) -> tuple[str, str, str, str, bool] | None:
         row = self._um(
-            "SELECT id, resultado, severidade, classe FROM conferencias.conferencia "
+            "SELECT id, resultado, severidade, classe, override_autor "
+            "FROM conferencias.conferencia "
             "WHERE cf = %s AND entregavel_id = %s AND entrada_hash = %s",
             (cf, entregavel_id, entrada_hash),
         )
         if row is None:
             return None
         return (
-            str(row["resultado"]), str(row["severidade"]), str(row["id"]), str(row["classe"])
+            str(row["resultado"]), str(row["severidade"]), str(row["id"]), str(row["classe"]),
+            row["override_autor"] is not None,
         )
 
     def marcar_conferencia_corrente(self, conferencia_id: str) -> None:

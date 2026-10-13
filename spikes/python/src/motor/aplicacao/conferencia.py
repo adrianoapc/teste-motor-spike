@@ -67,11 +67,11 @@ def conferir(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, bool]:
     """Calcula, classifica e grava uma conferência (idempotente).
 
-    Devolve (resultado, severidade, conferencia_id, classe) com a severidade COMPUTADA (A/B/I/S),
-    não a do catálogo: uma divergência A não bloqueia nem abre exceção (§9.2).
+    Devolve (resultado, severidade, conferencia_id, classe, sobrescrita) com a severidade
+    COMPUTADA (A/B/I/S), não a do catálogo: divergência A não bloqueia nem abre exceção (§9.2).
     Resultado é 'ok' ou 'divergente'. Fato ausente → divergente classe 'S'.
     """
     tipo = uow.tipo_conferencia(cf)
@@ -192,7 +192,7 @@ def _gravar(
     diferenca: dict[str, object],
     severidade: str,
     classe: str | None = None,
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, bool]:
     from motor.aplicacao.registros import TipoConferencia
 
     assert isinstance(tipo, TipoConferencia)
@@ -202,6 +202,7 @@ def _gravar(
     existente = uow.conferencia_existente(cf, entregavel.id, eh)
     if existente is not None:
         # Reaproveitada (A→B→A): passa a ser a avaliação corrente do entregável.
+        # Se já tinha override (A com override → B → A), segue sobrescrita: não bloqueia.
         uow.marcar_conferencia_corrente(existente[2])
         return existente
     conferencia_id = uow.inserir_conferencia(
@@ -218,4 +219,4 @@ def _gravar(
         severidade=severidade,
         classe=classe_final,
     )
-    return (resultado, severidade, conferencia_id, classe_final)
+    return (resultado, severidade, conferencia_id, classe_final, False)

@@ -594,9 +594,12 @@ def _conferir_entregavel(
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        resultado, severidade, conferencia_id, classe_cf = conferir(uow, caso, ent, cf)
+        resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
+            uow, caso, ent, cf
+        )
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
-        if resultado == "divergente" and severidade == "B":
+        # Conferência reaproveitada que já tem override (§8.1) continua sobrescrita.
+        if resultado == "divergente" and severidade == "B" and not sobrescrita:
             alguma_b_divergente = True
             ultima_conferencia_id = conferencia_id
             uow.gravar_evento(
