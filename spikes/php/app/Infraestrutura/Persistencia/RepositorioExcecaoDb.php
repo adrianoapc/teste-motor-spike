@@ -50,7 +50,7 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
         $this->conexao->update(
             <<<'SQL'
             UPDATE trabalho.excecao
-            SET estado = 'resolvida', resolucao = ?, resolvida_em = now()
+            SET estado = 'resolvida', resolucao = ?, resolvida_em = clock_timestamp()
             WHERE entregavel_id = ? AND estado = 'aberta' AND tipo LIKE 'CF-%'
             SQL,
             [$resolucao, $entregavelId],
@@ -62,7 +62,7 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
         $this->conexao->update(
             <<<'SQL'
             UPDATE trabalho.excecao
-            SET estado = 'resolvida', resolucao = ?, resolvida_em = now()
+            SET estado = 'resolvida', resolucao = ?, resolvida_em = clock_timestamp()
             WHERE entregavel_id = ? AND estado = 'aberta' AND tipo = ?
             SQL,
             [$resolucao, $entregavelId, $tipo],

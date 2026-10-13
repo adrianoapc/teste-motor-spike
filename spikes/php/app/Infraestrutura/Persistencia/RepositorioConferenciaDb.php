@@ -26,14 +26,19 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
         string $classe,
     ): void {
         $fatosJson = json_encode($fatosUsados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        $difJson = json_encode((object) $diferenca, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        // `centavos` em string só ocorre para diferença acima de int64 (decimal exato): vira número no jsonb.
+        if (isset($diferenca['centavos']) && is_string($diferenca['centavos']) && preg_match('/^[0-9]+$/D', $diferenca['centavos']) === 1) {
+            $difJson = '{"centavos":'.$diferenca['centavos'].'}';
+        } else {
+            $difJson = json_encode((object) $diferenca, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
 
         $this->conexao->statement(
             <<<'SQL'
             INSERT INTO conferencias.conferencia
                 (cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash,
-                 resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe)
-            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?::jsonb, ?, ?)
+                 resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, em)
+            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?::jsonb, ?, ?, clock_timestamp())
             ON CONFLICT (cf, entregavel_id, entrada_hash) DO NOTHING
             SQL,
             [
@@ -73,7 +78,7 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
     public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void
     {
         $this->conexao->update(
-            'UPDATE conferencias.conferencia SET override_autor = ?, override_motivo = ?, override_em = now() WHERE id = ?',
+            'UPDATE conferencias.conferencia SET override_autor = ?, override_motivo = ?, override_em = clock_timestamp() WHERE id = ?',
             [$autor, $motivo, $conferenciaId],
         );
     }

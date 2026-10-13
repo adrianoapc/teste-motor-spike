@@ -120,11 +120,13 @@ final readonly class Conferidor
         }
         $esperado = $r->esperadoCentavos;
         $obtido = $r->obtidoCentavos;
-        $diferenca = Dinheiro::diferencaAbsoluta($esperado, $obtido);
-        if ($diferenca === null) {
+        $diferenca = Dinheiro::diferencaExata($esperado, $obtido);
+        if (is_string($diferenca)) {
+            // Diferença acima de int64: maior que qualquer tolerância => divergência numérica válida,
+            // severidade e classe do catálogo; a diferença exata é gravada como número (jsonb).
             $this->conferencias->gravarSeNova(
                 $cf, $caso->id, $entregavel->id, $tolerancia->versaoId, $r->fatosUsados, $entradaHash,
-                'divergente', null, null, ['erro' => 'fato ausente: diferença fora da faixa int64'], $cat->severidade, 'S',
+                'divergente', $r->esperadoCentavos, $r->obtidoCentavos, ['centavos' => $diferenca], $cat->severidade, $cat->classePadrao,
             );
 
             return;

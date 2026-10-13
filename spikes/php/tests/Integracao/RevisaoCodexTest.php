@@ -434,4 +434,52 @@ final class RevisaoCodexTest extends TestCase
         $this->assertStringContainsString('output stdout', $caddy);
         $this->assertStringNotContainsString('stderr', $caddy);
     }
+
+    public function test_abrir_rejeita_empresas_como_objeto_json(): void
+    {
+        $corpo = '{"competencia":"'.self::COMP.'","ator":"x","empresas":{"a":{"titular_id":"TCX30","regime":"SN","tem_folha":false,"tem_prolabore":false,"tem_taxa_municipal":false,"filial":false,"carteira":"C-01","municipio":"3549805"}}}';
+        $this->call('POST', '/competencias/abrir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
+        $this->assertSame(0, DB::table('fechamento.caso_competencia')->where('titular_id', 'TCX30')->count());
+    }
+
+    public function test_competencia_com_quebra_de_linha_final_da_422(): void
+    {
+        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP."\n", 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'])->assertStatus(422);
+        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => "2026-10-01T09:00:00Z\n"])->assertStatus(422);
+        $this->postJson('/competencias/abrir', ['competencia' => self::COMP."\n", 'ator' => 'x', 'empresas' => []])->assertStatus(422);
+        $this->getJson('/casos/T/'.self::COMP.'%0A')->assertStatus(422);
+        $this->expectException(\InvalidArgumentException::class);
+        new Competencia(self::COMP."\n");
+    }
+
+    public function test_conferencia_usa_relogio_real_e_vigente_e_a_ultima_inserida(): void
+    {
+        $caso = $this->abrirCaso('TCX32');
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $conf = $this->app->make(RepositorioConferencia::class);
+        // Mesma transação (now() constante): a segunda gravação tem de ter em maior que a primeira.
+        $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-a', 'divergente', 1, 2, ['centavos' => 1], 'B', 'O');
+        $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-b', 'ok', 1, 1, ['centavos' => 0], 'B', 'O');
+        $vigente = $conf->vigente($e01->id, 'CF-01');
+        $this->assertSame('ok', $vigente['resultado'] ?? null);
+        $ems = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->whereIn('entrada_hash', ['h-a', 'h-b'])->orderBy('em')->pluck('entrada_hash')->all();
+        $this->assertSame(['h-a', 'h-b'], $ems);
+    }
+
+    public function test_diferenca_acima_de_int64_e_divergencia_numerica_com_classe_do_catalogo(): void
+    {
+        $caso = $this->abrirCaso('TCX33');
+        $this->fato('TCX33', 'faturamento_mes', PHP_INT_MAX);
+        $this->fato('TCX33', 'notas_oneflow', -1);
+        $this->fato('TCX33', 'aliquota_mes', null, ['aliquota_bp' => 600]);
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $linha = (array) DB::selectOne("SELECT resultado, classe, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-01'", [$e01->id]);
+        $this->assertSame('divergente', $linha['resultado']);
+        $cat = (array) DB::selectOne("SELECT classe_padrao FROM conferencias.conferencia_tipo WHERE chave = 'CF-01'");
+        $this->assertSame($cat['classe_padrao'], $linha['classe']);
+        $this->assertSame('{"centavos": 9223372036854775808}', $linha['dif']);
+        $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
+    }
 }

@@ -63,19 +63,49 @@ final class Dinheiro
     }
 
     /**
-     * |a − b| exato em inteiros; null se não cabe em int64 (a subtração de int64 em PHP viraria float).
+     * |a − b| EXATO, sem float. Cabendo em int64 devolve int; acima de PHP_INT_MAX (máx. 2^64 − 1)
+     * devolve a string decimal exata (uma diferença assim é, por definição, maior que qualquer
+     * tolerância int64, logo é divergência numérica válida — não dado ausente).
      */
-    public static function diferencaAbsoluta(int $a, int $b): ?int
+    public static function diferencaExata(int $a, int $b): int|string
     {
         if ($a < $b) {
             [$a, $b] = [$b, $a];
         }
-        // a >= b: só estoura com a > 0 e b < 0.
+        // a >= b: só estoura com a > 0 e b < 0 (então |a-b| = a + |b|).
         if ($b < 0 && $a > PHP_INT_MAX + $b) {
-            return null;
+            return self::somaDecimal((string) $a, ltrim((string) $b, '-'));
         }
 
         return $a - $b;
+    }
+
+    /** Compara duas diferenças não negativas vindas de diferencaExata(): -1, 0 ou 1. */
+    public static function compararDiferencas(int|string $x, int|string $y): int
+    {
+        $sx = (string) $x;
+        $sy = (string) $y;
+        if (strlen($sx) !== strlen($sy)) {
+            return strlen($sx) <=> strlen($sy);
+        }
+
+        return strcmp($sx, $sy) <=> 0;
+    }
+
+    /** Soma de dois decimais não negativos em string (sem zeros à esquerda). */
+    private static function somaDecimal(string $x, string $y): string
+    {
+        $i = strlen($x) - 1;
+        $j = strlen($y) - 1;
+        $carry = 0;
+        $out = '';
+        while ($i >= 0 || $j >= 0 || $carry > 0) {
+            $d = $carry + ($i >= 0 ? (int) $x[$i--] : 0) + ($j >= 0 ? (int) $y[$j--] : 0);
+            $out = ($d % 10).$out;
+            $carry = intdiv($d, 10);
+        }
+
+        return $out;
     }
 
     private static function magnitude(int $n): int

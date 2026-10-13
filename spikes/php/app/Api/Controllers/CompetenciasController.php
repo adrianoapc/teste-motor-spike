@@ -17,6 +17,15 @@ final readonly class CompetenciasController
     public function abrir(Request $request): JsonResponse
     {
         // additionalProperties:false do contrato (AbrirCompetenciasRequest e Empresa).
+        // `empresas` deve ser lista JSON: `$request->json()->all()` mistura objeto e lista, então inspeciona o JSON cru.
+        $cru = json_decode($request->getContent(), false);
+        if (is_object($cru) && property_exists($cru, 'empresas') && ! is_array($cru->empresas)) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'empresas deve ser uma lista');
+        }
+        // TrimStrings apara a cópia validada: "202609\n" não pode virar válido por isso.
+        if (is_object($cru) && property_exists($cru, 'competencia') && (! is_string($cru->competencia) || preg_match('/^[0-9]{4}(0[1-9]|1[0-2])$/D', $cru->competencia) !== 1)) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'competencia deve ser AAAAMM');
+        }
         $bruto = $request->json()->all();
         CorpoEstrito::exigirChaves($bruto, ['competencia', 'ator', 'empresas'], 'AbrirCompetenciasRequest');
         if (is_array($bruto['empresas'] ?? null)) {
@@ -33,7 +42,7 @@ final readonly class CompetenciasController
 
         /** @var array<string, mixed> $dados */
         $dados = $request->validate([
-            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/'],
+            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
             'ator' => ['required', 'string', 'min:1'],
             'empresas' => ['required', 'array', 'min:1', 'max:10000'],
             'empresas.*.titular_id' => ['required', 'string', 'min:1', 'max:64'],

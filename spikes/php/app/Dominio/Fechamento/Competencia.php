@@ -17,7 +17,7 @@ final readonly class Competencia
 
     public function __construct(public string $valor)
     {
-        if (preg_match('/^[0-9]{4}(0[1-9]|1[0-2])$/', $valor) !== 1) {
+        if (preg_match('/^[0-9]{4}(0[1-9]|1[0-2])$/D', $valor) !== 1) {
             throw new InvalidArgumentException("competência inválida: {$valor}");
         }
         $this->ano = (int) substr($valor, 0, 4);

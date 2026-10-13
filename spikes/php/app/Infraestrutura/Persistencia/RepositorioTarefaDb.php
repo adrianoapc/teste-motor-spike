@@ -15,8 +15,8 @@ final readonly class RepositorioTarefaDb implements RepositorioTarefa
     {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
-            INSERT INTO trabalho.tarefa_humana (caso_id, entregavel_id, tipo, responsavel, estado)
-            VALUES (?, ?, ?, ?, 'aberta')
+            INSERT INTO trabalho.tarefa_humana (caso_id, entregavel_id, tipo, responsavel, estado, criada_em)
+            VALUES (?, ?, ?, ?, 'aberta', clock_timestamp())
             RETURNING id::text
             SQL,
             [$casoId, $entregavelId, $tipo, $responsavel],
@@ -47,7 +47,7 @@ final readonly class RepositorioTarefaDb implements RepositorioTarefa
     public function concluir(string $tarefaId): void
     {
         $this->conexao->update(
-            "UPDATE trabalho.tarefa_humana SET estado = 'concluida', concluida_em = now() WHERE id = ?",
+            "UPDATE trabalho.tarefa_humana SET estado = 'concluida', concluida_em = clock_timestamp() WHERE id = ?",
             [$tarefaId],
         );
     }

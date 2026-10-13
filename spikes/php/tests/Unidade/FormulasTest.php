@@ -75,12 +75,15 @@ it('CF-04 e CF-08 não estouram com valores int64 grandes', function (): void {
     expect($formulas->cf04($g)->fatoAusente)->not->toBeNull();
 });
 
-it('CF-09 com diferença fora de int64 vira fato ausente e diferenças adjacentes não empatam', function (): void {
-    $folha = fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 9223372036854775807, "fgts_centavos": 9223372036854775806}'));
-    $f = new FatosDoCaso([$folha, fatoF('gi', 'guia', 'INSS', -1), fatoF('gf', 'guia', 'FGTS', -1)]);
-    expect((new Formulas(5000))->cf09($f)->fatoAusente)->not->toBeNull();
+it('CF-09 compara diferenças acima de int64 sem empate falso', function (): void {
+    // INSS: |MAX - (-1)| = 2^63; FGTS: |MAX - (-2)| = 2^63 + 1 (maior). Antes o float igualava as duas.
+    $f = new FatosDoCaso([
+        fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 9223372036854775807, "fgts_centavos": 9223372036854775807}')),
+        fatoF('gi', 'guia', 'INSS', -1), fatoF('gf', 'guia', 'FGTS', -2),
+    ]);
+    $r = (new Formulas(5000))->cf09($f);
+    expect($r->fatoAusente)->toBeNull()->and($r->obtidoCentavos)->toBe(-2);
 
-    // Diferenças que cabem: INSS = MAX-1 vs FGTS = MAX (adjacentes) escolhe FGTS, sem float.
     $g = new FatosDoCaso([
         fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 9223372036854775806, "fgts_centavos": 9223372036854775807}')),
         fatoF('gi', 'guia', 'INSS', 0), fatoF('gf', 'guia', 'FGTS', 0),

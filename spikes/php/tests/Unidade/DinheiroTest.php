@@ -59,13 +59,22 @@ it('preserva PHP_INT_MIN quando o resultado exato é PHP_INT_MIN', function (): 
         ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, -10000, 10000))->toBe(-PHP_INT_MAX);
 });
 
-it('calcula a diferença absoluta exata ou null se não cabe em int64', function (): void {
-    expect(Dinheiro::diferencaAbsoluta(5, 9))->toBe(4)
-        ->and(Dinheiro::diferencaAbsoluta(-5, 9))->toBe(14)
-        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, 0))->toBe(PHP_INT_MAX)
-        ->and(Dinheiro::diferencaAbsoluta(0, PHP_INT_MIN))->toBeNull()
-        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, -1))->toBeNull()
-        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, PHP_INT_MIN))->toBeNull()
-        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MIN, PHP_INT_MIN + 1))->toBe(1)
-        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX - 1, PHP_INT_MAX))->toBe(1);
+it('calcula a diferença absoluta exata, inclusive acima de int64', function (): void {
+    expect(Dinheiro::diferencaExata(5, 9))->toBe(4)
+        ->and(Dinheiro::diferencaExata(-5, 9))->toBe(14)
+        ->and(Dinheiro::diferencaExata(PHP_INT_MAX, 0))->toBe(PHP_INT_MAX)
+        ->and(Dinheiro::diferencaExata(0, PHP_INT_MIN))->toBe('9223372036854775808')
+        ->and(Dinheiro::diferencaExata(PHP_INT_MAX, -1))->toBe('9223372036854775808')
+        ->and(Dinheiro::diferencaExata(PHP_INT_MAX, PHP_INT_MIN))->toBe('18446744073709551615')
+        ->and(Dinheiro::diferencaExata(PHP_INT_MAX, PHP_INT_MIN + 1))->toBe('18446744073709551614')
+        ->and(Dinheiro::diferencaExata(PHP_INT_MIN, PHP_INT_MIN + 1))->toBe(1)
+        ->and(Dinheiro::diferencaExata(PHP_INT_MAX - 1, PHP_INT_MAX))->toBe(1);
+});
+
+it('compara diferenças exatas sem perder precisão', function (): void {
+    expect(Dinheiro::compararDiferencas('18446744073709551615', '18446744073709551614'))->toBe(1)
+        ->and(Dinheiro::compararDiferencas('18446744073709551614', '18446744073709551615'))->toBe(-1)
+        ->and(Dinheiro::compararDiferencas(PHP_INT_MAX, '9223372036854775808'))->toBe(-1)
+        ->and(Dinheiro::compararDiferencas(7, 7))->toBe(0)
+        ->and(Dinheiro::compararDiferencas(10, 9))->toBe(1);
 });

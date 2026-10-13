@@ -202,14 +202,11 @@ final readonly class Formulas
         if ($obtFgts === null) {
             return ResultadoFormula::fatoAusente('guia[FGTS].valor', $usados);
         }
-        $difInss = Dinheiro::diferencaAbsoluta($espInss, $obtInss);
-        $difFgts = Dinheiro::diferencaAbsoluta($espFgts, $obtFgts);
-        if ($difInss === null || $difFgts === null) {
-            return ResultadoFormula::fatoAusente('diferença INSS/FGTS fora da faixa int64', $usados);
-        }
+        $difInss = Dinheiro::diferencaExata($espInss, $obtInss);
+        $difFgts = Dinheiro::diferencaExata($espFgts, $obtFgts);
 
-        // Par do tributo de maior diferença; empate → INSS.
-        if ($difFgts > $difInss) {
+        // Par do tributo de maior diferença (comparação exata, mesmo acima de int64); empate → INSS.
+        if (Dinheiro::compararDiferencas($difFgts, $difInss) > 0) {
             $esperado = $espFgts;
             $obtido = $obtFgts;
         } else {

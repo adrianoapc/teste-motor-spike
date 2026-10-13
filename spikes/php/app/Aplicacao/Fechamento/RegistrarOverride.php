@@ -40,7 +40,7 @@ final readonly class RegistrarOverride
     public function registrar(string $titularId, string $competenciaValor, string $tipo, string $ator, string $cf, string $motivo): array
     {
         // 422: corpo inválido (ator/cf/motivo já validados na borda; cf padrão e motivo >= 5).
-        if (preg_match('/^CF-[0-9]{2}$/', $cf) !== 1 || mb_strlen($motivo) < 5 || $ator === '') {
+        if (preg_match('/^CF-[0-9]{2}$/D', $cf) !== 1 || mb_strlen($motivo) < 5 || $ator === '') {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido para override');
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
+use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fatos\PublicarFato;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ final readonly class FatosController
         // Validação pela representação associativa (não toca no payload).
         $request->validate([
             'titular_id' => ['required', 'string', 'min:1', 'max:64'],
-            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/'],
+            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
             'tipo' => ['required', 'string', 'min:1'],
             'tributo' => ['sometimes', 'string'],
             'valor_centavos' => ['sometimes', 'nullable', 'integer'],
@@ -39,6 +40,12 @@ final readonly class FatosController
         }
 
         CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em'], 'FatoRequest');
+
+        // O middleware TrimStrings aparou a cópia validada; o valor gravado vem do corpo CRU, então valida o cru.
+        ParametrosDeRota::validar($this->texto($cru, 'titular_id'), $this->texto($cru, 'competencia'));
+        if (! self::dataHoraValida($this->texto($cru, 'observado_em'))) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'observado_em deve ser data-hora RFC 3339');
+        }
 
         $titularId = $this->texto($cru, 'titular_id');
         $competencia = $this->texto($cru, 'competencia');
@@ -68,7 +75,7 @@ final readonly class FatosController
     /** RFC 3339 (date-time do OpenAPI): fração e fuso `Z`/`±hh:mm` opcionais/obrigatórios conforme a RFC. */
     private static function dataHoraValida(string $v): bool
     {
-        $ok = preg_match('/^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:[Zz]|[+-](\d{2}):(\d{2}))$/', $v, $m);
+        $ok = preg_match('/^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:[Zz]|[+-](\d{2}):(\d{2}))$/D', $v, $m);
         if ($ok !== 1) {
             return false;
         }

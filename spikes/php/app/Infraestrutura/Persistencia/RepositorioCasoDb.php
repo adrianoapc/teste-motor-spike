@@ -79,7 +79,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
     public function encerrar(string $casoId): void
     {
         $this->conexao->update(
-            "UPDATE fechamento.caso_competencia SET estado = 'encerrado', encerrado_em = now(), version = version + 1 WHERE id = ?",
+            "UPDATE fechamento.caso_competencia SET estado = 'encerrado', encerrado_em = clock_timestamp(), version = version + 1 WHERE id = ?",
             [$casoId],
         );
     }
