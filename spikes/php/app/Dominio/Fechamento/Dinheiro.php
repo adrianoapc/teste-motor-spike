@@ -62,6 +62,22 @@ final class Dinheiro
         return $q;
     }
 
+    /**
+     * |a − b| exato em inteiros; null se não cabe em int64 (a subtração de int64 em PHP viraria float).
+     */
+    public static function diferencaAbsoluta(int $a, int $b): ?int
+    {
+        if ($a < $b) {
+            [$a, $b] = [$b, $a];
+        }
+        // a >= b: só estoura com a > 0 e b < 0.
+        if ($b < 0 && $a > PHP_INT_MAX + $b) {
+            return null;
+        }
+
+        return $a - $b;
+    }
+
     private static function magnitude(int $n): int
     {
         return $n < 0 ? -$n : $n;

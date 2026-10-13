@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\Controllers;
 
+use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\RegistrarOverride;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,7 @@ final readonly class OverrideController
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido');
         }
+        CorpoEstrito::exigirChaves($cru, ['ator', 'cf', 'motivo'], 'OverrideRequest');
         $ator = isset($cru->ator) && is_string($cru->ator) ? $cru->ator : '';
         $cf = isset($cru->cf) && is_string($cru->cf) ? $cru->cf : '';
         $motivo = isset($cru->motivo) && is_string($cru->motivo) ? $cru->motivo : '';

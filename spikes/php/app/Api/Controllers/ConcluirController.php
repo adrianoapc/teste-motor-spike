@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\Controllers;
 
+use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\ConcluirTarefa;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,9 @@ final readonly class ConcluirController
         } catch (\JsonException) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
         }
+        if (is_object($cru)) {
+            CorpoEstrito::exigirChaves($cru, ['ator', 'saidas'], 'ConcluirRequest');
+        }
         if (! is_object($cru) || ! isset($cru->ator) || ! is_string($cru->ator)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido');
         }
@@ -41,6 +45,7 @@ final readonly class ConcluirController
             if (! is_object($s)) {
                 throw ErroDeNegocio::invalido('corpo_invalido', 'saída inválida');
             }
+            CorpoEstrito::exigirChaves($s, ['tributo', 'valor_centavos', 'payload'], 'saidas[]');
             $valor = $s->valor_centavos ?? null;
             if ($valor !== null && ! is_int($valor)) {
                 throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro ou nulo');

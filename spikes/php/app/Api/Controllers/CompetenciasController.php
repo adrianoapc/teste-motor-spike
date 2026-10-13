@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\Controllers;
 
+use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\AbrirCompetencias;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,17 @@ final readonly class CompetenciasController
 
     public function abrir(Request $request): JsonResponse
     {
+        // additionalProperties:false do contrato (AbrirCompetenciasRequest e Empresa).
+        $bruto = $request->json()->all();
+        CorpoEstrito::exigirChaves($bruto, ['competencia', 'ator', 'empresas'], 'AbrirCompetenciasRequest');
+        if (is_array($bruto['empresas'] ?? null)) {
+            foreach ($bruto['empresas'] as $empresaBruta) {
+                if (is_array($empresaBruta)) {
+                    CorpoEstrito::exigirChaves($empresaBruta, ['titular_id', 'regime', 'tem_folha', 'tem_prolabore', 'tem_taxa_municipal', 'filial', 'carteira', 'municipio'], 'Empresa');
+                }
+            }
+        }
+
         /** @var array<string, mixed> $dados */
         $dados = $request->validate([
             'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/'],

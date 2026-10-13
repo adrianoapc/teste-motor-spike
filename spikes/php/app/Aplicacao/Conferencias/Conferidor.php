@@ -10,6 +10,7 @@ use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Dominio\Conferencias\HashConferencia;
 use App\Dominio\Fechamento\Caso;
 use App\Dominio\Fechamento\Condicao;
+use App\Dominio\Fechamento\Dinheiro;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Regras\ItemEntregavel;
 use App\Dominio\Regras\Tolerancia;
@@ -119,7 +120,15 @@ final readonly class Conferidor
         }
         $esperado = $r->esperadoCentavos;
         $obtido = $r->obtidoCentavos;
-        $diferenca = abs($esperado - $obtido);
+        $diferenca = Dinheiro::diferencaAbsoluta($esperado, $obtido);
+        if ($diferenca === null) {
+            $this->conferencias->gravarSeNova(
+                $cf, $caso->id, $entregavel->id, $tolerancia->versaoId, $r->fatosUsados, $entradaHash,
+                'divergente', null, null, ['erro' => 'fato ausente: diferença fora da faixa int64'], $cat->severidade, 'S',
+            );
+
+            return;
+        }
 
         if ($diferenca <= $tolerancia->okAteCentavos) {
             $resultado = 'ok';

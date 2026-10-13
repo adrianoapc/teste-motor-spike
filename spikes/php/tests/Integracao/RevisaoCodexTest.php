@@ -377,4 +377,34 @@ final class RevisaoCodexTest extends TestCase
     {
         return is_scalar($v) ? (string) $v : '';
     }
+
+    public function test_fato_rejeita_propriedade_nao_declarada_com_422(): void
+    {
+        $this->postJson('/fatos', [
+            'titular_id' => 'TCX20', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavo' => 100,
+        ])->assertStatus(422);
+        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX20')->count());
+    }
+
+    public function test_concluir_rejeita_propriedade_nao_declarada_no_corpo_e_nas_saidas(): void
+    {
+        $url = '/casos/TNAOEXISTE/'.self::COMP.'/entregaveis/E01/concluir';
+        $this->postJson($url, ['ator' => 'x', 'extra' => 1, 'saidas' => [['tributo' => 'DAS', 'payload' => new \stdClass]]])->assertStatus(422);
+        $this->postJson($url, ['ator' => 'x', 'saidas' => [['tributo' => 'DAS', 'valor_centavo' => 1, 'payload' => new \stdClass]]])->assertStatus(422);
+    }
+
+    public function test_override_rejeita_propriedade_nao_declarada(): void
+    {
+        $this->postJson('/casos/TNAOEXISTE/'.self::COMP.'/entregaveis/E01/override', ['ator' => 'x', 'cf' => 'CF-01', 'motivo' => 'motivo valido', 'extra' => true])
+            ->assertStatus(422);
+    }
+
+    public function test_abrir_rejeita_propriedade_nao_declarada_no_corpo_e_na_empresa(): void
+    {
+        $empresa = ['titular_id' => 'TCX21', 'regime' => 'SN', 'tem_folha' => false, 'tem_prolabore' => false, 'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805'];
+        $this->postJson('/competencias/abrir', ['competencia' => self::COMP, 'ator' => 'x', 'empresas' => [$empresa], 'extra' => 1])->assertStatus(422);
+        $this->postJson('/competencias/abrir', ['competencia' => self::COMP, 'ator' => 'x', 'empresas' => [$empresa + ['cnpj' => '1']]])->assertStatus(422);
+        $this->assertSame(0, DB::table('fechamento.caso_competencia')->where('titular_id', 'TCX21')->count());
+    }
 }

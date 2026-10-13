@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\Controllers;
 
+use App\Api\CorpoEstrito;
 use App\Aplicacao\Fatos\PublicarFato;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +37,8 @@ final readonly class FatosController
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo deve ser um objeto JSON');
         }
+
+        CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em'], 'FatoRequest');
 
         $titularId = $this->texto($cru, 'titular_id');
         $competencia = $this->texto($cru, 'competencia');

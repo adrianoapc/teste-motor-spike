@@ -58,3 +58,14 @@ it('preserva PHP_INT_MIN quando o resultado exato é PHP_INT_MIN', function (): 
         ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MIN, 20000, 10000))->toBeNull()
         ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, -10000, 10000))->toBe(-PHP_INT_MAX);
 });
+
+it('calcula a diferença absoluta exata ou null se não cabe em int64', function (): void {
+    expect(Dinheiro::diferencaAbsoluta(5, 9))->toBe(4)
+        ->and(Dinheiro::diferencaAbsoluta(-5, 9))->toBe(14)
+        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, 0))->toBe(PHP_INT_MAX)
+        ->and(Dinheiro::diferencaAbsoluta(0, PHP_INT_MIN))->toBeNull()
+        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, -1))->toBeNull()
+        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX, PHP_INT_MIN))->toBeNull()
+        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MIN, PHP_INT_MIN + 1))->toBe(1)
+        ->and(Dinheiro::diferencaAbsoluta(PHP_INT_MAX - 1, PHP_INT_MAX))->toBe(1);
+});
