@@ -76,6 +76,10 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 3. Fazer cada uma em sessão separada, sem uma ler a pasta de outra.
 4. Ao fim de cada tarefa com verificador, guardar o `--relatorio`.
 
+## Vetores do hash
+
+`contrato/vetores-hash.json` traz vetores compartilhados do hash do fato (semântica §6): o `payload` só aceita números inteiros int64; fração, expoente, `-0` ou fora da faixa dão 422 `corpo_invalido`. **As três spikes (`spikes/dotnet`, `spikes/python`, `spikes/php`) devem passar nos vetores**: para cada `aceito`, o JSON canônico e o SHA-256 calculados precisam ser idênticos aos do arquivo; para cada `rejeitado`, a API responde 422.
+
 ## Dados
 
 - Os cenários usam **pseudônimos** (`T001`, `T002`) e valores inventados.

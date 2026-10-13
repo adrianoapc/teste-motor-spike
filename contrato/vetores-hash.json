@@ -1,0 +1,173 @@
+{
+  "descricao": "Vetores compartilhados do hash do fato (semantica §6). payload e texto JSON bruto. Aceito: canonico = {\"payload\":...,\"valor_centavos\":...} com chaves ordenadas, sem espacos, UTF-8 sem escapar nao ASCII; sha256 = hex minusculo do UTF-8 de canonico. Rejeitado: 422 corpo_invalido (numeros do payload so inteiros int64).",
+  "fatos": [
+    {
+      "nome": "payload vazio",
+      "payload": "{}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":null}",
+      "sha256": "6ce2074e31e2dd4d213266a5f6667a2a81675aafcd1b82b1fd3e302b6fefb914"
+    },
+    {
+      "nome": "payload vazio com valor",
+      "payload": "{}",
+      "valor_centavos": 12345,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":12345}",
+      "sha256": "21dc33ab19daaf67ca85de2619b847c5cd37ca659dcb4a6d91f39ddb2e76524a"
+    },
+    {
+      "nome": "ordenacao de chaves aninhadas",
+      "payload": "{\"b\":{\"z\":1,\"a\":2},\"a\":[{\"y\":1,\"x\":2}]}",
+      "valor_centavos": 100,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":[{\"x\":2,\"y\":1}],\"b\":{\"a\":2,\"z\":1}},\"valor_centavos\":100}",
+      "sha256": "a121a5a3deb549d1f6e784d196aebd33128569065d553633a5ccdbc5b607f4c3"
+    },
+    {
+      "nome": "unicode nao ASCII",
+      "payload": "{\"descricao\":\"ação\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"descricao\":\"ação\"},\"valor_centavos\":null}",
+      "sha256": "bddd395a66665c9e80cecdd795a0082f1e59ce0c6c31ac54726dd1e54ff6d9d7"
+    },
+    {
+      "nome": "unicode U+2028 e U+2029 literais",
+      "payload": "{\"t\":\"a b c\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"t\":\"a b c\"},\"valor_centavos\":null}",
+      "sha256": "b17a99795d6f2d1afc77f9c9ceb23b07bc6a487cb56adb0ddf3dd1fe7e98e66e"
+    },
+    {
+      "nome": "int64 maximo",
+      "payload": "{\"n\":9223372036854775807}",
+      "valor_centavos": 9223372036854775807,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":9223372036854775807},\"valor_centavos\":9223372036854775807}",
+      "sha256": "a662ca55bae7e6594d1710edf24d8afd8fcc352382caabbbba08e1fd7e6d50c0"
+    },
+    {
+      "nome": "int64 minimo",
+      "payload": "{\"n\":-9223372036854775808}",
+      "valor_centavos": -9223372036854775808,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":-9223372036854775808},\"valor_centavos\":-9223372036854775808}",
+      "sha256": "58d52e2f1369477d6aaa83da092cecef0e16f6082b6b4bc6fbafffb00b04c080"
+    },
+    {
+      "nome": "inteiros negativos",
+      "payload": "{\"n\":-1,\"m\":-250}",
+      "valor_centavos": -500,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"m\":-250,\"n\":-1},\"valor_centavos\":-500}",
+      "sha256": "8aaae2f182d204e5639969378a03904a9e229dfb69311521fda0dbbaed99215b"
+    },
+    {
+      "nome": "zero",
+      "payload": "{\"n\":0}",
+      "valor_centavos": 0,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":0},\"valor_centavos\":0}",
+      "sha256": "e5afcfb4b9ff515c3701d467deeb866059834112cb20e13dcf501887b6459495"
+    },
+    {
+      "nome": "valor_centavos nulo",
+      "payload": "{}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":null}",
+      "sha256": "6ce2074e31e2dd4d213266a5f6667a2a81675aafcd1b82b1fd3e302b6fefb914"
+    },
+    {
+      "nome": "booleanos null strings arrays",
+      "payload": "{\"t\":true,\"f\":false,\"n\":null,\"s\":\"x\",\"a\":[1,\"b\",null,true,[]],\"o\":{}}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":[1,\"b\",null,true,[]],\"f\":false,\"n\":null,\"o\":{},\"s\":\"x\",\"t\":true},\"valor_centavos\":null}",
+      "sha256": "964538fbefa112bebb6544c46d9f550e530db8b79d98cdc4f89defa6c034d8a9"
+    },
+    {
+      "nome": "aliquota em pontos-base",
+      "payload": "{\"aliquota_bp\":650}",
+      "valor_centavos": 100000,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"aliquota_bp\":650},\"valor_centavos\":100000}",
+      "sha256": "3f4e6b1164169ea86983a54d80cf13717045c9282e8a8af53dd1c246ad5b8f86"
+    },
+    {
+      "nome": "REJ 0.5",
+      "payload": "{\"n\":0.5}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1.0",
+      "payload": "{\"n\":1.0}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1.50",
+      "payload": "{\"n\":1.50}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1e2",
+      "payload": "{\"n\":1e2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1E2",
+      "payload": "{\"n\":1E2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ -0",
+      "payload": "{\"n\":-0}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 0.1234567890123456789",
+      "payload": "{\"n\":0.1234567890123456789}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ inteiro muito grande",
+      "payload": "{\"n\":123456789012345678901234567890}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ int64 maximo + 1",
+      "payload": "{\"n\":9223372036854775808}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ int64 minimo - 1",
+      "payload": "{\"n\":-9223372036854775809}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ fracao dentro de objeto",
+      "payload": "{\"a\":{\"b\":{\"c\":2.5}}}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ fracao dentro de array",
+      "payload": "{\"a\":[1,2,[3,0.25]]}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    }
+  ]
+}

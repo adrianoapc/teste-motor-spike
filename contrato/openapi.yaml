@@ -166,7 +166,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
     Invalido:
-      description: Corpo inválido
+      description: Corpo inválido (inclui número não inteiro ou fora de int64 em qualquer ponto de um payload)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
@@ -237,7 +237,10 @@ components:
         tipo: { type: string, minLength: 1 }
         tributo: { type: string, default: "" }
         valor_centavos: { type: integer, format: int64, nullable: true }
-        payload: { type: object, default: {} }
+        payload:
+          type: object
+          default: {}
+          description: "Objeto livre. Números em qualquer profundidade devem ser inteiros int64 (sem fração, sem expoente, sem -0); caso contrário 422 corpo_invalido. Ver semântica §6."
         fonte: { type: string, minLength: 1 }
         origem_ref: { type: string, nullable: true }
         observado_em: { type: string, format: date-time }
@@ -265,7 +268,10 @@ components:
             properties:
               tributo: { type: string, default: "" }
               valor_centavos: { type: integer, format: int64, nullable: true }
-              payload: { type: object, default: {} }
+              payload:
+                type: object
+                default: {}
+                description: "Objeto livre. Números em qualquer profundidade devem ser inteiros int64 (sem fração, sem expoente, sem -0); caso contrário 422 corpo_invalido. Ver semântica §6."
 
     OverrideRequest:
       type: object

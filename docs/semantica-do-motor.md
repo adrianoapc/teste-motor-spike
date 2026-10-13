@@ -117,6 +117,8 @@ Para cada empresa do corpo da requisição, em **uma transação por empresa**:
 - sem espaços (`separators=(",", ":")`);
 - UTF-8, sem escapar caracteres não ASCII.
 
+**Números no `payload`** (`POST /fatos` e cada `payload` de `saidas` em `/concluir`): todo número JSON, em qualquer profundidade (objetos e arrays aninhados), deve ser **inteiro dentro da faixa int64 com sinal** (-9223372036854775808 a 9223372036854775807), sem parte fracionária, sem expoente e sem `-0`. Qualquer outro número (`0.5`, `1.0`, `1e2`, `123456789012345678901234567890`, `-0`) é rejeitado com **422 `corpo_invalido`**. Strings, booleanos, `null`, objetos e arrays não são afetados. Valores em dinheiro são centavos (int64) e taxas são pontos-base (`aliquota_bp`). Portanto o JSON canônico do hash contém números **somente** como texto decimal int64 simples, idêntico em qualquer linguagem. Vetores de teste compartilhados: `contrato/vetores-hash.json`.
+
 Comportamento:
 
 | Situação | Efeito | Grava | Retorna `efeito` |
