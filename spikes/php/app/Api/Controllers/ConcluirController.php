@@ -21,7 +21,11 @@ final readonly class ConcluirController
         ]);
 
         // Corpo cru para preservar {} vs [] nos payloads das saídas.
-        $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        try {
+            $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
+        }
         if (! is_object($cru) || ! isset($cru->ator) || ! is_string($cru->ator)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido');
         }
@@ -37,12 +41,13 @@ final readonly class ConcluirController
             if (! is_object($s)) {
                 throw ErroDeNegocio::invalido('corpo_invalido', 'saída inválida');
             }
-            if (isset($s->valor_centavos) && is_float($s->valor_centavos)) {
-                throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro');
+            $valor = $s->valor_centavos ?? null;
+            if ($valor !== null && ! is_int($valor)) {
+                throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro ou nulo');
             }
             $saidas[] = [
                 'tributo' => isset($s->tributo) && is_string($s->tributo) ? $s->tributo : '',
-                'valor_centavos' => isset($s->valor_centavos) && is_int($s->valor_centavos) ? $s->valor_centavos : null,
+                'valor_centavos' => $valor,
                 'payload' => $s->payload ?? new \stdClass,
             ];
         }

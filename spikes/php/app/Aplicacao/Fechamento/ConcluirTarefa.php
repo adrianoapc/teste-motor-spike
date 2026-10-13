@@ -49,7 +49,7 @@ final readonly class ConcluirTarefa
             if ($caso === null) {
                 throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$competenciaValor}");
             }
-            $entregavel = $this->entregaveis->porCasoTipo($caso->id, $tipo);
+            $entregavel = $this->entregaveis->porCasoTipoParaAtualizar($caso->id, $tipo);
             if ($entregavel === null) {
                 throw ErroDeNegocio::naoEncontrado("entregável inexistente: {$tipo}");
             }
@@ -111,6 +111,7 @@ final readonly class ConcluirTarefa
         $payload = $saida['payload'] ?? new \stdClass;
 
         $hash = HashFato::hash($payload, $valor);
+        $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo);
         $vigente = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo);
 
         if ($vigente !== null && $vigente->hash === $hash) {

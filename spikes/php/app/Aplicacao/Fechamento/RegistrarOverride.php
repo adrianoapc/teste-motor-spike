@@ -49,7 +49,7 @@ final readonly class RegistrarOverride
             if ($caso === null) {
                 throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$competenciaValor}");
             }
-            $entregavel = $this->entregaveis->porCasoTipo($caso->id, $tipo);
+            $entregavel = $this->entregaveis->porCasoTipoParaAtualizar($caso->id, $tipo);
             if ($entregavel === null) {
                 throw ErroDeNegocio::naoEncontrado("entregável inexistente: {$tipo}");
             }

@@ -73,6 +73,20 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         return $linha === null ? null : $this->mapear($linha);
     }
 
+    public function porCasoTipoParaAtualizar(string $casoId, string $tipo): ?Entregavel
+    {
+        $linha = $this->conexao->selectOne(
+            <<<'SQL'
+            SELECT id::text, caso_id::text, tipo, estado, executor, area, version
+            FROM fechamento.entregavel WHERE caso_id = ? AND tipo = ?
+            FOR UPDATE
+            SQL,
+            [$casoId, $tipo],
+        );
+
+        return $linha === null ? null : $this->mapear($linha);
+    }
+
     public function porId(string $entregavelId): ?Entregavel
     {
         $linha = $this->conexao->selectOne(
@@ -86,17 +100,20 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         return $linha === null ? null : $this->mapear($linha);
     }
 
-    public function salvarEstado(string $entregavelId, EstadoEntregavel $estado): void
+    public function salvarEstado(string $entregavelId, EstadoEntregavel $esperado, EstadoEntregavel $estado): bool
     {
         // estado_desde = instante da transição; version incrementado (§4.1).
-        $this->conexao->update(
+        // Predicado de estado: não sobrescreve uma transição concorrente (§13).
+        $afetadas = $this->conexao->update(
             <<<'SQL'
             UPDATE fechamento.entregavel
             SET estado = ?, estado_desde = clock_timestamp(), version = version + 1
-            WHERE id = ?
+            WHERE id = ? AND estado = ?
             SQL,
-            [$estado->value, $entregavelId],
+            [$estado->value, $entregavelId, $esperado->value],
         );
+
+        return $afetadas === 1;
     }
 
     public function ligarFato(string $entregavelId, string $fatoId, string $papel): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Aplicacao\Fechamento;
 
 use App\Aplicacao\Portas\RepositorioEntregavel;
+use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use Illuminate\Database\ConnectionInterface;
@@ -35,7 +36,9 @@ final readonly class Transicionador
         ?string $causadoPorTipo = null,
         ?string $causadoPorId = null,
     ): void {
-        $this->entregaveis->salvarEstado($entregavel->id, $para);
+        if (! $this->entregaveis->salvarEstado($entregavel->id, $entregavel->estado, $para)) {
+            throw ErroDeNegocio::conflito('estado_concorrente', 'entregável mudou de estado concorrentemente');
+        }
 
         $this->conexao->statement(
             <<<'SQL'

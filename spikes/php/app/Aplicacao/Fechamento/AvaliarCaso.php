@@ -171,10 +171,10 @@ final readonly class AvaliarCaso
         if ($divergiu) {
             $this->transicionador->transicionar($eProcessado, EstadoEntregavel::Divergente, 'conferencia_divergente', 'sistema', $regraVersaoId, 'conferencia');
             // Abre exceção por CF bloqueante divergente (§9.3, §9.4 abertura única).
-            foreach ($this->conferencias->cfsDivergentesBloqueantes($eProcessado->id) as $cf) {
-                $cat = $this->catalogo->conferenciaTipo($cf);
-                $excId = $this->excecoes->abrirUnica($caso->id, $eProcessado->id, $cf, $cat->classePadrao, $caso->carteira);
-                $this->eventos->gravar('conferencia.divergente', $caso->id, $eProcessado->id, []);
+            foreach ($this->conferencias->divergentesBloqueantes($eProcessado->id) as $div) {
+                // Classe gravada na conferência (S quando faltou dado de fórmula), não a do catálogo.
+                $excId = $this->excecoes->abrirUnica($caso->id, $eProcessado->id, $div['cf'], $div['classe'], $caso->carteira);
+                $this->eventos->gravar('conferencia.divergente', $caso->id, $eProcessado->id, ['conferencia_id' => $div['id']]);
                 if ($excId !== null) {
                     $this->eventos->gravar('excecao.aberta', $caso->id, $eProcessado->id, ['excecao_id' => $excId]);
                 }

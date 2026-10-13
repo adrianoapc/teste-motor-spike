@@ -50,6 +50,7 @@ final readonly class PublicarFato
     ): array {
         return $this->uow->transacao(function () use ($titularId, $competencia, $tipo, $tributo, $valorCentavos, $payload, $fonte, $origemRef, $observadoEm): array {
             $hash = HashFato::hash($payload, $valorCentavos);
+            $this->fatos->travarChave($titularId, $competencia, $tipo, $tributo);
             $vigente = $this->fatos->vigente($titularId, $competencia, $tipo, $tributo);
 
             if ($vigente !== null && $vigente->hash === $hash) {

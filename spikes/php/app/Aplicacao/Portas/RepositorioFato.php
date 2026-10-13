@@ -8,6 +8,12 @@ use App\Dominio\Fatos\Fato;
 
 interface RepositorioFato
 {
+    /**
+     * Serializa, até o fim da transação, a alocação de versão da chave do fato
+     * (pg_advisory_xact_lock). Deve ser chamado antes de vigente() ao publicar.
+     */
+    public function travarChave(string $titularId, string $competencia, string $tipo, string $tributo): void;
+
     /** Fato vigente (maior versão) de uma chave, ou null. */
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato;
 

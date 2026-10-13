@@ -39,6 +39,13 @@ interface RepositorioConferencia
     public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void;
 
     /**
+     * Conferências vigentes do entregável que são divergentes B sem override.
+     *
+     * @return list<array{id: string, cf: string, classe: string}>
+     */
+    public function divergentesBloqueantes(string $entregavelId): array;
+
+    /**
      * CFs do entregável com conferência vigente divergente B sem override.
      *
      * @return list<string>

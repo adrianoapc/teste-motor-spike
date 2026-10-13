@@ -81,27 +81,35 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
     /** @return list<string> */
     public function cfsDivergentesBloqueantes(string $entregavelId): array
     {
+        return array_map(static fn (array $d): string => $d['cf'], $this->divergentesBloqueantes($entregavelId));
+    }
+
+    /** @return list<array{id: string, cf: string, classe: string}> */
+    public function divergentesBloqueantes(string $entregavelId): array
+    {
         // Para cada CF do entregável, a conferência vigente (maior em) que seja
         // divergente, severidade B e sem override.
         $linhas = $this->conexao->select(
             <<<'SQL'
-            SELECT DISTINCT ON (cf) cf, resultado, severidade, override_autor
-            FROM conferencias.conferencia
-            WHERE entregavel_id = ?
-            ORDER BY cf, em DESC, id DESC
+            SELECT id, cf, classe FROM (
+                SELECT DISTINCT ON (cf) id::text AS id, cf, classe, resultado, severidade, override_autor
+                FROM conferencias.conferencia
+                WHERE entregavel_id = ?
+                ORDER BY cf, em DESC, id DESC
+            ) v
+            WHERE resultado = 'divergente' AND severidade = 'B' AND override_autor IS NULL
+            ORDER BY cf
             SQL,
             [$entregavelId],
         );
 
-        $cfs = [];
+        $saida = [];
         foreach ($linhas as $l) {
-            /** @var array{cf: string, resultado: string, severidade: string, override_autor: ?string} $row */
+            /** @var array{id: string, cf: string, classe: string} $row */
             $row = (array) $l;
-            if ($row['resultado'] === 'divergente' && $row['severidade'] === 'B' && $row['override_autor'] === null) {
-                $cfs[] = $row['cf'];
-            }
+            $saida[] = ['id' => $row['id'], 'cf' => $row['cf'], 'classe' => $row['classe']];
         }
 
-        return $cfs;
+        return $saida;
     }
 }

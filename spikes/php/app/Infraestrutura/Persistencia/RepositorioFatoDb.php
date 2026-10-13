@@ -12,6 +12,12 @@ final readonly class RepositorioFatoDb implements RepositorioFato
 {
     public function __construct(private ConnectionInterface $conexao) {}
 
+    public function travarChave(string $titularId, string $competencia, string $tipo, string $tributo): void
+    {
+        $chave = json_encode([$titularId, $competencia, $tipo, $tributo], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
+    }
+
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato
     {
         $linha = $this->conexao->selectOne(

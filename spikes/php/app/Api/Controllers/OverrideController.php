@@ -17,7 +17,11 @@ final readonly class OverrideController
     {
         // Validação de forma (422). A ordem 422→404→409 é garantida pelo use case,
         // que revalida corpo antes de tocar o banco.
-        $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        try {
+            $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
+        }
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido');
         }
