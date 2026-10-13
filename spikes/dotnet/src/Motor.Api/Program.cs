@@ -110,7 +110,7 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
             return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
         if (!Validacao.PayloadValido(raiz, out var payload))
             return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON");
-        if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef))
+        if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef, aceitaNull: true))
             return Erro(422, "corpo_invalido", "origem_ref deve ser string");
 
         var cmd = new PublicarFatoCmd(titular, Competencia.Analisar(compTexto), tipo, tributo, valor, payload, fonte, origemRef, observadoEm);

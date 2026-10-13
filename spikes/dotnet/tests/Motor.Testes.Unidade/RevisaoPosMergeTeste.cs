@@ -150,4 +150,14 @@ public class RevisaoPosMergeTeste
         var v = Guid.NewGuid();
         Assert.NotEqual(EntradaHash.Calcular("CF-04", c.FatosUsados, v), EntradaHash.Calcular("CF-04", vazio.FatosUsados, v));
     }
+
+    [Theory]
+    [InlineData("{}", true)]
+    [InlineData("{\"origem_ref\":null}", true)]
+    [InlineData("{\"origem_ref\":\"x\"}", true)]
+    [InlineData("{\"origem_ref\":123}", false)]
+    [InlineData("{\"origem_ref\":{}}", false)]
+    [InlineData("{\"origem_ref\":[]}", false)]
+    public void OrigemRef_aceita_null_do_contrato_mas_rejeita_outros_tipos(string json, bool ok)
+        => Assert.Equal(ok, Validacao.TextoOpcionalValido(J(json), "origem_ref", out _, aceitaNull: true));
 }

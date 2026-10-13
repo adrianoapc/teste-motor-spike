@@ -22,11 +22,13 @@ public static class Validacao
         return true;
     }
 
-    /// <summary>Campo texto opcional: ausente ou null => válido (null); string => válido; outro tipo => INVÁLIDO (422).</summary>
-    public static bool TextoOpcionalValido(JsonElement raiz, string campo, out string? valor)
+    /// <summary>Campo texto opcional: ausente => válido (null); string => válido; outro tipo => INVÁLIDO (422).
+    /// JSON null só é válido quando o contrato declara o campo nullable (ex.: origem_ref); tributo não é nullable.</summary>
+    public static bool TextoOpcionalValido(JsonElement raiz, string campo, out string? valor, bool aceitaNull = false)
     {
         valor = null;
         if (!raiz.TryGetProperty(campo, out var v)) return true;
+        if (v.ValueKind == JsonValueKind.Null) return aceitaNull;
         if (v.ValueKind == JsonValueKind.String) { valor = v.GetString(); return true; }
         return false;
     }
