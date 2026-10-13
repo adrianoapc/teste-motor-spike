@@ -130,7 +130,7 @@ public sealed record NovaConferencia(
     string Cf, Guid CasoId, Guid EntregavelId, Guid RegraVersaoId,
     IReadOnlyList<FatoUsado> FatosUsados, string EntradaHash,
     ResultadoConferencia Resultado, long? EsperadoCentavos, long? ObtidoCentavos,
-    JsonElement Diferenca, string Severidade, string Classe);
+    JsonElement Diferenca, string Severidade, string Classe, int SemanticaCalculo = 1);
 
 public interface IConferenciaRepo
 {

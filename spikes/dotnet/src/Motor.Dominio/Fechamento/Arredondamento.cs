@@ -35,4 +35,31 @@ public static class Arredondamento
         var candidatoCima = numerador >= 0 ? quociente + 1 : quociente - 1;
         return (quociente % 2 == 0) ? quociente : candidatoCima;
     }
+
+    /// <summary>Versão em Int128: o produto (ex.: valor * bp) é calculado sem overflow antes de arredondar.</summary>
+    public static Int128 MeioParaPar(Int128 numerador, Int128 denominador)
+    {
+        if (denominador == 0)
+            throw new DivideByZeroException("denominador zero no arredondamento");
+        if (denominador < 0)
+        {
+            numerador = -numerador;
+            denominador = -denominador;
+        }
+
+        var quociente = numerador / denominador;
+        var resto = numerador % denominador;
+        if (resto == 0)
+            return quociente;
+
+        var dobro = Int128.Abs(resto) * 2;
+        if (dobro < denominador)
+            return quociente;
+
+        var candidatoCima = numerador >= 0 ? quociente + 1 : quociente - 1;
+        if (dobro > denominador)
+            return candidatoCima;
+
+        return (quociente % 2 == 0) ? quociente : candidatoCima;
+    }
 }

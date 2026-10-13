@@ -61,6 +61,20 @@ public sealed class Conferir
                 continue;
             }
 
+            if (calc.OperandoInvalido is not null)
+            {
+                // operando malformado (tipo/faixa): divergente classe S, sem 500
+                resultado = ResultadoConferencia.Divergente;
+                severidade = tipoCat.Severidade;
+                esperado = null;
+                obtido = null;
+                diferenca = JsonSerializer.SerializeToElement(new { erro = $"operando inválido: {calc.OperandoInvalido}" });
+                await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
+                    severidade, "S", tipoCat, agora);
+                if (severidade == "B") algumaBloqueanteDivergente = true;
+                continue;
+            }
+
             if (calc.Textual is not null)
             {
                 // CF-06: comparação de texto
@@ -81,7 +95,7 @@ public sealed class Conferir
             }
             else
             {
-                var dif = Math.Abs((esperado ?? 0) - (obtido ?? 0));
+                var dif = Int128.Abs((Int128)(esperado ?? 0) - (obtido ?? 0));
                 (resultado, severidade) = Classificacao.Numerica(dif, _tol, tipoCat.Severidade);
                 diferenca = Json($"{{\"centavos\":{dif}}}");
             }
@@ -100,10 +114,10 @@ public sealed class Conferir
         ResultadoConferencia resultado, long? esperado, long? obtido, JsonElement diferenca,
         string severidade, string classe, ConferenciaTipoCatalogo tipoCat, DateTimeOffset agora)
     {
-        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _tolVersaoId);
+        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _tolVersaoId, EntradaHash.SemanticaCalculo);
         var (confId, efetivo) = await _r.Conferencias.InserirOuReaproveitarAsync(new NovaConferencia(
             cf, caso.Id, e.Id, _tolVersaoId, calc.FatosUsados, entradaHash,
-            resultado, esperado, obtido, diferenca, severidade, classe));
+            resultado, esperado, obtido, diferenca, severidade, classe, EntradaHash.SemanticaCalculo));
 
         if (efetivo == ResultadoConferencia.Divergente && severidade == "B")
         {

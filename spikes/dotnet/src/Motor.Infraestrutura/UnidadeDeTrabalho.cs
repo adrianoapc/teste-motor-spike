@@ -413,8 +413,8 @@ internal sealed class ConferenciaRepo : RepoBase, IConferenciaRepo
         var cmd = new NpgsqlCommand(
             @"INSERT INTO conferencias.conferencia
               (cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash, resultado,
-               esperado_centavos, obtido_centavos, diferenca, severidade, classe)
-              VALUES (@cf, @caso, @e, @rv, @fu, @h, @res, @esp, @obt, @dif, @sev, @cl)
+               esperado_centavos, obtido_centavos, diferenca, severidade, classe, semantica_calculo)
+              VALUES (@cf, @caso, @e, @rv, @fu, @h, @res, @esp, @obt, @dif, @sev, @cl, @sem)
               ON CONFLICT (cf, entregavel_id, entrada_hash) DO NOTHING
               RETURNING id", Conn, Tx);
         cmd.Parameters.AddWithValue("cf", c.Cf);
@@ -429,6 +429,7 @@ internal sealed class ConferenciaRepo : RepoBase, IConferenciaRepo
         cmd.Parameters.Add(new NpgsqlParameter("dif", NpgsqlDbType.Jsonb) { Value = c.Diferenca.GetRawText() });
         cmd.Parameters.AddWithValue("sev", c.Severidade);
         cmd.Parameters.AddWithValue("cl", c.Classe);
+        cmd.Parameters.AddWithValue("sem", c.SemanticaCalculo);
         var inserido = await cmd.ExecuteScalarAsync();
         if (inserido is Guid gid)
             return (gid, c.Resultado);
