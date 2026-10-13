@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Motor.Aplicacao</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Motor.Dominio\Motor.Dominio.csproj" />
+  </ItemGroup>
+</Project>
