@@ -367,3 +367,56 @@ def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
     with pytest.raises(mf.ErroNegocio) as e:
         mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
     assert e.value.status == 422
+
+
+def _fv(tipo: str, tributo: str = "", valor: int | None = 100,
+        payload: dict[str, object] | None = None) -> Fato:
+    return Fato(id=f"f-{tipo}-{tributo}", titular_id="T1", competencia="202609", tipo=tipo,
+                tributo=tributo, versao=1, valor_centavos=valor, payload=payload or {}, hash="h")
+
+
+_RUINS: list[object] = [None, "100", 1.5, True, [], {}]
+
+
+@pytest.mark.parametrize("ruim", _RUINS)
+def test_cf04_aliquota_ausente_ou_invalida_vira_insumo_ausente_classe_s(ruim: object) -> None:
+    uow = _Fake(caso=_caso("SN"))
+    payload: dict[str, object] = {} if ruim is None else {"aliquota_bp": ruim}
+    uow.fatos_caso = [_fv("faturamento_mes"), _fv("aliquota_mes", payload=payload),
+                      _fv("apurado", "DAS")]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-04")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
+
+
+@pytest.mark.parametrize("payload", [
+    {}, {"inss_centavos": 1}, {"inss_centavos": 1, "fgts_centavos": "2"},
+    {"inss_centavos": 1.0, "fgts_centavos": 2},
+])
+def test_cf09_folha_incompleta_vira_insumo_ausente(payload: dict[str, object]) -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [_fv("folha", payload=payload), _fv("guia", "INSS"), _fv("guia", "FGTS")]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-09")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
+
+
+@pytest.mark.parametrize("payload", [
+    {}, {"parcelas": None}, {"parcelas": "x"}, {"parcelas": [1]},
+    {"parcelas": [{}]}, {"parcelas": [{"valor_centavos": 1.5}]},
+    {"parcelas": [{"valor_centavos": True}]},
+])
+def test_cf07_parcelas_invalidas_viram_insumo_ausente(payload: dict[str, object]) -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [_fv("apurado", "DAS"), _fv("divisao_socios", payload=payload)]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-07")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
+
+
+def test_cf07_parcelas_validas_continuam_funcionando() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [
+        _fv("apurado", "DAS", valor=300),
+        _fv("divisao_socios", payload={"parcelas": [{"valor_centavos": 100},
+                                                    {"valor_centavos": 200}]}),
+    ]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-07")  # type: ignore[arg-type]
+    assert resultado == "ok"

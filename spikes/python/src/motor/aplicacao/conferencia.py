@@ -38,16 +38,33 @@ class _FatoAusente(Exception):
         self.chave = chave
 
 
-def _como_int(v: object) -> int:
-    if isinstance(v, int):
+def _campo_int(f: Fato, campo: str) -> int:
+    """Operando inteiro do payload; ausente ou de tipo errado (float, string, bool) é insumo
+    ausente (conferência divergente classe S), nunca exceção."""
+    v = f.payload.get(campo)
+    if isinstance(v, int) and not isinstance(v, bool):
         return v
-    raise ValueError(f"esperado inteiro, veio {v!r}")
+    raise _FatoAusente(f"{f.tipo}[{f.tributo}].payload.{campo} ausente ou inválido")
 
 
-def _como_lista(v: object) -> list[dict[str, object]]:
-    if isinstance(v, list):
-        return v
-    raise ValueError(f"esperado lista, veio {v!r}")
+def _parcelas(f: Fato) -> list[dict[str, object]]:
+    """parcelas[] do payload, cada uma com valor_centavos inteiro; senão, insumo inválido."""
+    v = f.payload.get("parcelas")
+    if not isinstance(v, list):
+        raise _FatoAusente(f"{f.tipo}[{f.tributo}].payload.parcelas ausente ou inválido")
+    saida: list[dict[str, object]] = []
+    for p in v:
+        if not isinstance(p, dict):
+            raise _FatoAusente(f"{f.tipo}[{f.tributo}].payload.parcelas[] inválido")
+        saida.append(_parcela_valida(f, p))
+    return saida
+
+
+def _parcela_valida(f: Fato, p: dict[str, object]) -> dict[str, object]:
+    val = p.get("valor_centavos")
+    if not isinstance(val, int) or isinstance(val, bool):
+        raise _FatoAusente(f"{f.tipo}[{f.tributo}].payload.parcelas[].valor_centavos inválido")
+    return p
 
 
 def _usar(fatos_usados: list[dict[str, object]], f: Fato | None, chave: str) -> Fato:
@@ -95,7 +112,7 @@ def conferir(
             fat = _usar(fatos_usados, _fato(fatos, "faturamento_mes"), "faturamento_mes[]")
             aliq = _usar(fatos_usados, _fato(fatos, "aliquota_mes"), "aliquota_mes[]")
             apur = _usar(fatos_usados, _fato(fatos, "apurado", "DAS"), "apurado[DAS]")
-            aliquota_bp = _como_int(aliq.payload["aliquota_bp"])
+            aliquota_bp = _campo_int(aliq, "aliquota_bp")
             esperado = esperado_das_simples(_valor(fat), aliquota_bp)
             obtido = _valor(apur)
         elif cf == "CF-05":
@@ -120,9 +137,9 @@ def conferir(
             trib = "DAS" if regime == "SN" else "IRPJ"
             apur = _usar(fatos_usados, _fato(fatos, "apurado", trib), f"apurado[{trib}]")
             divisao = _usar(fatos_usados, _fato(fatos, "divisao_socios"), "divisao_socios[]")
-            parcelas = divisao.payload.get("parcelas") or []
+            parcelas = _parcelas(divisao)
             esperado = _valor(apur)
-            obtido = soma_parcelas(_como_lista(parcelas))
+            obtido = soma_parcelas(parcelas)
         elif cf == "CF-08":
             fat = _usar(fatos_usados, _fato(fatos, "faturamento_mes"), "faturamento_mes[]")
             pro = _usar(fatos_usados, _fato(fatos, "prolabore"), "prolabore[]")
@@ -133,8 +150,8 @@ def conferir(
             folha = _usar(fatos_usados, _fato(fatos, "folha"), "folha[]")
             guia_inss = _usar(fatos_usados, _fato(fatos, "guia", "INSS"), "guia[INSS]")
             guia_fgts = _usar(fatos_usados, _fato(fatos, "guia", "FGTS"), "guia[FGTS]")
-            inss_esp = _como_int(folha.payload["inss_centavos"])
-            fgts_esp = _como_int(folha.payload["fgts_centavos"])
+            inss_esp = _campo_int(folha, "inss_centavos")
+            fgts_esp = _campo_int(folha, "fgts_centavos")
             dif_inss = abs(inss_esp - _valor(guia_inss))
             dif_fgts = abs(fgts_esp - _valor(guia_fgts))
             # A diferença da conferência é a MAIOR das duas (§9.1).
