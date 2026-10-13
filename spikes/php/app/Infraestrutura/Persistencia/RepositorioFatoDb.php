@@ -47,7 +47,7 @@ final readonly class RepositorioFatoDb implements RepositorioFato
         ?string $substituiId,
         string $observadoEm,
     ): Fato {
-        // Preserva os números do payload como enviados (JsonCru): sem passar por float.
+        // Payload só tem inteiros int64 (validado na borda); JsonCru evita qualquer passagem por float.
         $payloadJson = JsonCru::codificar($payload, false);
 
         $linha = $this->conexao->selectOne(

@@ -30,7 +30,7 @@ final class HashCanonico
     public static function codificar(mixed $valor): string
     {
         try {
-            // Números: ver JsonCru (inteiros int64 nativos; demais com o lexema exato, nunca float).
+            // Números: só inteiros int64 (JsonCru::somenteInteiros é garantido na borda); nunca float.
             return JsonCru::codificar($valor, true);
         } catch (JsonException $e) {
             throw new \RuntimeException('falha ao serializar JSON canônico: '.$e->getMessage(), 0, $e);

@@ -7,17 +7,19 @@ namespace App\Dominio\Fechamento;
 use JsonException;
 
 /**
- * JSON que preserva os números (design: decisão registrada na rodada 8 da revisão do PR #4).
+ * Decodificador JSON sem coerção de número para float (semântica §6, contrato/vetores-hash.json).
  *
- * `json_decode` do PHP converte número não inteiro (ou inteiro além de int64) em float binário,
- * o que perde dígitos (0.1234567890123456789 → 0.12345678901234568) e alteraria o fato guardado e
- * o hash canônico (§6). Aqui:
+ * `json_decode` do PHP converte número não inteiro (ou inteiro além de int64) em float binário, perdendo
+ * dígitos. Aqui:
  *  - inteiro que cabe em int64 (e não é "-0") → int nativo;
- *  - qualquer outro número → NumeroJson com o lexema exato, serializado de volta caractere a caractere;
+ *  - qualquer outro número (fração, expoente, "-0", fora de int64) → NumeroJson, marcador de "número
+ *    inválido para o payload" (guarda só o lexema, para mensagens; nunca vira float);
  *  - objetos → stdClass, listas → array (preserva {} vs []).
- * No hash canônico, o número entra com o seu lexema (1.0 e 1 são valores diferentes, e 1.50 ≠ 1.5): o
- * hash é sobre a representação enviada, não sobre o valor numérico. Os demais spikes precisam adotar a mesma
- * convenção (lexema como enviado) para os hashes baterem em números não inteiros.
+ *
+ * Regra de negócio (decisão do usuário, PR #7): números do `payload` só podem ser inteiros int64;
+ * qualquer NumeroJson, em qualquer profundidade, é rejeitado com 422 `corpo_invalido`
+ * (ver `somenteInteiros`). Logo o JSON canônico do hash só contém inteiros decimais simples, idênticos
+ * em qualquer linguagem. Esta classe REVOGA a convenção anterior ("lexema exato como enviado").
  */
 final class JsonCru
 {
@@ -41,15 +43,38 @@ final class JsonCru
         return $v;
     }
 
+    /** true se todo número em qualquer profundidade é int64 nativo (nenhum NumeroJson, nenhum float). */
+    public static function somenteInteiros(mixed $v): bool
+    {
+        if ($v instanceof NumeroJson || is_float($v)) {
+            return false;
+        }
+        if ($v instanceof \stdClass) {
+            foreach (get_object_vars($v) as $x) {
+                if (! self::somenteInteiros($x)) {
+                    return false;
+                }
+            }
+        } elseif (is_array($v)) {
+            foreach ($v as $x) {
+                if (! self::somenteInteiros($x)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /**
-     * Serializa preservando NumeroJson. Com $ordenar, ordena chaves de objeto (JSON canônico, §6).
+     * Serializa o valor decodificado (NumeroJson não é serializável: é rejeitado antes, na borda). Com $ordenar, ordena chaves de objeto (JSON canônico, §6).
      * Sem espaços, UTF-8 e barras sem escape.
      */
     public static function codificar(mixed $v, bool $ordenar): string
     {
         $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR;
         if ($v instanceof NumeroJson) {
-            return $v->lexema;
+            throw new JsonException('número não inteiro/int64 não entra no JSON canônico: '.$v->lexema);
         }
         if ($v instanceof \stdClass) {
             $pares = get_object_vars($v);

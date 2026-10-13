@@ -67,6 +67,9 @@ final readonly class FatosController
         if (! is_object($payload)) {
             throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
         }
+        if (! JsonCru::somenteInteiros($payload)) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'números do payload devem ser inteiros int64 (sem fração, expoente, -0 ou fora da faixa)');
+        }
         $fonte = $this->texto($cru, 'fonte');
         $origemRef = isset($cru->origem_ref) && is_string($cru->origem_ref) ? $cru->origem_ref : null;
         $observadoEm = $this->texto($cru, 'observado_em');

@@ -90,24 +90,17 @@ it('não escapa U+2028/U+2029 no JSON canônico (UTF-8 literal)', function (): v
         ->and(bin2hex($json))->toContain('e280a8')->toContain('e280a9');
 });
 
-it('JsonCru preserva números não inteiros e inteiros além de int64, sem float', function (): void {
-    $json = '{"b":0.1234567890123456789,"a":[1,1.0,1.50,1e2,-0,9223372036854775807,9223372036854775808,-9223372036854775808,123456789012345678901234567890]}';
-    $v = JsonCru::decodificar($json);
+it('JsonCru decodifica sem float: int64 nativo, o resto vira NumeroJson e é rejeitado por somenteInteiros', function (): void {
+    $v = JsonCru::decodificar('{"a":[1,1.0,1e2,-0,9223372036854775807,9223372036854775808,-9223372036854775808]}');
     /** @var list<mixed> $a */
     $a = ((array) $v)['a'];
-    expect(JsonCru::codificar($v, false))->toBe($json)
-        ->and(JsonCru::codificar($v, true))->toBe('{"a":[1,1.0,1.50,1e2,-0,9223372036854775807,9223372036854775808,-9223372036854775808,123456789012345678901234567890],"b":0.1234567890123456789}')
-        ->and($a[0])->toBe(1)
-        ->and($a[5])->toBe(PHP_INT_MAX)
-        ->and($a[7])->toBe(PHP_INT_MIN)
+    expect($a[0])->toBe(1)
+        ->and($a[4])->toBe(PHP_INT_MAX)
+        ->and($a[6])->toBe(PHP_INT_MIN)
         ->and($a[1])->toBeInstanceOf(NumeroJson::class)
-        ->and($a[6])->toBeInstanceOf(NumeroJson::class);
-});
-
-it('o hash do fato muda quando muda o dígito não representável em float', function (): void {
-    $a = JsonCru::decodificar('{"x":0.1234567890123456789}');
-    $b = JsonCru::decodificar('{"x":0.12345678901234568}');
-    expect(HashFato::hash($a, null))->not->toBe(HashFato::hash($b, null));
+        ->and($a[5])->toBeInstanceOf(NumeroJson::class)
+        ->and(JsonCru::somenteInteiros($v))->toBeFalse()
+        ->and(JsonCru::somenteInteiros(JsonCru::decodificar('{"a":[1,{"b":-5}],"c":"1.5","d":null,"e":true}')))->toBeTrue();
 });
 
 it('JsonCru preserva {} vs [], aceita unicode/escapes e recusa JSON inválido', function (): void {

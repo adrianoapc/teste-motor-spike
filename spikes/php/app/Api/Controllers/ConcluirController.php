@@ -58,6 +58,9 @@ final readonly class ConcluirController
             if (! is_object($payload)) {
                 throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
             }
+            if (! JsonCru::somenteInteiros($payload)) {
+                throw ErroDeNegocio::invalido('corpo_invalido', 'números do payload devem ser inteiros int64 (sem fração, expoente, -0 ou fora da faixa)');
+            }
             $tributo = property_exists($s, 'tributo') ? $s->tributo : '';
             if (! is_string($tributo)) {
                 throw ErroDeNegocio::invalido('tributo_invalido', 'tributo deve ser texto');

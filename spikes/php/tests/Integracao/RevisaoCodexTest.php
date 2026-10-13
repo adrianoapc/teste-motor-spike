@@ -483,19 +483,43 @@ final class RevisaoCodexTest extends TestCase
         $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
     }
 
-    public function test_payload_com_numeros_nao_inteiros_e_gigantes_e_preservado_na_persistencia_e_no_hash(): void
+    /** @return iterable<string, array{string}> */
+    public static function vetoresRejeitados(): iterable
     {
-        $corpo = '{"titular_id":"TCX40","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","payload":{"n":0.1234567890123456789,"g":123456789012345678901234567890}}';
-        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertOk()->assertJsonPath('efeito', 'novo');
-        $linha = (array) DB::selectOne("SELECT payload->'n' AS n, payload->'g' AS g, hash FROM fatos.fato WHERE titular_id = 'TCX40'");
-        $this->assertSame('0.1234567890123456789', self::txt($linha['n']));
-        $this->assertSame('123456789012345678901234567890', self::txt($linha['g']));
-        $esperado = hash('sha256', '{"payload":{"g":123456789012345678901234567890,"n":0.1234567890123456789},"valor_centavos":null}');
-        $this->assertSame($esperado, $linha['hash']);
-        // Reenvio idêntico: sem_mudanca; número diferente na 17ª casa: nova versão.
-        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertJsonPath('efeito', 'sem_mudanca');
-        $outro = str_replace('0.1234567890123456789', '0.12345678901234568', $corpo);
-        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $outro)->assertJsonPath('efeito', 'nova_versao');
+        $json = file_get_contents(__DIR__.'/../fixtures/vetores-hash.json');
+        self::assertIsString($json);
+        /** @var array{fatos: list<array{nome: string, payload: string, valor_centavos: int|null, esperado: string, canonico?: string, sha256?: string}>} $d */
+        $d = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        foreach ($d['fatos'] as $f) {
+            if ($f['esperado'] === 'rejeitado') {
+                yield $f['nome'] => [$f['payload']];
+            }
+        }
+    }
+
+    #[DataProvider('vetoresRejeitados')]
+    public function test_fatos_rejeita_numeros_invalidos_no_payload_com_422(string $payloadJson): void
+    {
+        $corpo = '{"titular_id":"TCX40","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","payload":'.$payloadJson.'}';
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
+            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX40')->count());
+    }
+
+    #[DataProvider('vetoresRejeitados')]
+    public function test_concluir_rejeita_numeros_invalidos_no_payload_da_saida_com_422(string $payloadJson): void
+    {
+        $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":'.$payloadJson.'}]}';
+        $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E03/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
+            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+    }
+
+    public function test_fato_com_payload_de_inteiros_int64_e_aceito_e_hash_confere(): void
+    {
+        $corpo = '{"titular_id":"TCX42","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775807,"payload":{"n":9223372036854775807}}';
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertOk();
+        $linha = (array) DB::selectOne("SELECT hash FROM fatos.fato WHERE titular_id = 'TCX42'");
+        $this->assertSame('a662ca55bae7e6594d1710edf24d8afd8fcc352382caabbbba08e1fd7e6d50c0', $linha['hash']);
     }
 
     public function test_valor_centavos_alem_de_int64_da_422(): void
