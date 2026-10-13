@@ -9,6 +9,19 @@ from typing import NewType
 
 Centavos = NewType("Centavos", int)
 
+INT64_MIN = -(2**63)
+INT64_MAX = 2**63 - 1
+
+
+class ValorForaDoIntervalo(ValueError):
+    """Valor monetário fora do int64 com sinal (coluna bigint do banco)."""
+
+
+def garantir_int64(v: int | None, nome: str) -> int | None:
+    if v is not None and not (INT64_MIN <= v <= INT64_MAX):
+        raise ValorForaDoIntervalo(f"{nome} fora do intervalo int64: {v}")
+    return v
+
 
 def arred_meio_par(numerador: int, denominador: int) -> int:
     """numerador / denominador arredondado meio para o par, só com inteiros.

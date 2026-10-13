@@ -315,3 +315,55 @@ def test_conferencia_reaproveitada_com_override_nao_bloqueia_nem_abre_excecao() 
     mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
     assert uow.excecoes == []
     assert transicoes == ["validado"]
+
+
+@pytest.mark.parametrize("v", [2**63, -(2**63) - 1])
+def test_valor_centavos_fora_do_int64_da_422_nos_modelos(v: int) -> None:
+    from motor.api.modelos import SaidaItem
+
+    base = {"titular_id": "T1", "competencia": "202609", "tipo": "guia", "fonte": "api",
+            "observado_em": "2026-09-01T10:00:00Z"}
+    with pytest.raises(ValidationError):
+        FatoRequest(**base, valor_centavos=v)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        SaidaItem(valor_centavos=v)
+    ok = FatoRequest(**base, valor_centavos=2**63 - 1)  # type: ignore[arg-type]
+    assert ok.valor_centavos == 2**63 - 1
+    assert SaidaItem(valor_centavos=-(2**63)).valor_centavos == -(2**63)
+
+
+def test_publicar_fato_e_saida_de_concluir_fora_do_int64_dao_erro_de_negocio_422() -> None:
+    uow = _Fake()
+    with pytest.raises(mf.ErroNegocio) as e:
+        mf.publicar_fato(
+            uow, "T1", "202609", "guia", "DAS", 2**63, {}, "api",  # type: ignore[arg-type]
+            "2026-09-01T00:00:00+00:00",
+        )
+    assert e.value.status == 422
+    with pytest.raises(mf.ErroNegocio) as e2:
+        mf._valor_opcional(2**63)
+    assert e2.value.status == 422
+
+
+def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [
+        Fato(id="f1", titular_id="T1", competencia="202609", tipo="faturamento_mes",
+             tributo="", versao=1, valor_centavos=2**62, payload={}, hash="h"),
+        Fato(id="f2", titular_id="T1", competencia="202609", tipo="prolabore",
+             tributo="", versao=1, valor_centavos=1, payload={}, hash="h"),
+    ]
+    # 20000 bp = 200%: esperado = 2**63, que não cabe em bigint.
+    uow.parametros_em_uso = lambda: type(  # type: ignore[attr-defined]
+        "P", (), {"prolabore_percentual_bp": 20000}
+    )()
+    regra = RegraEntregaveis(
+        versao_id="rv-antiga", estado_minimo_padrao="validado",
+        itens=[ItemEntregavel(
+            tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=[],
+            saida=None, conferencias=[{"cf": "CF-08"}],
+        )],
+    )
+    with pytest.raises(mf.ErroNegocio) as e:
+        mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    assert e.value.status == 422

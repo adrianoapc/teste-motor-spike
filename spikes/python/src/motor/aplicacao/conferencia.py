@@ -10,6 +10,7 @@ from motor.dominio.conferencias import (
     esperado_prolabore,
     soma_parcelas,
 )
+from motor.dominio.dinheiro import garantir_int64
 from motor.dominio.hashing import entrada_hash
 
 
@@ -196,6 +197,9 @@ def _gravar(
     from motor.aplicacao.registros import TipoConferencia
 
     assert isinstance(tipo, TipoConferencia)
+    # esperado/obtido vão para colunas bigint: o cálculo em Python não estoura, o insert sim.
+    garantir_int64(esperado, "esperado_centavos")
+    garantir_int64(obtido, "obtido_centavos")
     fatos_usados = sorted(fatos_usados, key=lambda d: str(d["fato_id"]))
     classe_final = classe if classe is not None else tipo.classe_padrao
     eh = entrada_hash(cf, fatos_usados, tolerancia_versao_id)

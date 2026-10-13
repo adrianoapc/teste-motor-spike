@@ -9,6 +9,7 @@ from motor.aplicacao.portas import UnidadeDeTrabalho
 from motor.aplicacao.registros import Caso, Entregavel, ItemEntregavel, RegraEntregaveis
 from motor.dominio.competencia import Competencia
 from motor.dominio.condicao import casa
+from motor.dominio.dinheiro import ValorForaDoIntervalo, garantir_int64
 from motor.dominio.estados import EstadoEntregavel as E
 from motor.dominio.estados import pelo_menos
 from motor.dominio.hashing import hash_fato
@@ -103,6 +104,10 @@ def publicar_fato(
     origem_ref: str | None = None,
 ) -> tuple[str, int, str]:
     """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
+    try:
+        garantir_int64(valor_centavos, "valor_centavos")
+    except ValorForaDoIntervalo as e:
+        raise _invalido("valor_fora_do_intervalo", str(e)) from e
     h = hash_fato(payload, valor_centavos)
     # Ordem global: 1) titular, 2) chave do fato, 3) linhas de entregável (por tipo).
     # Reentrante: /concluir já travou o titular antes de chamar esta função.
@@ -594,9 +599,12 @@ def _conferir_entregavel(
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
-            uow, caso, ent, cf
-        )
+        try:
+            resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
+                uow, caso, ent, cf
+            )
+        except ValorForaDoIntervalo as e:
+            raise _invalido("valor_fora_do_intervalo", str(e)) from e
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
         # Conferência reaproveitada que já tem override (§8.1) continua sobrescrita.
         if resultado == "divergente" and severidade == "B" and not sobrescrita:
@@ -627,5 +635,8 @@ def _valor_opcional(v: object) -> int | None:
     if v is None:
         return None
     if isinstance(v, int):
-        return v
+        try:
+            return garantir_int64(v, "valor_centavos")
+        except ValorForaDoIntervalo as e:
+            raise _invalido("valor_fora_do_intervalo", str(e)) from e
     raise _invalido("valor_invalido", f"valor_centavos deve ser inteiro ou nulo: {v!r}")

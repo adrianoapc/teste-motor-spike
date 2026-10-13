@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# int64 com sinal (openapi format: int64); Python não limita inteiros, o bigint do banco sim.
+Int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
 COMPETENCIA = r"^[0-9]{4}(0[1-9]|1[0-2])$"
 
 
@@ -44,7 +46,7 @@ class FatoRequest(BaseModel):
     competencia: str = Field(pattern=COMPETENCIA)
     tipo: str = Field(min_length=1)
     tributo: str = ""
-    valor_centavos: int | None = None
+    valor_centavos: Int64 | None = None
     payload: dict[str, object] = Field(default_factory=dict)
     fonte: str = Field(min_length=1)
     origem_ref: str | None = None
@@ -60,7 +62,7 @@ class FatoResponse(BaseModel):
 class SaidaItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tributo: str = ""
-    valor_centavos: int | None = None
+    valor_centavos: Int64 | None = None
     payload: dict[str, object] = Field(default_factory=dict)
 
 
