@@ -35,3 +35,17 @@ it('arredonda negativos simetricamente', function (): void {
 it('recusa denominador zero', function (): void {
     expect(fn () => Dinheiro::arredMeioPar(10, 0))->toThrow(InvalidArgumentException::class);
 });
+
+it('multiplica e divide igual a arredMeioPar quando não há overflow', function (): void {
+    foreach ([[60000000, 1000, 10000], [5, 5, 10], [7, 5, 10], [-7, 5, 10], [7, -5, 10], [-7, -5, 10], [123456789, 987, 10000], [25, 1, 10], [35, 1, 10]] as [$a, $b, $d]) {
+        expect(Dinheiro::multiplicarDividirArredMeioPar($a, $b, $d))->toBe(Dinheiro::arredMeioPar($a * $b, $d));
+    }
+});
+
+it('multiplica e divide sem estourar int64 no produto', function (): void {
+    expect(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, 10000, 10000))->toBe(PHP_INT_MAX)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(-PHP_INT_MAX, 10000, 10000))->toBe(-PHP_INT_MAX)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, 0, 10000))->toBe(0)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, 20000, 10000))->toBeNull()
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, PHP_INT_MAX, 10000))->toBeNull();
+});

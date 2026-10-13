@@ -65,7 +65,10 @@ final readonly class Formulas
         if ($das->valorCentavos === null) {
             return ResultadoFormula::fatoAusente('apurado[DAS].valor', $usados);
         }
-        $esperado = Dinheiro::arredMeioPar($fat->valorCentavos * $aliquotaBp, 10000);
+        $esperado = Dinheiro::multiplicarDividirArredMeioPar($fat->valorCentavos, $aliquotaBp, 10000);
+        if ($esperado === null) {
+            return ResultadoFormula::fatoAusente('faturamento_mes.valor × aliquota_bp fora da faixa int64', $usados);
+        }
 
         return new ResultadoFormula($esperado, $das->valorCentavos, $usados);
     }
@@ -100,6 +103,9 @@ final readonly class Formulas
             return ResultadoFormula::fatoAusente("guia[{$tributoGuia}]");
         }
         $impressa = $this->textoDoPayload($guia, 'competencia_impressa');
+        if ($impressa === null) {
+            return ResultadoFormula::fatoAusente("guia[{$tributoGuia}].payload.competencia_impressa", $this->usados($guia));
+        }
         $igual = $impressa === $competenciaCaso;
 
         return new ResultadoFormula(
@@ -128,6 +134,9 @@ final readonly class Formulas
             return ResultadoFormula::fatoAusente("apurado[{$tributoApuracao}].valor", $usados);
         }
         $soma = $this->somaParcelas($divisao);
+        if ($soma === null) {
+            return ResultadoFormula::fatoAusente('divisao_socios.payload.parcelas[].valor_centavos', $usados);
+        }
 
         return new ResultadoFormula($apurado->valorCentavos, $soma, $usados);
     }
@@ -150,7 +159,10 @@ final readonly class Formulas
         if ($prolabore->valorCentavos === null) {
             return ResultadoFormula::fatoAusente('prolabore.valor', $usados);
         }
-        $esperado = Dinheiro::arredMeioPar($fat->valorCentavos * $this->prolaborePercentualBp, 10000);
+        $esperado = Dinheiro::multiplicarDividirArredMeioPar($fat->valorCentavos, $this->prolaborePercentualBp, 10000);
+        if ($esperado === null) {
+            return ResultadoFormula::fatoAusente('faturamento_mes.valor × prolabore_percentual_bp fora da faixa int64', $usados);
+        }
 
         return new ResultadoFormula($esperado, $prolabore->valorCentavos, $usados);
     }
@@ -217,16 +229,23 @@ final readonly class Formulas
         return new ResultadoFormula(0, 0, $this->usados($recibo));
     }
 
-    private function somaParcelas(Fato $divisao): int
+    /** Soma das parcelas; null se `parcelas` falta, não é lista ou alguma entrada é malformada (ou a soma estoura int64). */
+    private function somaParcelas(Fato $divisao): ?int
     {
         $payload = $divisao->payload;
+        if (! is_object($payload) || ! isset($payload->parcelas) || ! is_array($payload->parcelas)) {
+            return null;
+        }
         $soma = 0;
-        if (is_object($payload) && isset($payload->parcelas) && is_array($payload->parcelas)) {
-            foreach ($payload->parcelas as $parcela) {
-                if (is_object($parcela) && isset($parcela->valor_centavos) && is_int($parcela->valor_centavos)) {
-                    $soma += $parcela->valor_centavos;
-                }
+        foreach ($payload->parcelas as $parcela) {
+            if (! is_object($parcela) || ! isset($parcela->valor_centavos) || ! is_int($parcela->valor_centavos)) {
+                return null;
             }
+            if (($parcela->valor_centavos > 0 && $soma > PHP_INT_MAX - $parcela->valor_centavos)
+                || ($parcela->valor_centavos < 0 && $soma < PHP_INT_MIN - $parcela->valor_centavos)) {
+                return null;
+            }
+            $soma += $parcela->valor_centavos;
         }
 
         return $soma;
@@ -242,14 +261,14 @@ final readonly class Formulas
         return null;
     }
 
-    private function textoDoPayload(Fato $fato, string $campo): string
+    private function textoDoPayload(Fato $fato, string $campo): ?string
     {
         $payload = $fato->payload;
         if (is_object($payload) && isset($payload->{$campo}) && is_string($payload->{$campo})) {
             return $payload->{$campo};
         }
 
-        return '';
+        return null;
     }
 
     /**

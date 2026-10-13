@@ -45,10 +45,14 @@ final readonly class ConcluirController
             if ($valor !== null && ! is_int($valor)) {
                 throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro ou nulo');
             }
+            $payload = property_exists($s, 'payload') ? $s->payload : new \stdClass;
+            if (! is_object($payload)) {
+                throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
+            }
             $saidas[] = [
                 'tributo' => isset($s->tributo) && is_string($s->tributo) ? $s->tributo : '',
                 'valor_centavos' => $valor,
-                'payload' => $s->payload ?? new \stdClass,
+                'payload' => $payload,
             ];
         }
 

@@ -49,6 +49,8 @@ final readonly class Invalidador
             $porCaso[$e->casoId][] = $e;
         }
 
+        // Ordem determinística por caso (com o trava por tipo abaixo) evita deadlock entre invalidações concorrentes.
+        ksort($porCaso, SORT_STRING);
         foreach ($porCaso as $casoId => $sementesDoCaso) {
             $this->invalidarCaso($casoId, $sementesDoCaso, $fatoNovoId);
         }
@@ -73,6 +75,10 @@ final readonly class Invalidador
 
             return;
         }
+
+        // Trava todos os entregáveis do caso (FOR UPDATE, ordem de tipo) antes de ler estados e transicionar:
+        // invalidações concorrentes do mesmo caso se serializam em vez de falhar no compare-and-set (409).
+        $this->entregaveis->doCasoParaAtualizar($casoId);
 
         // Caso aberto: cascata com visitados; só continua a partir de quem foi para invalidado.
         $fila = $sementes;

@@ -297,4 +297,38 @@ final class RevisaoCodexTest extends TestCase
         ])->assertOk();
         $r->assertJsonCount(0, 'criados')->assertJsonCount(1, 'existentes');
     }
+
+    /** @return iterable<string, array{string}> */
+    public static function payloadsNaoObjeto(): iterable
+    {
+        yield 'nulo' => ['null'];
+        yield 'lista vazia' => ['[]'];
+        yield 'lista' => ['[1]'];
+        yield 'escalar' => ['5'];
+        yield 'texto' => ['"x"'];
+    }
+
+    #[DataProvider('payloadsNaoObjeto')]
+    public function test_fato_rejeita_payload_que_nao_e_objeto_com_422(string $payloadJson): void
+    {
+        $corpo = '{"titular_id":"TCX13","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00-03:00","payload":'.$payloadJson.'}';
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
+            ->assertStatus(422)->assertJsonPath('erro', 'payload_invalido');
+        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX13')->count());
+    }
+
+    #[DataProvider('payloadsNaoObjeto')]
+    public function test_concluir_rejeita_payload_de_saida_que_nao_e_objeto_com_422(string $payloadJson): void
+    {
+        $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":'.$payloadJson.'}]}';
+        $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E01/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
+            ->assertStatus(422)->assertJsonPath('erro', 'payload_invalido');
+    }
+
+    public function test_fato_sem_payload_assume_objeto_vazio(): void
+    {
+        $this->fato('TCX14', 'faturamento_mes', 100);
+        $linha = (array) DB::selectOne("SELECT payload FROM fatos.fato WHERE titular_id = 'TCX14'");
+        $this->assertSame('{}', $linha['payload']);
+    }
 }

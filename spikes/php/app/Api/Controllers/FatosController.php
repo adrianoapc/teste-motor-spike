@@ -46,7 +46,11 @@ final readonly class FatosController
         if ($valor !== null && ! is_int($valor)) {
             throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro ou nulo');
         }
-        $payload = $cru->payload ?? new \stdClass;
+        // payload: objeto JSON; default {} só se a chave está ausente (null/lista/escalar => 422).
+        $payload = property_exists($cru, 'payload') ? $cru->payload : new \stdClass;
+        if (! is_object($payload)) {
+            throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
+        }
         $fonte = $this->texto($cru, 'fonte');
         $origemRef = isset($cru->origem_ref) && is_string($cru->origem_ref) ? $cru->origem_ref : null;
         $observadoEm = $this->texto($cru, 'observado_em');
