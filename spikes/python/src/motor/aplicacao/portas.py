@@ -43,6 +43,10 @@ class UnidadeDeTrabalho(Protocol):
 
     # -- caso -----------------------------------------------------------------
     def buscar_caso(self, titular_id: str, competencia: str) -> Caso | None: ...
+    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
+        """Lock de transação por (titular, competência): serializa aberturas concorrentes."""
+        ...
+
     def criar_caso(
         self,
         titular_id: str,
@@ -145,8 +149,8 @@ class UnidadeDeTrabalho(Protocol):
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str] | None:
-        """(resultado, severidade, conferencia_id) se já existe (idempotência §9.2), senão None."""
+    ) -> tuple[str, str, str, str] | None:
+        """(resultado, severidade, conferencia_id, classe) se já existe (§9.2), senão None."""
         ...
 
     def inserir_conferencia(
@@ -174,10 +178,6 @@ class UnidadeDeTrabalho(Protocol):
         ...
 
     def tarefa_aberta_do_entregavel(self, entregavel_id: str) -> str | None: ...
-    def criar_excecao(
-        self, caso_id: str, entregavel_id: str, tipo: str, classe: str, dono: str
-    ) -> str: ...
-
     def excecao_aberta_existe(
         self, caso_id: str, entregavel_id: str | None, tipo: str
     ) -> bool:
@@ -193,7 +193,8 @@ class UnidadeDeTrabalho(Protocol):
     ) -> str | None:
         """Abre a exceção só se ainda não há uma aberta do mesmo tipo (§9.4).
 
-        Devolve o id da exceção criada, ou None se já existia uma aberta.
+        Devolve o id da exceção criada, ou None se já existia uma aberta. A verificação e a
+        inserção são atômicas por (alvo, tipo): implementações serializam concorrentes.
         """
         ...
 

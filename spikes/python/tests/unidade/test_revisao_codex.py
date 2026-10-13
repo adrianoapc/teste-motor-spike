@@ -43,6 +43,8 @@ class _Fake:
     vigentes: dict[tuple[str, str], Fato] = field(default_factory=dict)
     eventos: list[tuple[str, dict[str, object]]] = field(default_factory=list)
     excecoes: list[str] = field(default_factory=list)
+    classes_excecao: list[str] = field(default_factory=list)
+    fatos_caso: list[Fato] = field(default_factory=list)
     chamadas: list[str] = field(default_factory=list)
     inseridos: list[dict[str, object]] = field(default_factory=list)
     versoes_pedidas: list[str] = field(default_factory=list)
@@ -58,6 +60,9 @@ class _Fake:
 
     def buscar_caso(self, titular_id: str, competencia: str) -> Caso | None:
         return self.caso
+
+    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
+        self.chamadas.append("lock-caso")
 
     def buscar_entregavel(
         self, caso_id: str, tipo: str, para_atualizar: bool = False
@@ -95,6 +100,7 @@ class _Fake:
         self, caso_id: str, entregavel_id: str | None, tipo: str, classe: str, dono: str
     ) -> str | None:
         self.excecoes.append(tipo)
+        self.classes_excecao.append(classe)
         return f"exc-{tipo}"
 
     def resolver_excecoes(self, *a: object, **k: object) -> None:
@@ -108,11 +114,11 @@ class _Fake:
         return Tolerancia(versao_id="tol-1", ok_ate_centavos=0, alerta_ate_centavos=10)
 
     def fatos_vigentes_do_caso(self, titular_id: str, competencia: str) -> list[Fato]:
-        return []
+        return self.fatos_caso
 
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str] | None:
+    ) -> tuple[str, str, str, str] | None:
         return None
 
     def inserir_conferencia(self, **kw: object) -> str:
@@ -182,8 +188,8 @@ def test_acompanhamento_lp_usa_irpj() -> None:
 def test_conferir_fato_ausente_mantem_severidade_do_catalogo_e_classe_s() -> None:
     uow = _Fake()
     ent = _e11()
-    resultado, severidade, conf_id = conferir(uow, uow.caso, ent, "CF-01")  # type: ignore[arg-type]
-    assert (resultado, severidade, conf_id) == ("divergente", "B", "conf-1")
+    resultado, severidade, conf_id, classe = conferir(uow, uow.caso, ent, "CF-01")  # type: ignore[arg-type]
+    assert (resultado, severidade, conf_id, classe) == ("divergente", "B", "conf-1", "S")
     assert uow.confs[0]["severidade"] == "B"
     assert uow.confs[0]["classe"] == "S"
 
@@ -218,3 +224,50 @@ def test_observado_em_invalido_gera_422_de_validacao() -> None:
         FatoRequest(**base, observado_em="ontem")  # type: ignore[arg-type]
     ok = FatoRequest(**base, observado_em="2026-09-01T10:00:00Z")  # type: ignore[arg-type]
     assert ok.observado_em.isoformat().startswith("2026-09-01T10:00:00")
+
+
+def test_abrir_caso_trava_a_chave_antes_de_ler_o_caso_existente() -> None:
+    uow = _Fake()
+    titular, caso_id, criado = mf.abrir_caso(
+        uow, "202609", "ator", {"titular_id": "T1", "carteira": "C1"}  # type: ignore[arg-type]
+    )
+    assert (titular, caso_id, criado) == ("T1", "caso-1", False)
+    assert uow.chamadas == ["lock-caso"]
+
+
+def test_excecao_de_fato_ausente_herda_classe_s_da_conferencia() -> None:
+    uow = _Fake()
+    regra = RegraEntregaveis(
+        versao_id="rv-antiga", estado_minimo_padrao="validado",
+        itens=[ItemEntregavel(
+            tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=[],
+            saida=None, conferencias=[{"cf": "CF-01"}],
+        )],
+    )
+    uow.transicionar = lambda *a, **k: None  # type: ignore[attr-defined]
+    mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    assert uow.excecoes == ["CF-01"]
+    assert uow.classes_excecao == ["S"]  # catálogo diz "D"; a conferência computou "S"
+
+
+@pytest.mark.parametrize(
+    ("regime", "tributo_certo", "tributo_errado"),
+    [("SN", "PGDAS-D", "DCTFWEB"), ("LP", "DCTFWEB", "PGDAS-D")],
+)
+def test_cf12_seleciona_o_recibo_do_tributo_exigido(
+    regime: str, tributo_certo: str, tributo_errado: str
+) -> None:
+    uow = _Fake(caso=_caso(regime))
+    certo = _fato("recibo_obrigacao", tributo_certo)
+    errado = _fato("recibo_obrigacao", tributo_errado)
+    uow.fatos_caso = [errado, certo]  # o errado vem primeiro: busca só por tipo o pegaria
+    resultado, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    assert resultado == "ok"
+    assert [u["fato_id"] for u in uow.confs[0]["fatos_usados"]] == [certo.id]  # type: ignore[attr-defined,union-attr]
+
+
+def test_cf12_so_com_recibo_do_tributo_errado_e_fato_ausente() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [_fato("recibo_obrigacao", "DCTFWEB")]
+    resultado, _, _, classe = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")

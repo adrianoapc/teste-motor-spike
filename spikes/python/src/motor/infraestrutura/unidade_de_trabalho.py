@@ -171,6 +171,12 @@ class UnidadeDeTrabalhoSQL:
         )
         return self._caso(row) if row else None
 
+    def travar_abertura_caso(self, titular_id: str, competencia: str) -> None:
+        self._exec(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"caso|{titular_id}|{competencia}",),
+        )
+
     def criar_caso(
         self,
         titular_id: str,
@@ -439,13 +445,17 @@ class UnidadeDeTrabalhoSQL:
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(
         self, cf: str, entregavel_id: str, entrada_hash: str
-    ) -> tuple[str, str, str] | None:
+    ) -> tuple[str, str, str, str] | None:
         row = self._um(
-            "SELECT id, resultado, severidade FROM conferencias.conferencia "
+            "SELECT id, resultado, severidade, classe FROM conferencias.conferencia "
             "WHERE cf = %s AND entregavel_id = %s AND entrada_hash = %s",
             (cf, entregavel_id, entrada_hash),
         )
-        return (str(row["resultado"]), str(row["severidade"]), str(row["id"])) if row else None
+        if row is None:
+            return None
+        return (
+            str(row["resultado"]), str(row["severidade"]), str(row["id"]), str(row["classe"])
+        )
 
     def inserir_conferencia(
         self,
@@ -525,18 +535,6 @@ class UnidadeDeTrabalhoSQL:
         )
         return str(row["id"]) if row else None
 
-    def criar_excecao(
-        self, caso_id: str, entregavel_id: str, tipo: str, classe: str, dono: str
-    ) -> str:
-        row = self._um(
-            "INSERT INTO trabalho.excecao "
-            "(caso_id, entregavel_id, tipo, classe, dono, estado) "
-            "VALUES (%s,%s,%s,%s,%s,'aberta') RETURNING id",
-            (caso_id, entregavel_id, tipo, classe, dono),
-        )
-        assert row is not None
-        return str(row["id"])
-
     def excecao_aberta_existe(
         self, caso_id: str, entregavel_id: str | None, tipo: str
     ) -> bool:
@@ -558,6 +556,12 @@ class UnidadeDeTrabalhoSQL:
     def abrir_excecao_unica(
         self, caso_id: str, entregavel_id: str | None, tipo: str, classe: str, dono: str
     ) -> str | None:
+        # Serializa a abertura da mesma exceção (alvo, tipo): o lock é de transação e o
+        # re-check abaixo enxerga o commit do concorrente (READ COMMITTED).
+        self._exec(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"excecao|{caso_id}|{entregavel_id or ''}|{tipo}",),
+        )
         if self.excecao_aberta_existe(caso_id, entregavel_id, tipo):
             return None
         row = self._um(

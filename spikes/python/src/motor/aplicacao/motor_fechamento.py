@@ -43,6 +43,8 @@ def abrir_caso(
 ) -> tuple[str, str, bool]:
     """Devolve (titular_id, caso_id, criado). Idempotente por (titular, competência)."""
     titular_id = str(empresa["titular_id"])
+    # Serializa a chave: o concorrente espera o commit e então cai no ramo "existente".
+    uow.travar_abertura_caso(titular_id, competencia)
     existente = uow.buscar_caso(titular_id, competencia)
     if existente is not None:
         return (titular_id, existente.id, False)
@@ -588,17 +590,16 @@ def _conferir_entregavel(
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        resultado, severidade, conferencia_id = conferir(uow, caso, ent, cf)
+        resultado, severidade, conferencia_id, classe_cf = conferir(uow, caso, ent, cf)
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
         if resultado == "divergente" and severidade == "B":
-            tipo_cf = uow.tipo_conferencia(cf)
             alguma_b_divergente = True
             ultima_conferencia_id = conferencia_id
             uow.gravar_evento(
                 "conferencia.divergente", caso.id, ent.id, {"conferencia_id": conferencia_id}
             )
             nova = uow.abrir_excecao_unica(
-                caso.id, ent.id, cf, tipo_cf.classe_padrao, caso.carteira
+                caso.id, ent.id, cf, classe_cf, caso.carteira
             )
             if nova is not None:
                 uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"excecao_id": nova})

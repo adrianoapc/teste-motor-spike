@@ -67,11 +67,11 @@ def conferir(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, str]:
     """Calcula, classifica e grava uma conferência (idempotente).
 
-    Devolve (resultado, severidade, conferencia_id) com a severidade COMPUTADA (A/B/I/S), não a
-    do catálogo: uma divergência A não bloqueia nem abre exceção (§9.2).
+    Devolve (resultado, severidade, conferencia_id, classe) com a severidade COMPUTADA (A/B/I/S),
+    não a do catálogo: uma divergência A não bloqueia nem abre exceção (§9.2).
     Resultado é 'ok' ou 'divergente'. Fato ausente → divergente classe 'S'.
     """
     tipo = uow.tipo_conferencia(cf)
@@ -143,8 +143,9 @@ def conferir(
                 esperado, obtido = fgts_esp, _valor(guia_fgts)
         elif cf == "CF-12":
             # ok se existe recibo_obrigacao com o tributo exigido pela entrada.
-            recibo = next((f for f in fatos if f.tipo == "recibo_obrigacao"), None)
-            _usar(fatos_usados, recibo, "recibo_obrigacao[]")
+            trib_recibo = "PGDAS-D" if caso.snapshot.get("regime") == "SN" else "DCTFWEB"
+            recibo = _fato(fatos, "recibo_obrigacao", trib_recibo)
+            _usar(fatos_usados, recibo, f"recibo_obrigacao[{trib_recibo}]")
             resultado = "ok"
             diferenca = {"centavos": 0}
             return _gravar(
@@ -191,7 +192,7 @@ def _gravar(
     diferenca: dict[str, object],
     severidade: str,
     classe: str | None = None,
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, str]:
     from motor.aplicacao.registros import TipoConferencia
 
     assert isinstance(tipo, TipoConferencia)
@@ -215,4 +216,4 @@ def _gravar(
         severidade=severidade,
         classe=classe_final,
     )
-    return (resultado, severidade, conferencia_id)
+    return (resultado, severidade, conferencia_id, classe_final)
