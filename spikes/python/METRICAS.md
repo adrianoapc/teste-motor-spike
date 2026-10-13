@@ -46,3 +46,58 @@ Fase 1 (cenários C1 e C7). Modelo: `docs/regras-do-jogo.md` §4.
 - Processamento síncrono dentro da requisição: `/admin/fila` sempre `{"pendentes":0,"com_erro":0}`.
 - Nenhuma alteração na base comum (`db/`, `contrato/`, `cenarios/`, `verificador/`, `docs/`,
   `docker-compose.yml`, `.kiro/steering/`).
+
+---
+
+# Fase 2 — invalidação, exceções, override e protocolo de entrega
+
+Cenários C2–C5, C8, C9, C10 (fase 2), mais a regressão da fase 1 (C1, C7).
+
+## Correção
+- Verificador (2026-10-12, commit `22650d2`, imagem `python:3.13-slim`):
+  - `--todos cenarios --fase 2 --limpar` → **`RESULTADO: todos passaram (9/9)`**
+    (C1 170 · C2 154 · C3 152 · C4 116 · C5 146 · C7 92 · C8 122 · C9 83 · C10 151 checagens, 0 falhas)
+  - `--todos cenarios --fase 1 --limpar` → **2/2** (regressão intacta)
+  - Relatório salvo em `resultado-fase2-python.json`.
+- Invariantes novas da fase 2 cobertas: INV-14 (`documento.disponibilizado` com `fato_id` da guia)
+  e INV-15 (nenhuma transição depois do encerramento).
+
+## Manutenção — mudança de domínio v3 (Task 11) e fase 2 (Tasks 12–16)
+Medida pedida em `docs/regras-do-jogo.md` §3, critério 8.
+
+- **Task 11 (mudança de domínio v3, fim no protocolo):** mudança pequena e localizada —
+  3 arquivos, +27/−13 linhas (`estados.py`, `motor_fechamento.py`, um teste). A leitura da
+  regra em uso já era por `status`, então a troca v1→v2 da V006 não exigiu código novo.
+  C1 voltou a 2/2 na primeira execução após a mudança.
+- **Fase 2 (Tasks 12–16):** +664/−30 linhas em 10 arquivos sobre a base da fase 1.
+  O grosso em `aplicacao/motor_fechamento.py` (+271: invalidação/cascata, override,
+  acompanhamento) e `infraestrutura/unidade_de_trabalho.py` (+134: métodos novos de
+  exceção/invalidação/override). API cresceu só +21 (uma rota + um modelo).
+
+## Tamanho ao fim da fase 2 (sem testes e sem gerados)
+| Camada | Arquivos | Linhas |
+|---|---|---|
+| dominio | 7 | 245 |
+| aplicacao | 5 | 1152 |
+| infraestrutura | 4 | 742 |
+| api | 4 | 320 |
+| motor/__init__ | 1 | 1 |
+| **Total** | **21** | **2460** |
+| Testes (à parte) | 3 | 374 |
+
+## Esforço do agente (fase 2)
+- Tarefas concluídas: **12–17** (fase 2 completa).
+- Vezes que uma tarefa foi refeita: **1 ajuste** — C3 falhou na primeira execução da fase 2
+  (8/9) porque a severidade do catálogo era usada no lugar da **computada**; uma divergência A
+  de 1 centavo era tratada como bloqueante. Corrigido fazendo `conferir()` devolver
+  `(resultado, severidade)` (§9.2). Depois 9/9.
+- Intervenções humanas: 0 durante a implementação.
+
+## Rede de proteção (fase 2)
+- Erros barrados pelo mypy `--strict` antes de teste: **+3 ocorrências** (`arg-type` em
+  `pl` de `gravar_evento`, §10.3) — ver `REGISTRO-COMPILADOR.md`.
+- 22 testes verdes (16 fase 1 + 6 de cascata em memória), `mypy --strict` sem `# type: ignore`,
+  `ruff` e `import-linter` limpos.
+
+## Imagem (fase 2)
+- Tamanho: **290 MB** (inalterado — nenhuma dependência nova).

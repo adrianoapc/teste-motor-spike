@@ -66,17 +66,17 @@ Antes da tarefa 11: `git merge origin/main` (traz a semântica **v3**, a migraç
   - Registrar em `METRICAS.md` (seção Fase 2) quanto do código mudou e quanto tempo levou: é a medida de manutenção da mudança de domínio.
   - _Requisitos: 20.1–20.4_
 
-- [ ] 12. Reavaliação em passos (§7.4) e regressão
+- [x] 12. Reavaliação em passos (§7.4) e regressão
   - Conferir que a reavaliação dá no máximo um passo por entregável por volta, em ordem de `tipo`, lendo o estado atual das dependências. Ajustar se preciso.
   - Rodar `--fase 1` e confirmar 2/2.
   - _Requisitos: 13_
 
-- [ ] 13. Exceções: abertura única e resolução (§9.4)
+- [x] 13. Exceções: abertura única e resolução (§9.4)
   - Abertura única por (entregável, tipo) ou (caso, tipo); resolução `fato_alterado`; divergência A não abre exceção.
   - Testes unitários das regras de exceção.
   - _Requisitos: 15_
 
-- [ ] 14. Invalidação e cascata (§11)
+- [x] 14. Invalidação e cascata (§11)
   - Sementes, tabela por estado, cascata com visitados, caso encerrado, ordem dentro da transação (§11.4).
   - `ConcluirTarefa`: não invalida o próprio entregável; liga a saída mesmo com `sem_mudanca` (§8, item 4).
   - CF-09: par de maior diferença (§9.1).
@@ -84,19 +84,19 @@ Antes da tarefa 11: `git merge origin/main` (traz a semântica **v3**, a migraç
   - Verificador: `--cenario cenarios/c4-r6-guia-retificada-duas-vezes.json`, depois C3, C2, C5, C8.
   - _Requisitos: 14, 17_
 
-- [ ] 15. Override (§8.1)
+- [x] 15. Override (§8.1)
   - Rota, validação 422 → 404 → 409, efeitos e evento `conferencia.override`.
   - Verificador: `--cenario cenarios/c9-override-conferencia.json`.
   - _Requisitos: 16_
 
-- [ ] 16. Acompanhamento depois do protocolo (§10.3)
+- [x] 16. Acompanhamento depois do protocolo (§10.3)
   - Ler o estado do E11 antes da reavaliação; aplicar a tabela de §10.3 depois dela, em caso aberto ou encerrado, sem transição.
   - Resoluções `reenviado` e `recebido`; evento `recebimento.confirmado`; `recebimento_pendente` só sem confirmação vigente.
   - Testes unitários da tabela de §10.3.
   - Verificador: `--cenario cenarios/c10-acompanhamento-apos-protocolo.json`.
   - _Requisitos: 20.5–20.8_
 
-- [ ] 17. Fechamento da fase 2
+- [x] 17. Fechamento da fase 2
   - `--todos cenarios --fase 2 --limpar --relatorio resultado-fase2-python.json` com 9/9.
   - `METRICAS.md` (seção Fase 2), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 18_
