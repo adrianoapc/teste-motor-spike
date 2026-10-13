@@ -48,7 +48,7 @@ public static class CalculadoraConferencias
         var fat = Buscar(fatos, "faturamento_mes");
         var notas = Buscar(fatos, "notas_oneflow");
         if (fat is null) return Ausente("faturamento_mes", "");
-        if (notas is null) return Ausente("notas_oneflow", "");
+        if (notas is null) return Ausente("notas_oneflow", "", fat);
         return new CalculoConferencia(fat.ValorCentavos, notas.ValorCentavos, new[] { U(fat), U(notas) });
     }
 
@@ -59,13 +59,13 @@ public static class CalculadoraConferencias
         var aliq = Buscar(fatos, "aliquota_mes");
         var apurado = Buscar(fatos, "apurado", "DAS");
         if (fat is null) return Ausente("faturamento_mes", "");
-        if (aliq is null) return Ausente("aliquota_mes", "");
-        if (apurado is null) return Ausente("apurado", "DAS");
+        if (aliq is null) return Ausente("aliquota_mes", "", fat);
+        if (apurado is null) return Ausente("apurado", "DAS", fat, aliq);
         long bp = 0;
         if (aliq.Payload.TryGetProperty("aliquota_bp", out var b) && !LerInt64(b, out bp))
-            return Invalido("aliquota_mes.aliquota_bp");
+            return Invalido("aliquota_mes.aliquota_bp", fat, aliq, apurado);
         if (!ProdutoArredondado(fat.ValorCentavos ?? 0, bp, out var esperado))
-            return Invalido("faturamento_mes*aliquota_bp fora de int64");
+            return Invalido("faturamento_mes*aliquota_bp fora de int64", fat, aliq, apurado);
         return new CalculoConferencia(esperado, apurado.ValorCentavos, new[] { U(fat), U(aliq), U(apurado) });
     }
 
@@ -77,7 +77,7 @@ public static class CalculadoraConferencias
         var apurado = Buscar(fatos, "apurado", tributo);
         var guia = Buscar(fatos, "guia", tributo);
         if (apurado is null) return Ausente("apurado", tributo);
-        if (guia is null) return Ausente("guia", tributo);
+        if (guia is null) return Ausente("guia", tributo, apurado);
         return new CalculoConferencia(apurado.ValorCentavos, guia.ValorCentavos, new[] { U(apurado), U(guia) });
     }
 
@@ -106,17 +106,19 @@ public static class CalculadoraConferencias
         var apurado = Buscar(fatos, "apurado", tributo);
         var div = Buscar(fatos, "divisao_socios");
         if (apurado is null) return Ausente("apurado", tributo);
-        if (div is null) return Ausente("divisao_socios", "");
+        if (div is null) return Ausente("divisao_socios", "", apurado);
         Int128 soma = 0;
         if (div.Payload.TryGetProperty("parcelas", out var parcelas) && parcelas.ValueKind == JsonValueKind.Array)
             foreach (var p in parcelas.EnumerateArray())
-                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("valor_centavos", out var v)
-                    && v.ValueKind != JsonValueKind.Null)
+            {
+                if (p.ValueKind != JsonValueKind.Object) return Invalido("divisao_socios.parcelas[] não é objeto", apurado, div);
+                if (p.TryGetProperty("valor_centavos", out var v) && v.ValueKind != JsonValueKind.Null)
                 {
-                    if (!LerInt64(v, out var n)) return Invalido("divisao_socios.parcelas[].valor_centavos");
+                    if (!LerInt64(v, out var n)) return Invalido("divisao_socios.parcelas[].valor_centavos", apurado, div);
                     soma += n;
                 }
-        if (soma > long.MaxValue || soma < long.MinValue) return Invalido("soma das parcelas fora de int64");
+            }
+        if (soma > long.MaxValue || soma < long.MinValue) return Invalido("soma das parcelas fora de int64", apurado, div);
         return new CalculoConferencia(apurado.ValorCentavos, (long)soma, new[] { U(apurado), U(div) });
     }
 
@@ -126,9 +128,9 @@ public static class CalculadoraConferencias
         var fat = Buscar(fatos, "faturamento_mes");
         var prolabore = Buscar(fatos, "prolabore");
         if (fat is null) return Ausente("faturamento_mes", "");
-        if (prolabore is null) return Ausente("prolabore", "");
+        if (prolabore is null) return Ausente("prolabore", "", fat);
         if (!ProdutoArredondado(fat.ValorCentavos ?? 0, bp, out var esperado))
-            return Invalido("faturamento_mes*prolabore_bp fora de int64");
+            return Invalido("faturamento_mes*prolabore_bp fora de int64", fat, prolabore);
         return new CalculoConferencia(esperado, prolabore.ValorCentavos, new[] { U(fat), U(prolabore) });
     }
 
@@ -139,10 +141,10 @@ public static class CalculadoraConferencias
         var guiaInss = Buscar(fatos, "guia", "INSS");
         var guiaFgts = Buscar(fatos, "guia", "FGTS");
         if (folha is null) return Ausente("folha", "");
-        if (guiaInss is null) return Ausente("guia", "INSS");
-        if (guiaFgts is null) return Ausente("guia", "FGTS");
-        if (!Campo(folha, "inss_centavos", out var InssEsp)) return Invalido("folha.inss_centavos");
-        if (!Campo(folha, "fgts_centavos", out var FgtsEsp)) return Invalido("folha.fgts_centavos");
+        if (guiaInss is null) return Ausente("guia", "INSS", folha);
+        if (guiaFgts is null) return Ausente("guia", "FGTS", folha, guiaInss);
+        if (!Campo(folha, "inss_centavos", out var InssEsp)) return Invalido("folha.inss_centavos", folha, guiaInss, guiaFgts);
+        if (!Campo(folha, "fgts_centavos", out var FgtsEsp)) return Invalido("folha.fgts_centavos", folha, guiaInss, guiaFgts);
         var difInss = Int128.Abs((Int128)InssEsp - (guiaInss.ValorCentavos ?? 0));
         var difFgts = Int128.Abs((Int128)FgtsEsp - (guiaFgts.ValorCentavos ?? 0));
         // Representamos esperado/obtido pelo tributo de MAIOR diferença (a conferência reporta a maior).
@@ -188,11 +190,13 @@ public static class CalculadoraConferencias
         return true;
     }
 
-    private static CalculoConferencia Invalido(string operando)
-        => new(null, null, Array.Empty<FatoUsado>(), OperandoInvalido: operando);
+    // Resultados sem valor ainda carregam os fatos já lidos: entrada_hash passa a variar por versão
+    // dos fatos e InserirOuReaproveitarAsync não reaproveita conferência obsoleta.
+    private static CalculoConferencia Invalido(string operando, params FatoVigente[] lidos)
+        => new(null, null, lidos.Select(U).ToArray(), OperandoInvalido: operando);
 
-    private static CalculoConferencia Ausente(string tipo, string tributo)
-        => new(null, null, Array.Empty<FatoUsado>(), FatoAusente: $"{tipo}[{tributo}]");
+    private static CalculoConferencia Ausente(string tipo, string tributo, params FatoVigente[] lidos)
+        => new(null, null, lidos.Select(U).ToArray(), FatoAusente: $"{tipo}[{tributo}]");
 
     private static string Regime(Caso caso)
         => caso.Snapshot.TryGetProperty("regime", out var r) && r.ValueKind == JsonValueKind.String

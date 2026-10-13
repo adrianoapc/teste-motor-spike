@@ -109,4 +109,45 @@ public class RevisaoPosMergeTeste
         Assert.Equal(ResultadoConferencia.Divergente, res);
         Assert.Equal("B", sev);
     }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("\"x\"")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    public void Cf07_parcela_nao_objeto_vira_operando_invalido(string entrada)
+    {
+        var c = Calc("CF-07", F("apurado", "DAS", 0),
+            F("divisao_socios", "", null, $"{{\"parcelas\":[{entrada}]}}"));
+        Assert.NotNull(c.OperandoInvalido);
+        Assert.Equal(2, c.FatosUsados.Count);
+    }
+
+    [Fact]
+    public void Invalido_retem_fatos_e_hash_varia_com_a_versao()
+    {
+        var aliq = F("aliquota_mes", "", null, "{\"aliquota_bp\":\"x\"}");
+        var fat = F("faturamento_mes", "", 100);
+        var ap1 = F("apurado", "DAS", 1);
+        var ap2 = ap1 with { Versao = 2 };
+        var c1 = Calc("CF-04", fat, aliq, ap1);
+        var c2 = Calc("CF-04", fat, aliq, ap2);
+        Assert.NotNull(c1.OperandoInvalido);
+        Assert.Equal(3, c1.FatosUsados.Count);
+        var v = Guid.NewGuid();
+        Assert.NotEqual(EntradaHash.Calcular("CF-04", c1.FatosUsados, v), EntradaHash.Calcular("CF-04", c2.FatosUsados, v));
+    }
+
+    [Fact]
+    public void Ausente_retem_fatos_ja_lidos()
+    {
+        var fat = F("faturamento_mes", "", 100);
+        var c = Calc("CF-04", fat);
+        Assert.Equal("aliquota_mes[]", c.FatoAusente);
+        Assert.Single(c.FatosUsados);
+        var vazio = Calc("CF-04");
+        Assert.Empty(vazio.FatosUsados);
+        var v = Guid.NewGuid();
+        Assert.NotEqual(EntradaHash.Calcular("CF-04", c.FatosUsados, v), EntradaHash.Calcular("CF-04", vazio.FatosUsados, v));
+    }
 }
