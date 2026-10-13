@@ -49,6 +49,8 @@ final readonly class AbrirCompetencias
 
             /** @var array{tipo: string, caso_id: string, titular_id: string} $resultado */
             $resultado = $this->uow->transacao(function () use ($competencia, $ator, $empresa, $titularId): array {
+                // Serializa pedidos concorrentes da mesma chave: o segundo espera, relê e reporta em `existentes`.
+                $this->casos->travarTitularCompetencia($titularId, $competencia);
                 $existente = $this->casos->porTitularCompetencia($titularId, $competencia);
                 if ($existente !== null) {
                     return ['tipo' => 'existente', 'caso_id' => $existente->id, 'titular_id' => $titularId];

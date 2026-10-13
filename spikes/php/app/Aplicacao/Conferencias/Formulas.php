@@ -22,14 +22,21 @@ final readonly class Formulas
     {
         $fat = $f->de('faturamento_mes');
         $notas = $f->de('notas_oneflow');
+        $usados = $this->usadosExistentes($fat, $notas);
         if ($fat === null) {
-            return ResultadoFormula::fatoAusente('faturamento_mes[]');
+            return ResultadoFormula::fatoAusente('faturamento_mes[]', $usados);
         }
         if ($notas === null) {
-            return ResultadoFormula::fatoAusente('notas_oneflow[]');
+            return ResultadoFormula::fatoAusente('notas_oneflow[]', $usados);
+        }
+        if ($fat->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente('faturamento_mes.valor', $usados);
+        }
+        if ($notas->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente('notas_oneflow.valor', $usados);
         }
 
-        return new ResultadoFormula($fat->valorCentavos, $notas->valorCentavos, $this->usados($fat, $notas));
+        return new ResultadoFormula($fat->valorCentavos, $notas->valorCentavos, $usados);
     }
 
     /** CF-04 (E03, SN): esperado = arred(faturamento_mes.valor × aliquota_bp ÷ 10000); obtido = apurado[DAS].valor. */
@@ -38,22 +45,29 @@ final readonly class Formulas
         $fat = $f->de('faturamento_mes');
         $aliq = $f->de('aliquota_mes');
         $das = $f->de('apurado', 'DAS');
+        $usados = $this->usadosExistentes($fat, $aliq, $das);
         if ($fat === null) {
-            return ResultadoFormula::fatoAusente('faturamento_mes[]');
+            return ResultadoFormula::fatoAusente('faturamento_mes[]', $usados);
         }
         if ($aliq === null) {
-            return ResultadoFormula::fatoAusente('aliquota_mes[]');
+            return ResultadoFormula::fatoAusente('aliquota_mes[]', $usados);
         }
         if ($das === null) {
-            return ResultadoFormula::fatoAusente('apurado[DAS]');
+            return ResultadoFormula::fatoAusente('apurado[DAS]', $usados);
         }
         $aliquotaBp = $this->inteiroDoPayload($aliq, 'aliquota_bp');
-        if ($aliquotaBp === null || $fat->valorCentavos === null) {
-            return ResultadoFormula::fatoAusente('aliquota_mes.payload.aliquota_bp');
+        if ($aliquotaBp === null) {
+            return ResultadoFormula::fatoAusente('aliquota_mes.payload.aliquota_bp', $usados);
+        }
+        if ($fat->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente('faturamento_mes.valor', $usados);
+        }
+        if ($das->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente('apurado[DAS].valor', $usados);
         }
         $esperado = Dinheiro::arredMeioPar($fat->valorCentavos * $aliquotaBp, 10000);
 
-        return new ResultadoFormula($esperado, $das->valorCentavos, $this->usados($fat, $aliq, $das));
+        return new ResultadoFormula($esperado, $das->valorCentavos, $usados);
     }
 
     /** CF-05 (E11): esperado = apurado[T].valor; obtido = guia[T].valor, T = tributo da guia. */
@@ -61,14 +75,21 @@ final readonly class Formulas
     {
         $apurado = $f->de('apurado', $tributoGuia);
         $guia = $f->de('guia', $tributoGuia);
+        $usados = $this->usadosExistentes($apurado, $guia);
         if ($apurado === null) {
-            return ResultadoFormula::fatoAusente("apurado[{$tributoGuia}]");
+            return ResultadoFormula::fatoAusente("apurado[{$tributoGuia}]", $usados);
         }
         if ($guia === null) {
-            return ResultadoFormula::fatoAusente("guia[{$tributoGuia}]");
+            return ResultadoFormula::fatoAusente("guia[{$tributoGuia}]", $usados);
+        }
+        if ($apurado->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente("apurado[{$tributoGuia}].valor", $usados);
+        }
+        if ($guia->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente("guia[{$tributoGuia}].valor", $usados);
         }
 
-        return new ResultadoFormula($apurado->valorCentavos, $guia->valorCentavos, $this->usados($apurado, $guia));
+        return new ResultadoFormula($apurado->valorCentavos, $guia->valorCentavos, $usados);
     }
 
     /** CF-06 (E11): ok se guia[T].payload.competencia_impressa = competência do caso. Texto. */
@@ -96,15 +117,19 @@ final readonly class Formulas
     {
         $apurado = $f->de('apurado', $tributoApuracao);
         $divisao = $f->de('divisao_socios');
+        $usados = $this->usadosExistentes($apurado, $divisao);
         if ($apurado === null) {
-            return ResultadoFormula::fatoAusente("apurado[{$tributoApuracao}]");
+            return ResultadoFormula::fatoAusente("apurado[{$tributoApuracao}]", $usados);
         }
         if ($divisao === null) {
-            return ResultadoFormula::fatoAusente('divisao_socios[]');
+            return ResultadoFormula::fatoAusente('divisao_socios[]', $usados);
+        }
+        if ($apurado->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente("apurado[{$tributoApuracao}].valor", $usados);
         }
         $soma = $this->somaParcelas($divisao);
 
-        return new ResultadoFormula($apurado->valorCentavos, $soma, $this->usados($apurado, $divisao));
+        return new ResultadoFormula($apurado->valorCentavos, $soma, $usados);
     }
 
     /** CF-08 (E07, SN): esperado = arred(faturamento_mes.valor × prolabore_percentual_bp ÷ 10000); obtido = prolabore.valor. */
@@ -112,18 +137,22 @@ final readonly class Formulas
     {
         $fat = $f->de('faturamento_mes');
         $prolabore = $f->de('prolabore');
+        $usados = $this->usadosExistentes($fat, $prolabore);
         if ($fat === null) {
-            return ResultadoFormula::fatoAusente('faturamento_mes[]');
+            return ResultadoFormula::fatoAusente('faturamento_mes[]', $usados);
         }
         if ($prolabore === null) {
-            return ResultadoFormula::fatoAusente('prolabore[]');
+            return ResultadoFormula::fatoAusente('prolabore[]', $usados);
         }
         if ($fat->valorCentavos === null) {
-            return ResultadoFormula::fatoAusente('faturamento_mes.valor');
+            return ResultadoFormula::fatoAusente('faturamento_mes.valor', $usados);
+        }
+        if ($prolabore->valorCentavos === null) {
+            return ResultadoFormula::fatoAusente('prolabore.valor', $usados);
         }
         $esperado = Dinheiro::arredMeioPar($fat->valorCentavos * $this->prolaborePercentualBp, 10000);
 
-        return new ResultadoFormula($esperado, $prolabore->valorCentavos, $this->usados($fat, $prolabore));
+        return new ResultadoFormula($esperado, $prolabore->valorCentavos, $usados);
     }
 
     /**
@@ -135,25 +164,32 @@ final readonly class Formulas
         $folha = $f->de('folha');
         $guiaInss = $f->de('guia', 'INSS');
         $guiaFgts = $f->de('guia', 'FGTS');
+        $usados = $this->usadosExistentes($folha, $guiaInss, $guiaFgts);
         if ($folha === null) {
-            return ResultadoFormula::fatoAusente('folha[]');
+            return ResultadoFormula::fatoAusente('folha[]', $usados);
         }
         if ($guiaInss === null) {
-            return ResultadoFormula::fatoAusente('guia[INSS]');
+            return ResultadoFormula::fatoAusente('guia[INSS]', $usados);
         }
         if ($guiaFgts === null) {
-            return ResultadoFormula::fatoAusente('guia[FGTS]');
+            return ResultadoFormula::fatoAusente('guia[FGTS]', $usados);
         }
         $espInss = $this->inteiroDoPayload($folha, 'inss_centavos');
         $espFgts = $this->inteiroDoPayload($folha, 'fgts_centavos');
         if ($espInss === null) {
-            return ResultadoFormula::fatoAusente('folha.payload.inss_centavos');
+            return ResultadoFormula::fatoAusente('folha.payload.inss_centavos', $usados);
         }
         if ($espFgts === null) {
-            return ResultadoFormula::fatoAusente('folha.payload.fgts_centavos');
+            return ResultadoFormula::fatoAusente('folha.payload.fgts_centavos', $usados);
         }
-        $obtInss = $guiaInss->valorCentavos ?? 0;
-        $obtFgts = $guiaFgts->valorCentavos ?? 0;
+        $obtInss = $guiaInss->valorCentavos;
+        $obtFgts = $guiaFgts->valorCentavos;
+        if ($obtInss === null) {
+            return ResultadoFormula::fatoAusente('guia[INSS].valor', $usados);
+        }
+        if ($obtFgts === null) {
+            return ResultadoFormula::fatoAusente('guia[FGTS].valor', $usados);
+        }
         $difInss = abs($espInss - $obtInss);
         $difFgts = abs($espFgts - $obtFgts);
 
@@ -166,7 +202,7 @@ final readonly class Formulas
             $obtido = $obtInss;
         }
 
-        return new ResultadoFormula($esperado, $obtido, $this->usados($folha, $guiaInss, $guiaFgts));
+        return new ResultadoFormula($esperado, $obtido, $usados);
     }
 
     /** CF-12 (E10): ok se existe recibo_obrigacao com o tributo exigido. diferenca = 0. */
@@ -214,6 +250,16 @@ final readonly class Formulas
         }
 
         return '';
+    }
+
+    /**
+     * Como usados(), mas ignora os fatos que não existem (para resultados de dado ausente).
+     *
+     * @return list<array{fato_id: string, versao: int}>
+     */
+    private function usadosExistentes(?Fato ...$fatos): array
+    {
+        return $this->usados(...array_values(array_filter($fatos, static fn (?Fato $x): bool => $x !== null)));
     }
 
     /**

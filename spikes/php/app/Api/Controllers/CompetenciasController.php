@@ -21,10 +21,10 @@ final readonly class CompetenciasController
             'empresas' => ['required', 'array', 'min:1'],
             'empresas.*.titular_id' => ['required', 'string', 'min:1', 'max:64'],
             'empresas.*.regime' => ['required', 'string', 'in:SN,LP'],
-            'empresas.*.tem_folha' => ['required', 'boolean'],
-            'empresas.*.tem_prolabore' => ['required', 'boolean'],
-            'empresas.*.tem_taxa_municipal' => ['required', 'boolean'],
-            'empresas.*.filial' => ['required', 'boolean'],
+            'empresas.*.tem_folha' => ['required', self::booleanoNativo()],
+            'empresas.*.tem_prolabore' => ['required', self::booleanoNativo()],
+            'empresas.*.tem_taxa_municipal' => ['required', self::booleanoNativo()],
+            'empresas.*.filial' => ['required', self::booleanoNativo()],
             'empresas.*.carteira' => ['required', 'string', 'min:1'],
             'empresas.*.municipio' => ['required', 'string', 'min:1'],
         ]);
@@ -39,5 +39,15 @@ final readonly class CompetenciasController
         $resultado = $this->abrir->abrir($competencia, $ator, $empresas);
 
         return new JsonResponse($resultado);
+    }
+
+    /** Booleano nativo do JSON: "1", "0", 1 e 0 (aceitos pela regra `boolean` do Laravel) não passam. */
+    private static function booleanoNativo(): \Closure
+    {
+        return static function (string $atributo, mixed $valor, \Closure $falhar): void {
+            if (! is_bool($valor)) {
+                $falhar("{$atributo} deve ser booleano");
+            }
+        };
     }
 }

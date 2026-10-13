@@ -108,8 +108,17 @@ final readonly class Conferidor
         }
 
         // Numérica: classifica pela tolerância (§9.2).
-        $esperado = $r->esperadoCentavos ?? 0;
-        $obtido = $r->obtidoCentavos ?? 0;
+        // Operando nulo nunca vira zero: é dado ausente (classe S), não "ok".
+        if ($r->esperadoCentavos === null || $r->obtidoCentavos === null) {
+            $this->conferencias->gravarSeNova(
+                $cf, $caso->id, $entregavel->id, $tolerancia->versaoId, $r->fatosUsados, $entradaHash,
+                'divergente', null, null, ['erro' => 'fato ausente: valor nulo'], $cat->severidade, 'S',
+            );
+
+            return;
+        }
+        $esperado = $r->esperadoCentavos;
+        $obtido = $r->obtidoCentavos;
         $diferenca = abs($esperado - $obtido);
 
         if ($diferenca <= $tolerancia->okAteCentavos) {

@@ -13,6 +13,12 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
 {
     public function __construct(private ConnectionInterface $conexao) {}
 
+    public function travarTitularCompetencia(string $titularId, Competencia $competencia): void
+    {
+        $chave = json_encode(['caso', $titularId, $competencia->valor], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
+    }
+
     public function porTitularCompetencia(string $titularId, Competencia $competencia): ?Caso
     {
         $linha = $this->conexao->selectOne(

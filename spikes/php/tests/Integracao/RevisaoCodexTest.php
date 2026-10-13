@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Integracao;
 
 use App\Aplicacao\Fechamento\Transicionador;
+use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioFato;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Fechamento\Competencia;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -184,5 +186,115 @@ final class RevisaoCodexTest extends TestCase
             'ator' => 'x',
             'saidas' => [['tributo' => 'DAS', 'valor_centavos' => null, 'payload' => new \stdClass]],
         ])->assertStatus(404);
+    }
+
+    public function test_fato_rejeita_valor_centavos_string_numerica_com_422(): void
+    {
+        $this->postJson('/fatos', [
+            'titular_id' => 'TCX6', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => '100',
+        ])->assertStatus(422)->assertJsonPath('erro', 'valor_nao_inteiro');
+        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX6')->count());
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function datasInvalidas(): iterable
+    {
+        yield 'texto' => ['not-a-date'];
+        yield 'so data' => ['2026-10-01'];
+        yield 'mes 13' => ['2026-13-01T09:00:00-03:00'];
+        yield 'dia inexistente' => ['2026-02-31T09:00:00-03:00'];
+        yield 'hora 25' => ['2026-10-01T25:00:00-03:00'];
+        yield 'sem fuso' => ['2026-10-01T09:00:00'];
+    }
+
+    #[DataProvider('datasInvalidas')]
+    public function test_fato_rejeita_observado_em_invalido_com_422(string $data): void
+    {
+        $this->postJson('/fatos', [
+            'titular_id' => 'TCX7', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'observado_em' => $data, 'valor_centavos' => 100,
+        ])->assertStatus(422);
+        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX7')->count());
+    }
+
+    public function test_fato_aceita_observado_em_rfc3339_com_fracao_e_z(): void
+    {
+        foreach (['2026-10-01T09:00:00Z', '2026-10-01T09:00:00.123Z', '2026-10-01T09:00:00.123456-03:00'] as $i => $data) {
+            $this->postJson('/fatos', [
+                'titular_id' => 'TCX8', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'tributo' => "T{$i}",
+                'fonte' => 'teste', 'observado_em' => $data, 'valor_centavos' => 100,
+            ])->assertOk();
+        }
+    }
+
+    public function test_abrir_rejeita_booleano_nao_nativo_com_422(): void
+    {
+        $this->postJson('/competencias/abrir', [
+            'competencia' => self::COMP, 'ator' => 'teste',
+            'empresas' => [[
+                'titular_id' => 'TCX9', 'regime' => 'SN', 'tem_folha' => '1', 'tem_prolabore' => false,
+                'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805',
+            ]],
+        ])->assertStatus(422);
+    }
+
+    public function test_cf01_com_faturamento_nulo_e_nota_zero_diverge_classe_s_e_nao_vira_ok(): void
+    {
+        $caso = $this->abrirCaso('TCX10');
+        $this->fato('TCX10', 'faturamento_mes', null, ['obs' => 'sem valor']);
+        $this->fato('TCX10', 'notas_oneflow', 0);
+        $this->fato('TCX10', 'aliquota_mes', null, ['aliquota_bp' => 600]);
+
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
+
+        $c = (array) DB::selectOne("SELECT resultado, classe, diferenca, fatos_usados FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-01' ORDER BY em DESC LIMIT 1", [$e01->id]);
+        $this->assertSame('divergente', $c['resultado']);
+        $this->assertSame('S', $c['classe']);
+        $this->assertIsString($c['diferenca']);
+        $this->assertStringContainsString('faturamento_mes.valor', $c['diferenca']);
+        $this->assertIsString($c['fatos_usados']);
+        $usados = json_decode($c['fatos_usados'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertIsArray($usados);
+        $this->assertCount(2, $usados);
+    }
+
+    public function test_resultado_de_dado_ausente_mantem_fatos_consultados_e_o_hash_muda_com_a_versao(): void
+    {
+        $caso = $this->abrirCaso('TCX11');
+        $this->fato('TCX11', 'faturamento_mes', null, ['v' => 1]);
+        $this->fato('TCX11', 'notas_oneflow', 0);
+        $this->fato('TCX11', 'aliquota_mes', null, ['aliquota_bp' => 600]);
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+
+        $antes = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->count();
+        // Nova versão (ainda nula) do faturamento: o hash de entrada tem de mudar => nova conferência.
+        $this->fato('TCX11', 'faturamento_mes', null, ['v' => 2]);
+        $depois = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->count();
+        $this->assertGreaterThan($antes, $depois);
+
+        $hashes = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->pluck('entrada_hash')->map(static fn (mixed $h): string => is_string($h) ? $h : '')->all();
+        $this->assertSame(count($hashes), count(array_unique($hashes)));
+    }
+
+    public function test_abrir_competencias_trava_a_chave_e_reporta_existente_na_segunda_chamada(): void
+    {
+        $this->abrirCaso('TCX12');
+        $caso = $this->app->make(RepositorioCaso::class);
+        $comp = new Competencia(self::COMP);
+        $caso->travarTitularCompetencia('TCX12', $comp);
+        $caso->travarTitularCompetencia('TCX12', $comp); // reentrante
+
+        $r = $this->postJson('/competencias/abrir', [
+            'competencia' => self::COMP, 'ator' => 'teste',
+            'empresas' => [[
+                'titular_id' => 'TCX12', 'regime' => 'SN', 'tem_folha' => false, 'tem_prolabore' => false,
+                'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805',
+            ]],
+        ])->assertOk();
+        $r->assertJsonCount(0, 'criados')->assertJsonCount(1, 'existentes');
     }
 }

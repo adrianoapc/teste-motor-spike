@@ -25,8 +25,11 @@ final readonly class ResultadoFormula
         public ?string $fatoAusente = null,
     ) {}
 
-    public static function fatoAusente(string $descricao): self
+    /**
+     * @param  list<array{fato_id: string, versao: int}>  $fatosUsados  fatos já consultados (existentes), para o entrada_hash mudar com a versão deles
+     */
+    public static function fatoAusente(string $descricao, array $fatosUsados = []): self
     {
-        return new self(null, null, [], fatoAusente: $descricao);
+        return new self(null, null, $fatosUsados, fatoAusente: $descricao);
     }
 }
