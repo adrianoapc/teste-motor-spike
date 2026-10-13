@@ -8,6 +8,7 @@ use App\Api\CorpoEstrito;
 use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fatos\PublicarFato;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -34,7 +35,12 @@ final readonly class FatosController
         ]);
 
         // Corpo CRU, decodificado com objetos, para preservar {} vs [] no payload (§6, design).
-        $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+        // JsonCru: números do payload preservados (sem coerção para float binário).
+        try {
+            $cru = JsonCru::decodificar($request->getContent());
+        } catch (\JsonException) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
+        }
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo deve ser um objeto JSON');
         }

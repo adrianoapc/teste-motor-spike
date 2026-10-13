@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Dominio\Conferencias\HashConferencia;
 use App\Dominio\Fatos\HashFato;
 use App\Dominio\Fechamento\HashCanonico;
+use App\Dominio\Fechamento\JsonCru;
+use App\Dominio\Fechamento\NumeroJson;
 
 /**
  * Decodifica o payload como objeto (nunca $assoc = true), para preservar a
@@ -86,4 +88,32 @@ it('não escapa U+2028/U+2029 no JSON canônico (UTF-8 literal)', function (): v
     expect($json)->toBe("{\"a\":\"x\u{2028}y\u{2029}z\"}")
         ->and($json)->not->toContain('\\u2028')
         ->and(bin2hex($json))->toContain('e280a8')->toContain('e280a9');
+});
+
+it('JsonCru preserva números não inteiros e inteiros além de int64, sem float', function (): void {
+    $json = '{"b":0.1234567890123456789,"a":[1,1.0,1.50,1e2,-0,9223372036854775807,9223372036854775808,-9223372036854775808,123456789012345678901234567890]}';
+    $v = JsonCru::decodificar($json);
+    /** @var list<mixed> $a */
+    $a = ((array) $v)['a'];
+    expect(JsonCru::codificar($v, false))->toBe($json)
+        ->and(JsonCru::codificar($v, true))->toBe('{"a":[1,1.0,1.50,1e2,-0,9223372036854775807,9223372036854775808,-9223372036854775808,123456789012345678901234567890],"b":0.1234567890123456789}')
+        ->and($a[0])->toBe(1)
+        ->and($a[5])->toBe(PHP_INT_MAX)
+        ->and($a[7])->toBe(PHP_INT_MIN)
+        ->and($a[1])->toBeInstanceOf(NumeroJson::class)
+        ->and($a[6])->toBeInstanceOf(NumeroJson::class);
+});
+
+it('o hash do fato muda quando muda o dígito não representável em float', function (): void {
+    $a = JsonCru::decodificar('{"x":0.1234567890123456789}');
+    $b = JsonCru::decodificar('{"x":0.12345678901234568}');
+    expect(HashFato::hash($a, null))->not->toBe(HashFato::hash($b, null));
+});
+
+it('JsonCru preserva {} vs [], aceita unicode/escapes e recusa JSON inválido', function (): void {
+    $v = JsonCru::decodificar('{"o":{},"l":[],"s":"a\\u00e9\\n\u2028"}');
+    expect(JsonCru::codificar($v, true))->toBe("{\"l\":[],\"o\":{},\"s\":\"aé\\n\u{2028}\"}");
+    foreach (['', '{', '{"a":}', '[1,]', '01', '1.', '{"a":1} x', "{'a':1}", '{"a":1,}', '+1'] as $ruim) {
+        expect(fn () => JsonCru::decodificar($ruim))->toThrow(JsonException::class);
+    }
 });

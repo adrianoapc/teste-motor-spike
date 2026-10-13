@@ -8,6 +8,7 @@ use App\Api\CorpoEstrito;
 use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fechamento\ConcluirTarefa;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +26,8 @@ final readonly class ConcluirController
 
         // Corpo cru para preservar {} vs [] nos payloads das saídas.
         try {
-            $cru = json_decode($request->getContent(), false, flags: JSON_THROW_ON_ERROR);
+            // JsonCru: números do payload das saídas preservados (sem coerção para float binário).
+            $cru = JsonCru::decodificar($request->getContent());
         } catch (\JsonException) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
         }

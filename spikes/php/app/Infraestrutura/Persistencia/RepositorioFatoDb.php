@@ -6,6 +6,7 @@ namespace App\Infraestrutura\Persistencia;
 
 use App\Aplicacao\Portas\RepositorioFato;
 use App\Dominio\Fatos\Fato;
+use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class RepositorioFatoDb implements RepositorioFato
@@ -46,7 +47,8 @@ final readonly class RepositorioFatoDb implements RepositorioFato
         ?string $substituiId,
         string $observadoEm,
     ): Fato {
-        $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        // Preserva os números do payload como enviados (JsonCru): sem passar por float.
+        $payloadJson = JsonCru::codificar($payload, false);
 
         $linha = $this->conexao->selectOne(
             <<<'SQL'

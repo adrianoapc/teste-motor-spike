@@ -482,4 +482,25 @@ final class RevisaoCodexTest extends TestCase
         $this->assertSame('{"centavos": 9223372036854775808}', $linha['dif']);
         $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
     }
+
+    public function test_payload_com_numeros_nao_inteiros_e_gigantes_e_preservado_na_persistencia_e_no_hash(): void
+    {
+        $corpo = '{"titular_id":"TCX40","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","payload":{"n":0.1234567890123456789,"g":123456789012345678901234567890}}';
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertOk()->assertJsonPath('efeito', 'novo');
+        $linha = (array) DB::selectOne("SELECT payload->'n' AS n, payload->'g' AS g, hash FROM fatos.fato WHERE titular_id = 'TCX40'");
+        $this->assertSame('0.1234567890123456789', self::txt($linha['n']));
+        $this->assertSame('123456789012345678901234567890', self::txt($linha['g']));
+        $esperado = hash('sha256', '{"payload":{"g":123456789012345678901234567890,"n":0.1234567890123456789},"valor_centavos":null}');
+        $this->assertSame($esperado, $linha['hash']);
+        // Reenvio idêntico: sem_mudanca; número diferente na 17ª casa: nova versão.
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertJsonPath('efeito', 'sem_mudanca');
+        $outro = str_replace('0.1234567890123456789', '0.12345678901234568', $corpo);
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $outro)->assertJsonPath('efeito', 'nova_versao');
+    }
+
+    public function test_valor_centavos_alem_de_int64_da_422(): void
+    {
+        $corpo = '{"titular_id":"TCX41","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775808}';
+        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
+    }
 }

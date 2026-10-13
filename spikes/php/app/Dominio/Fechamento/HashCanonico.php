@@ -29,39 +29,11 @@ final class HashCanonico
      */
     public static function codificar(mixed $valor): string
     {
-        $normalizado = self::normalizar($valor);
-
         try {
-            return json_encode(
-                $normalizado,
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR
-            );
+            // Números: ver JsonCru (inteiros int64 nativos; demais com o lexema exato, nunca float).
+            return JsonCru::codificar($valor, true);
         } catch (JsonException $e) {
             throw new \RuntimeException('falha ao serializar JSON canônico: '.$e->getMessage(), 0, $e);
         }
-    }
-
-    /**
-     * Ordena recursivamente as chaves dos objetos (stdClass), preservando a
-     * ordem das listas e a distinção entre {} (stdClass) e [] (array).
-     */
-    private static function normalizar(mixed $valor): mixed
-    {
-        if ($valor instanceof \stdClass) {
-            $pares = get_object_vars($valor);
-            uksort($pares, static fn (string $a, string $b): int => strcmp($a, $b));
-            $saida = new \stdClass;
-            foreach ($pares as $chave => $v) {
-                $saida->{$chave} = self::normalizar($v);
-            }
-
-            return $saida;
-        }
-
-        if (is_array($valor)) {
-            return array_map(static fn (mixed $v): mixed => self::normalizar($v), $valor);
-        }
-
-        return $valor;
     }
 }
