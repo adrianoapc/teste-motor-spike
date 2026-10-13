@@ -6,7 +6,10 @@ namespace Motor.Api;
 /// <summary>Validação dos corpos conforme o contrato (gera 422). Mínima: cobre o que os cenários exercem.</summary>
 public static class Validacao
 {
-    private static readonly Regex CompRegex = new("^[0-9]{4}(0[1-9]|1[0-2])$", RegexOptions.Compiled);
+    private static readonly Regex CompRegex = new(@"\A[0-9]{4}(0[1-9]|1[0-2])\z", RegexOptions.Compiled);
+
+    /// <summary>Competência AAAAMM; \z (não $) para rejeitar "202609\n".</summary>
+    public static bool CompetenciaTextoValida(string s) => CompRegex.IsMatch(s);
 
     public static bool CompetenciaValida(JsonElement raiz, out string texto)
     {
@@ -14,9 +17,18 @@ public static class Validacao
         if (!raiz.TryGetProperty("competencia", out var c) || c.ValueKind != JsonValueKind.String)
             return false;
         var s = c.GetString()!;
-        if (!CompRegex.IsMatch(s)) return false;
+        if (!CompetenciaTextoValida(s)) return false;
         texto = s;
         return true;
+    }
+
+    /// <summary>Campo texto opcional: ausente ou null => válido (null); string => válido; outro tipo => INVÁLIDO (422).</summary>
+    public static bool TextoOpcionalValido(JsonElement raiz, string campo, out string? valor)
+    {
+        valor = null;
+        if (!raiz.TryGetProperty(campo, out var v)) return true;
+        if (v.ValueKind == JsonValueKind.String) { valor = v.GetString(); return true; }
+        return false;
     }
 
     public static bool CampoTextoNaoVazio(JsonElement raiz, string campo, out string valor)

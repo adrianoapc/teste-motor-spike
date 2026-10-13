@@ -16,7 +16,7 @@ public static class Classificacao
     /// <summary>Classifica uma conferência numérica. Retorna o resultado e a severidade efetiva.
     /// severidadeCatalogo é a severidade do catálogo (B/A/I) do tipo da CF.</summary>
     public static (ResultadoConferencia Resultado, string Severidade) Numerica(
-        long diferenca, Tolerancia tol, string severidadeCatalogo)
+        Int128 diferenca, Tolerancia tol, string severidadeCatalogo)
     {
         if (diferenca <= tol.OkAteCentavos)
             return (ResultadoConferencia.Ok, severidadeCatalogo);

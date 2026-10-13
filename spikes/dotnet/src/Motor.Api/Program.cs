@@ -103,12 +103,15 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
             || !DateTimeOffset.TryParse(obsEl.GetString(), out var observadoEm))
             return Erro(422, "corpo_invalido", "observado_em ausente ou inválido");
 
-        var tributo = raiz.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
+        if (!Validacao.TextoOpcionalValido(raiz, "tributo", out var tributoOpc) )
+            return Erro(422, "corpo_invalido", "tributo deve ser string");
+        var tributo = tributoOpc ?? "";
         if (!Validacao.ValorCentavosValido(raiz, out var valor))
             return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
         if (!Validacao.PayloadValido(raiz, out var payload))
             return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON");
-        var origemRef = raiz.TryGetProperty("origem_ref", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
+        if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef))
+            return Erro(422, "corpo_invalido", "origem_ref deve ser string");
 
         var cmd = new PublicarFatoCmd(titular, Competencia.Analisar(compTexto), tipo, tributo, valor, payload, fonte, origemRef, observadoEm);
         var res = await motor.PublicarFatoAsync(cmd);
@@ -130,7 +133,7 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
 app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
     async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
 {
-    if (!Regex.IsMatch(competencia, "^[0-9]{4}(0[1-9]|1[0-2])$"))
+    if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
     JsonDocument doc;
     try { doc = await JsonDocument.ParseAsync(req.Body); }
@@ -150,7 +153,9 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
         {
             if (s.ValueKind != JsonValueKind.Object)
                 return Erro(422, "corpo_invalido", "cada saída deve ser um objeto JSON");
-            var tributo = s.TryGetProperty("tributo", out var tr) && tr.ValueKind == JsonValueKind.String ? tr.GetString()! : "";
+            if (!Validacao.TextoOpcionalValido(s, "tributo", out var tributoOpc))
+                return Erro(422, "corpo_invalido", "saida.tributo deve ser string");
+            var tributo = tributoOpc ?? "";
             if (!Validacao.ValorCentavosValido(s, out var valor))
                 return Erro(422, "corpo_invalido", "saida.valor_centavos deve ser inteiro (int64) ou null");
             if (!Validacao.PayloadValido(s, out var payload))
@@ -178,7 +183,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
 app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
     async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
 {
-    if (!Regex.IsMatch(competencia, "^[0-9]{4}(0[1-9]|1[0-2])$"))
+    if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
     JsonDocument doc;
     try { doc = await JsonDocument.ParseAsync(req.Body); }
@@ -190,7 +195,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
             return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
-        if (!Validacao.CampoTextoNaoVazio(raiz, "cf", out var cf) || !Regex.IsMatch(cf, "^CF-[0-9]{2}$"))
+        if (!Validacao.CampoTextoNaoVazio(raiz, "cf", out var cf) || !Regex.IsMatch(cf, @"\ACF-[0-9]{2}\z"))
             return Erro(422, "corpo_invalido", "cf ausente ou fora do padrão CF-nn");
         if (!Validacao.CampoTextoNaoVazio(raiz, "motivo", out var motivo) || motivo.Length < 5)
             return Erro(422, "corpo_invalido", "motivo ausente ou com menos de 5 caracteres");
@@ -214,7 +219,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
 // ---- GET /casos/{titular_id}/{competencia} ----
 app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string competencia, IFabricaUnidade fab) =>
 {
-    if (!Regex.IsMatch(competencia, "^[0-9]{4}(0[1-9]|1[0-2])$"))
+    if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
     var caso = await fab.ConsultarCasoAsync(titularId, competencia);
     if (caso is null) return Erro(404, "nao_encontrado", "caso inexistente");

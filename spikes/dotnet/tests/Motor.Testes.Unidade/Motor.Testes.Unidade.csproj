@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Motor.Dominio\Motor.Dominio.csproj" />
     <ProjectReference Include="..\..\src\Motor.Aplicacao\Motor.Aplicacao.csproj" />
+    <ProjectReference Include="..\..\src\Motor.Api\Motor.Api.csproj" />
   </ItemGroup>
 </Project>

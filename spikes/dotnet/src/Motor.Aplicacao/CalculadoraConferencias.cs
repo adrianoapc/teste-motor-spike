@@ -14,7 +14,8 @@ public sealed record CalculoConferencia(
     IReadOnlyList<FatoUsado> FatosUsados,
     string? FatoAusente = null,
     ComparacaoTextual? Textual = null,
-    bool? ExistenciaOk = null);
+    bool? ExistenciaOk = null,
+    string? OperandoInvalido = null);
 
 /// <summary>Fórmulas das conferências do spike (§9.1). Puras: recebem os fatos vigentes já lidos.</summary>
 public static class CalculadoraConferencias
@@ -60,8 +61,11 @@ public static class CalculadoraConferencias
         if (fat is null) return Ausente("faturamento_mes", "");
         if (aliq is null) return Ausente("aliquota_mes", "");
         if (apurado is null) return Ausente("apurado", "DAS");
-        var bp = aliq.Payload.TryGetProperty("aliquota_bp", out var b) ? b.GetInt64() : 0;
-        var esperado = Arredondamento.MeioParaPar((fat.ValorCentavos ?? 0) * bp, 10000);
+        long bp = 0;
+        if (aliq.Payload.TryGetProperty("aliquota_bp", out var b) && !LerInt64(b, out bp))
+            return Invalido("aliquota_mes.aliquota_bp");
+        if (!ProdutoArredondado(fat.ValorCentavos ?? 0, bp, out var esperado))
+            return Invalido("faturamento_mes*aliquota_bp fora de int64");
         return new CalculoConferencia(esperado, apurado.ValorCentavos, new[] { U(fat), U(aliq), U(apurado) });
     }
 
@@ -103,12 +107,17 @@ public static class CalculadoraConferencias
         var div = Buscar(fatos, "divisao_socios");
         if (apurado is null) return Ausente("apurado", tributo);
         if (div is null) return Ausente("divisao_socios", "");
-        long soma = 0;
+        Int128 soma = 0;
         if (div.Payload.TryGetProperty("parcelas", out var parcelas) && parcelas.ValueKind == JsonValueKind.Array)
             foreach (var p in parcelas.EnumerateArray())
-                if (p.TryGetProperty("valor_centavos", out var v) && v.ValueKind == JsonValueKind.Number)
-                    soma += v.GetInt64();
-        return new CalculoConferencia(apurado.ValorCentavos, soma, new[] { U(apurado), U(div) });
+                if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("valor_centavos", out var v)
+                    && v.ValueKind != JsonValueKind.Null)
+                {
+                    if (!LerInt64(v, out var n)) return Invalido("divisao_socios.parcelas[].valor_centavos");
+                    soma += n;
+                }
+        if (soma > long.MaxValue || soma < long.MinValue) return Invalido("soma das parcelas fora de int64");
+        return new CalculoConferencia(apurado.ValorCentavos, (long)soma, new[] { U(apurado), U(div) });
     }
 
     // CF-08 (E07 SN): esperado = arred(faturamento_mes.valor * prolabore_percentual_bp / 10000); obtido = prolabore.valor
@@ -118,7 +127,8 @@ public static class CalculadoraConferencias
         var prolabore = Buscar(fatos, "prolabore");
         if (fat is null) return Ausente("faturamento_mes", "");
         if (prolabore is null) return Ausente("prolabore", "");
-        var esperado = Arredondamento.MeioParaPar((fat.ValorCentavos ?? 0) * bp, 10000);
+        if (!ProdutoArredondado(fat.ValorCentavos ?? 0, bp, out var esperado))
+            return Invalido("faturamento_mes*prolabore_bp fora de int64");
         return new CalculoConferencia(esperado, prolabore.ValorCentavos, new[] { U(fat), U(prolabore) });
     }
 
@@ -131,10 +141,10 @@ public static class CalculadoraConferencias
         if (folha is null) return Ausente("folha", "");
         if (guiaInss is null) return Ausente("guia", "INSS");
         if (guiaFgts is null) return Ausente("guia", "FGTS");
-        long InssEsp = Campo(folha, "inss_centavos");
-        long FgtsEsp = Campo(folha, "fgts_centavos");
-        var difInss = Math.Abs(InssEsp - (guiaInss.ValorCentavos ?? 0));
-        var difFgts = Math.Abs(FgtsEsp - (guiaFgts.ValorCentavos ?? 0));
+        if (!Campo(folha, "inss_centavos", out var InssEsp)) return Invalido("folha.inss_centavos");
+        if (!Campo(folha, "fgts_centavos", out var FgtsEsp)) return Invalido("folha.fgts_centavos");
+        var difInss = Int128.Abs((Int128)InssEsp - (guiaInss.ValorCentavos ?? 0));
+        var difFgts = Int128.Abs((Int128)FgtsEsp - (guiaFgts.ValorCentavos ?? 0));
         // Representamos esperado/obtido pelo tributo de MAIOR diferença (a conferência reporta a maior).
         var usados = new[] { U(folha), U(guiaInss), U(guiaFgts) };
         if (difFgts > difInss)
@@ -153,8 +163,33 @@ public static class CalculadoraConferencias
         return new CalculoConferencia(null, null, new[] { U(recibo) }, ExistenciaOk: true);
     }
 
-    private static long Campo(FatoVigente f, string nome)
-        => f.Payload.TryGetProperty(nome, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64() : 0;
+    /// <summary>Lê int64 sem lançar: número inteiro dentro da faixa => true.</summary>
+    private static bool LerInt64(JsonElement v, out long n)
+    {
+        n = 0;
+        return v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out n);
+    }
+
+    /// <summary>Campo ausente/null => 0 (comportamento anterior); presente e inválido => false.</summary>
+    private static bool Campo(FatoVigente f, string nome, out long n)
+    {
+        n = 0;
+        if (!f.Payload.TryGetProperty(nome, out var v) || v.ValueKind == JsonValueKind.Null) return true;
+        return LerInt64(v, out n);
+    }
+
+    /// <summary>arred(valor * bp / 10000) com produto em Int128; false se o resultado não couber em int64.</summary>
+    private static bool ProdutoArredondado(long valor, long bp, out long resultado)
+    {
+        var r = Arredondamento.MeioParaPar((Int128)valor * bp, (Int128)10000);
+        resultado = 0;
+        if (r > long.MaxValue || r < long.MinValue) return false;
+        resultado = (long)r;
+        return true;
+    }
+
+    private static CalculoConferencia Invalido(string operando)
+        => new(null, null, Array.Empty<FatoUsado>(), OperandoInvalido: operando);
 
     private static CalculoConferencia Ausente(string tipo, string tributo)
         => new(null, null, Array.Empty<FatoUsado>(), FatoAusente: $"{tipo}[{tributo}]");

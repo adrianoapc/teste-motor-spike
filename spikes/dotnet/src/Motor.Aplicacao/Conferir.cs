@@ -61,6 +61,20 @@ public sealed class Conferir
                 continue;
             }
 
+            if (calc.OperandoInvalido is not null)
+            {
+                // operando malformado (tipo/faixa): divergente classe S, sem 500
+                resultado = ResultadoConferencia.Divergente;
+                severidade = tipoCat.Severidade;
+                esperado = null;
+                obtido = null;
+                diferenca = JsonSerializer.SerializeToElement(new { erro = $"operando inválido: {calc.OperandoInvalido}" });
+                await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
+                    severidade, "S", tipoCat, agora);
+                if (severidade == "B") algumaBloqueanteDivergente = true;
+                continue;
+            }
+
             if (calc.Textual is not null)
             {
                 // CF-06: comparação de texto
@@ -81,7 +95,7 @@ public sealed class Conferir
             }
             else
             {
-                var dif = Math.Abs((esperado ?? 0) - (obtido ?? 0));
+                var dif = Int128.Abs((Int128)(esperado ?? 0) - (obtido ?? 0));
                 (resultado, severidade) = Classificacao.Numerica(dif, _tol, tipoCat.Severidade);
                 diferenca = Json($"{{\"centavos\":{dif}}}");
             }
