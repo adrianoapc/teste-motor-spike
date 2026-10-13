@@ -125,6 +125,8 @@ def conferir(
             t = _tributo_da_guia(uow, caso)
             guia = _usar(fatos_usados, _fato(fatos, "guia", t), f"guia[{t}]")
             impressa = guia.payload.get("competencia_impressa")
+            if not isinstance(impressa, str):
+                raise _FatoAusente(f"guia[{t}].payload.competencia_impressa ausente ou inválido")
             esperada = caso.competencia
             resultado = "ok" if impressa == esperada else "divergente"
             diferenca = {"esperada": esperada, "impressa": impressa}

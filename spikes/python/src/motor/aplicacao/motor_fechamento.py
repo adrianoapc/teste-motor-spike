@@ -634,7 +634,7 @@ def _conferir_entregavel(
 def _valor_opcional(v: object) -> int | None:
     if v is None:
         return None
-    if isinstance(v, int):
+    if isinstance(v, int) and not isinstance(v, bool):
         try:
             return garantir_int64(v, "valor_centavos")
         except ValorForaDoIntervalo as e:

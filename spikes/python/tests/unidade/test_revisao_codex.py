@@ -420,3 +420,39 @@ def test_cf07_parcelas_validas_continuam_funcionando() -> None:
     ]
     resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-07")  # type: ignore[arg-type]
     assert resultado == "ok"
+
+
+@pytest.mark.parametrize("v", [True, False, 1.0, "1"])
+def test_valor_centavos_nao_inteiro_estrito_da_422(v: object) -> None:
+    from motor.api.modelos import SaidaItem
+
+    base = {"titular_id": "T1", "competencia": "202609", "tipo": "guia", "fonte": "api",
+            "observado_em": "2026-09-01T10:00:00Z"}
+    with pytest.raises(ValidationError):
+        FatoRequest(**base, valor_centavos=v)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        SaidaItem(valor_centavos=v)  # type: ignore[arg-type]
+
+
+def test_valor_opcional_rejeita_bool() -> None:
+    with pytest.raises(mf.ErroNegocio) as e:
+        mf._valor_opcional(True)
+    assert e.value.status == 422
+
+
+@pytest.mark.parametrize("payload", [{}, {"competencia_impressa": None},
+                                     {"competencia_impressa": 202609}])
+def test_cf06_competencia_impressa_ausente_ou_nao_string_e_insumo_ausente(
+    payload: dict[str, object],
+) -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [_fv("guia", "DAS", payload=payload)]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
+
+
+def test_cf06_competencia_diferente_segue_divergencia_comum() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    uow.fatos_caso = [_fv("guia", "DAS", payload={"competencia_impressa": "202608"})]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06")  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "D")

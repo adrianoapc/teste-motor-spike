@@ -7,7 +7,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 # int64 com sinal (openapi format: int64); Python não limita inteiros, o bigint do banco sim.
-Int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
+# strict: true/false, 1.0 e "1" não são coagidos para inteiro.
+Int64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]
 COMPETENCIA = r"^[0-9]{4}(0[1-9]|1[0-2])$"
 
 
