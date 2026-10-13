@@ -49,8 +49,12 @@ final readonly class ConcluirController
             if (! is_object($payload)) {
                 throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
             }
+            $tributo = property_exists($s, 'tributo') ? $s->tributo : '';
+            if (! is_string($tributo)) {
+                throw ErroDeNegocio::invalido('tributo_invalido', 'tributo deve ser texto');
+            }
             $saidas[] = [
-                'tributo' => isset($s->tributo) && is_string($s->tributo) ? $s->tributo : '',
+                'tributo' => $tributo,
                 'valor_centavos' => $valor,
                 'payload' => $payload,
             ];

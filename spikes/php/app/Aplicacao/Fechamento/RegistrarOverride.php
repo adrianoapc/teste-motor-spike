@@ -45,6 +45,8 @@ final readonly class RegistrarOverride
         }
 
         return $this->uow->transacao(function () use ($titularId, $competenciaValor, $tipo, $ator, $cf, $motivo): array {
+            // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
+            $this->casos->travarTitular($titularId);
             $caso = $this->casos->porTitularCompetencia($titularId, new Competencia($competenciaValor));
             if ($caso === null) {
                 throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$competenciaValor}");

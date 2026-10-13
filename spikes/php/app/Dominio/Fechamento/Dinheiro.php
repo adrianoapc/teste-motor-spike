@@ -39,24 +39,27 @@ final class Dinheiro
 
         // |a|·|b| ÷ den = qa·qb·den + qa·rb + ra·qb + (ra·rb) ÷ den   (ra·rb < den², cabe em int64)
         $parcelas = [self::mulSegura(self::mulSegura($qa, $qb), $den), self::mulSegura($qa, $rb), self::mulSegura($ra, $qb)];
+        $t = $ra * $rb;
+        $parcelas[] = intdiv($t, $den);
+
+        // Acumula já no sinal do resultado: assim -2^63 (PHP_INT_MIN, magnitude 2^63) é representável.
+        $s = $negativo ? -1 : 1;
         $q = 0;
         foreach ($parcelas as $p) {
-            $q = self::somaSegura($q, $p);
-        }
-        $t = $ra * $rb;
-        $q = self::somaSegura($q, intdiv($t, $den));
-        if ($q === null) {
-            return null;
-        }
-        $dobro = ($t % $den) * 2;
-        if ($dobro > $den || ($dobro === $den && $q % 2 !== 0)) {
-            $q = self::somaSegura($q, 1);
+            if ($p === null) {
+                return null;
+            }
+            $q = self::somaSegura($q, $s * $p);
             if ($q === null) {
                 return null;
             }
         }
+        $dobro = ($t % $den) * 2;
+        if ($dobro > $den || ($dobro === $den && $q % 2 !== 0)) {
+            return self::somaSegura($q, $s);
+        }
 
-        return $negativo ? -$q : $q;
+        return $q;
     }
 
     private static function magnitude(int $n): int
@@ -76,13 +79,13 @@ final class Dinheiro
         return $x > intdiv(PHP_INT_MAX, $y) ? null : $x * $y;
     }
 
-    private static function somaSegura(?int $x, ?int $y): ?int
+    private static function somaSegura(int $x, int $y): ?int
     {
-        if ($x === null || $y === null) {
+        if (($y > 0 && $x > PHP_INT_MAX - $y) || ($y < 0 && $x < PHP_INT_MIN - $y)) {
             return null;
         }
 
-        return $x > PHP_INT_MAX - $y ? null : $x + $y;
+        return $x + $y;
     }
 
     public static function arredMeioPar(int $numerador, int $denominador): int

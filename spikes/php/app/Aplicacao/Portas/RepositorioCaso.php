@@ -12,10 +12,11 @@ interface RepositorioCaso
     public function porTitularCompetencia(string $titularId, Competencia $competencia): ?Caso;
 
     /**
-     * Trava (pg_advisory_xact_lock, até o fim da transação) a chave (titular, competência),
-     * serializando o "verifica e cria" de AbrirCompetencias. Reentrante na mesma transação.
+     * Nível 1 da ordem global de locks de escrita: advisory lock do titular
+     * (pg_advisory_xact_lock, até o fim da transação; reentrante). Todo comando que escreve
+     * (PublicarFato, ConcluirTarefa, RegistrarOverride, AbrirCompetencias) o toma ANTES de qualquer outro lock.
      */
-    public function travarTitularCompetencia(string $titularId, Competencia $competencia): void;
+    public function travarTitular(string $titularId): void;
 
     /**
      * @param  array<string, mixed>  $snapshot

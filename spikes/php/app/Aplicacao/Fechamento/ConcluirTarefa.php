@@ -44,10 +44,21 @@ final readonly class ConcluirTarefa
     public function concluir(string $titularId, string $competenciaValor, string $tipo, string $ator, array $saidas): array
     {
         return $this->uow->transacao(function () use ($titularId, $competenciaValor, $tipo, $ator, $saidas): array {
+            // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
+            $this->casos->travarTitular($titularId);
             $competencia = new Competencia($competenciaValor);
             $caso = $this->casos->porTitularCompetencia($titularId, $competencia);
             if ($caso === null) {
                 throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$competenciaValor}");
+            }
+            // Nível 2 antes do 3: chaves dos fatos de saída (ordenadas) antes de travar a linha do entregável.
+            $itemPrevio = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId)->item($tipo);
+            if ($itemPrevio !== null && $itemPrevio->saidaTipo !== null) {
+                $tributos = array_map(static fn (array $s): string => is_string($s['tributo'] ?? null) ? $s['tributo'] : '', $saidas);
+                sort($tributos, SORT_STRING);
+                foreach ($tributos as $tributoSaida) {
+                    $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $itemPrevio->saidaTipo, $tributoSaida);
+                }
             }
             $entregavel = $this->entregaveis->porCasoTipoParaAtualizar($caso->id, $tipo);
             if ($entregavel === null) {

@@ -285,8 +285,8 @@ final class RevisaoCodexTest extends TestCase
         $this->abrirCaso('TCX12');
         $caso = $this->app->make(RepositorioCaso::class);
         $comp = new Competencia(self::COMP);
-        $caso->travarTitularCompetencia('TCX12', $comp);
-        $caso->travarTitularCompetencia('TCX12', $comp); // reentrante
+        $caso->travarTitular('TCX12');
+        $caso->travarTitular('TCX12'); // reentrante
 
         $r = $this->postJson('/competencias/abrir', [
             'competencia' => self::COMP, 'ator' => 'teste',
@@ -330,5 +330,51 @@ final class RevisaoCodexTest extends TestCase
         $this->fato('TCX14', 'faturamento_mes', 100);
         $linha = (array) DB::selectOne("SELECT payload FROM fatos.fato WHERE titular_id = 'TCX14'");
         $this->assertSame('{}', $linha['payload']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function tributosNaoTexto(): iterable
+    {
+        yield 'numero' => ['123'];
+        yield 'falso' => ['false'];
+        yield 'nulo' => ['null'];
+        yield 'lista' => ['[]'];
+        yield 'objeto' => ['{}'];
+    }
+
+    #[DataProvider('tributosNaoTexto')]
+    public function test_concluir_rejeita_tributo_de_saida_que_nao_e_texto_com_422(string $tributoJson): void
+    {
+        $corpo = '{"ator":"x","saidas":[{"tributo":'.$tributoJson.',"valor_centavos":1,"payload":{}}]}';
+        $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E01/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
+            ->assertStatus(422)->assertJsonPath('erro', 'tributo_invalido');
+    }
+
+    /**
+     * Prova real de exclusão mútua entre duas conexões independentes: uma segunda conexão PDO
+     * (fora da transação do teste) não consegue o lock do titular enquanto a primeira o segura.
+     */
+    public function test_lock_do_titular_exclui_outra_conexao(): void
+    {
+        $this->app->make(RepositorioCaso::class)->travarTitular('TLOCK');
+        $chave = json_encode(['titular', 'TLOCK'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        $c = DB::connection();
+        $pdo2 = new \PDO(
+            'pgsql:host='.self::txt($c->getConfig('host')).';port='.self::txt($c->getConfig('port')).';dbname='.self::txt($c->getConfig('database')),
+            self::txt($c->getConfig('username')),
+            self::txt($c->getConfig('password')),
+        );
+        $st = $pdo2->prepare('SELECT pg_try_advisory_lock(hashtextextended(?, 0))');
+        $st->execute([$chave]);
+        $this->assertFalse((bool) $st->fetchColumn(), 'segunda conexão não deveria obter o lock do titular');
+        $st = $pdo2->prepare('SELECT pg_try_advisory_lock(hashtextextended(?, 0))');
+        $st->execute([json_encode(['titular', 'OUTRO'], JSON_THROW_ON_ERROR)]);
+        $this->assertTrue((bool) $st->fetchColumn(), 'outro titular não é bloqueado');
+    }
+
+    private static function txt(mixed $v): string
+    {
+        return is_scalar($v) ? (string) $v : '';
     }
 }

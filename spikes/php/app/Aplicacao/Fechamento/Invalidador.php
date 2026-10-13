@@ -36,7 +36,9 @@ final readonly class Invalidador
      */
     public function invalidar(string $fatoAnteriorId, string $fatoNovoId, ?string $excluirEntregavelId = null): void
     {
-        // Sementes: entregáveis que têm a versão anterior do fato (qualquer papel).
+        // Sementes: entregáveis que têm a versão anterior do fato (qualquer papel). Roda sob o lock do titular
+        // (nível 1, tomado pelo comando): nenhum outro escritor do titular pode estar ligando fatos a entregáveis
+        // sem commit, então a consulta enxerga todos os vínculos. O fato e seus casos são sempre do mesmo titular.
         $sementes = $this->entregaveis->comFato($fatoAnteriorId);
 
         // Agrupa por caso.

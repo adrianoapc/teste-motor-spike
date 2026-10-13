@@ -49,3 +49,12 @@ it('multiplica e divide sem estourar int64 no produto', function (): void {
         ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, 20000, 10000))->toBeNull()
         ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, PHP_INT_MAX, 10000))->toBeNull();
 });
+
+it('preserva PHP_INT_MIN quando o resultado exato é PHP_INT_MIN', function (): void {
+    expect(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MIN, 10000, 10000))->toBe(PHP_INT_MIN)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(10000, PHP_INT_MIN, 10000))->toBe(PHP_INT_MIN)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MIN, 5000, 10000))->toBe(-4611686018427387904)
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MIN, -10000, 10000))->toBeNull()
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MIN, 20000, 10000))->toBeNull()
+        ->and(Dinheiro::multiplicarDividirArredMeioPar(PHP_INT_MAX, -10000, 10000))->toBe(-PHP_INT_MAX);
+});

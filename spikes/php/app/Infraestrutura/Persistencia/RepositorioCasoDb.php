@@ -13,9 +13,9 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
 {
     public function __construct(private ConnectionInterface $conexao) {}
 
-    public function travarTitularCompetencia(string $titularId, Competencia $competencia): void
+    public function travarTitular(string $titularId): void
     {
-        $chave = json_encode(['caso', $titularId, $competencia->valor], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $chave = json_encode(['titular', $titularId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
     }
 

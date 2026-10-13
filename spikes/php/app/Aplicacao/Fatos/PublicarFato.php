@@ -49,6 +49,8 @@ final readonly class PublicarFato
         string $observadoEm,
     ): array {
         return $this->uow->transacao(function () use ($titularId, $competencia, $tipo, $tributo, $valorCentavos, $payload, $fonte, $origemRef, $observadoEm): array {
+            // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
+            $this->casos->travarTitular($titularId);
             $hash = HashFato::hash($payload, $valorCentavos);
             $this->fatos->travarChave($titularId, $competencia, $tipo, $tributo);
             $vigente = $this->fatos->vigente($titularId, $competencia, $tipo, $tributo);
