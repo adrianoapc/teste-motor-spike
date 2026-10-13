@@ -178,13 +178,15 @@ public class RevisaoPosMergeTeste
         => Assert.Null(Calc("CF-07", F("apurado", "DAS", 0), F("divisao_socios", "", null, "{\"parcelas\":[]}")).OperandoInvalido);
 
     [Fact]
-    public void ChaveRegra_muda_o_hash_e_e_deterministica()
+    public void Semantica_entra_no_hash_e_e_reproduzivel_do_persistido()
     {
         var regra = Guid.NewGuid();
-        var fatos = new[] { new FatoUsado(Guid.NewGuid(), 1) };
-        Assert.Equal(EntradaHash.ChaveRegra(regra), EntradaHash.ChaveRegra(regra));
-        Assert.NotEqual(regra, EntradaHash.ChaveRegra(regra));
-        Assert.NotEqual(EntradaHash.Calcular("CF-07", fatos, regra),
-            EntradaHash.Calcular("CF-07", fatos, EntradaHash.ChaveRegra(regra)));
+        var fatos = new[] { new FatoUsado(Guid.NewGuid(), 3) };
+        // linha persistida = (cf, fatos_usados, regra_versao_id real, semantica_calculo)
+        var persistido = EntradaHash.Calcular("CF-07", fatos, regra, EntradaHash.SemanticaCalculo);
+        Assert.Equal(persistido, EntradaHash.Calcular("CF-07", fatos, regra, 2));
+        Assert.NotEqual(persistido, EntradaHash.Calcular("CF-07", fatos, regra));
+        // semântica 1 (linhas legadas, default da coluna) reproduz o canônico original
+        Assert.Equal(EntradaHash.Calcular("CF-07", fatos, regra, 1), EntradaHash.Calcular("CF-07", fatos, regra));
     }
 }

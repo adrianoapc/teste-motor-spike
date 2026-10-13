@@ -114,10 +114,10 @@ public sealed class Conferir
         ResultadoConferencia resultado, long? esperado, long? obtido, JsonElement diferenca,
         string severidade, string classe, ConferenciaTipoCatalogo tipoCat, DateTimeOffset agora)
     {
-        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, EntradaHash.ChaveRegra(_tolVersaoId));
+        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _tolVersaoId, EntradaHash.SemanticaCalculo);
         var (confId, efetivo) = await _r.Conferencias.InserirOuReaproveitarAsync(new NovaConferencia(
             cf, caso.Id, e.Id, _tolVersaoId, calc.FatosUsados, entradaHash,
-            resultado, esperado, obtido, diferenca, severidade, classe));
+            resultado, esperado, obtido, diferenca, severidade, classe, EntradaHash.SemanticaCalculo));
 
         if (efetivo == ResultadoConferencia.Divergente && severidade == "B")
         {

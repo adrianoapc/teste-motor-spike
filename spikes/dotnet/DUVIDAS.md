@@ -145,12 +145,16 @@ os casos do titular.
 A idempotência é por (`cf`, `entregavel_id`, `entrada_hash`) e o hash só cobre CF, versões dos fatos
 e a regra de tolerância. Quando a fórmula/classificação muda (rodadas de review: operando inválido,
 parcelas não-array, fatos retidos), conferências antigas seriam reaproveitadas sem a nova classificação.
-Decisão: constante `EntradaHash.SemanticaCalculo` (hoje 2); o `regra_versao_id` que entra no hash é
-`EntradaHash.ChaveRegra(id)` = GUID derivado de SHA-256(`<id>|calc-semantica-v<N>`). O formato canônico
-de §9.2 e os vetores de `EntradaHash.Calcular` ficam intactos; a coluna `conferencia.regra_versao_id`
-continua guardando o id real da regra. Efeito: ao subir de versão, as conferências são recalculadas
-na próxima execução (novas linhas; as antigas permanecem como histórico). Alternativa descartada:
-alterar o JSON canônico (quebraria a spec e os vetores compartilhados com os outros spikes).
+Decisão: constante `EntradaHash.SemanticaCalculo` (hoje 2), **persistida** na coluna aditiva
+`conferencia.semantica_calculo` (migração V007, `integer NOT NULL DEFAULT 1`) e incluída no JSON canônico
+como campo próprio `"semantica_calculo"`, após `regra_versao_id`, somente quando > 1. Assim o hash é
+reproduzível a partir da linha: (`cf`, `fatos_usados`, `regra_versao_id` real, `semantica_calculo`).
+Com semântica 1 (linhas legadas, inserts dos spikes PHP/Python que não informam a coluna) o JSON é o
+canônico original de §9.2 e os vetores ficam intactos. Ao subir a semântica, as conferências são
+recalculadas na próxima execução (novas linhas; as antigas permanecem como histórico). Alternativas
+descartadas: GUID sintético no lugar da regra (não reproduzível do persistido; foi a versão anterior
+deste item), alterar o canônico para todos (quebra spec e vetores) e comparar semântica antes de reaproveitar
+(a UNIQUE impediria nova linha sem apagar histórico).
 Também: `parcelas` ausente/null/objeto/escalar em CF-07 é operando inválido (a spec só define
 "ausente" para fatos, §9.2).
 

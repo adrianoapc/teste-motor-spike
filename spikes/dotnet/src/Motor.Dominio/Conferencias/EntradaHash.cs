@@ -12,21 +12,12 @@ public readonly record struct FatoUsado(Guid FatoId, int Versao);
 /// com fatos_usados = lista de {"fato_id","versao"} ORDENADA por fato_id.</summary>
 public static class EntradaHash
 {
-    /// <summary>Versão da semântica do cálculo das conferências. Incrementar sempre que uma fórmula/classificação
-    /// mudar o resultado para os mesmos fatos (ex.: v2 = operandos inválidos e fatos retidos). Entra na chave de
-    /// idempotência via <see cref="ChaveRegra"/>, sem alterar o formato canônico de §9.2.</summary>
+    /// <summary>Versão atual da semântica do cálculo das conferências. Incrementar sempre que uma
+    /// fórmula/classificação mudar o resultado para os mesmos fatos (v2 = operandos inválidos e fatos retidos).
+    /// É persistida em <c>conferencia.semantica_calculo</c> e entra no hash como campo canônico próprio.</summary>
     public const int SemanticaCalculo = 2;
 
-    /// <summary>"regra_versao_id" efetivo do hash: id da regra de tolerância combinado de forma determinística
-    /// com <see cref="SemanticaCalculo"/>. Conferências calculadas por semântica anterior têm outro hash e não são reaproveitadas.</summary>
-    public static Guid ChaveRegra(Guid regraVersaoId)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(
-            Encoding.UTF8.GetBytes($"{regraVersaoId:D}|calc-semantica-v{SemanticaCalculo}"));
-        return new Guid(bytes.AsSpan(0, 16));
-    }
-
-    public static string Calcular(string cf, IEnumerable<FatoUsado> fatos, Guid regraVersaoId)
+    public static string Calcular(string cf, IEnumerable<FatoUsado> fatos, Guid regraVersaoId, int semanticaCalculo = 1)
     {
         var ordenados = fatos.OrderBy(f => f.FatoId.ToString(), StringComparer.Ordinal).ToList();
         var sb = new StringBuilder();
@@ -44,6 +35,9 @@ public static class EntradaHash
         }
         sb.Append("],\"regra_versao_id\":");
         EscreverString(sb, regraVersaoId.ToString("D"));
+        // Campo só existe a partir da semântica 2: com 1, o JSON é o canônico original de §9.2 (vetores/outros spikes).
+        if (semanticaCalculo > 1)
+            sb.Append(",\"semantica_calculo\":").Append(semanticaCalculo.ToString(CultureInfo.InvariantCulture));
         sb.Append('}');
         return HashCanonico.Sha256Hex(sb.ToString());
     }
