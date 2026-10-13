@@ -1,7 +1,9 @@
 """Hash canônico (§6, §9.2): SHA-256 hex minúsculo de JSON canônico.
 
 JSON canônico: chaves ordenadas em todos os níveis, sem espaços,
-UTF-8 sem escapar não-ASCII (ensure_ascii=False).
+UTF-8 sem escapar não-ASCII (ensure_ascii=False). Números do payload são só inteiros int64
+(a API rejeita o resto, ver motor.api.numeros), então o texto do número é sempre o decimal
+simples, idêntico em qualquer linguagem; não há float/repr no hash.
 """
 from __future__ import annotations
 
