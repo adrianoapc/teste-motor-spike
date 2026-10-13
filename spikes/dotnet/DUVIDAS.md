@@ -158,3 +158,14 @@ deste item), alterar o canônico para todos (quebra spec e vetores) e comparar s
 Também: `parcelas` ausente/null/objeto/escalar em CF-07 é operando inválido (a spec só define
 "ausente" para fatos, §9.2).
 
+## Números do payload: só inteiros int64 (semântica §6, PR #7)
+
+Decisão do usuário: qualquer número do `payload` (em `/fatos` e em cada saída de `/concluir`), em qualquer
+profundidade, que seja fracionário, tenha expoente, seja `-0` ou fique fora de int64 => 422 `corpo_invalido`.
+Implementação: `Validacao.NumerosInteirosInt64` percorre o `JsonElement` recursivamente conferindo o texto
+bruto de cada número; é chamada por `Validacao.PayloadValido` (usada pelas duas rotas), antes de qualquer
+acesso ao banco. `HashCanonico` não mudou: o texto bruto de um número aceito já é o decimal int64 canônico.
+Testes: `Fixtures/vetores-hash.json` (cópia de `contrato/vetores-hash.json`, 12 aceitos com canônico+sha256 e
+12 rejeitados). `valor_centavos` já era int64 estrito. Fatos/saídas antigos já gravados com fração não são
+revalidados (fora do escopo do spike).
+

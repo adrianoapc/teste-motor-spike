@@ -70,8 +70,36 @@ public static class Validacao
             return true;
         }
         if (p.ValueKind != JsonValueKind.Object) return false; // presente com tipo errado: inválido
+        if (!NumerosInteirosInt64(p)) return false; // semântica §6: só inteiros int64, em qualquer profundidade
         payload = p.Clone();
         return true;
+    }
+
+    /// <summary>Semântica §6: todo número do payload, em qualquer profundidade, deve ser inteiro int64 —
+    /// só dígitos com '-' opcional, sem '.', sem expoente, sem "-0", dentro da faixa int64. Confere o texto
+    /// bruto (1.0 e 1e2 são inválidos mesmo valendo inteiros).</summary>
+    public static bool NumerosInteirosInt64(JsonElement e)
+    {
+        switch (e.ValueKind)
+        {
+            case JsonValueKind.Number:
+                var t = e.GetRawText();
+                if (t == "-0") return false;
+                foreach (var ch in t.AsSpan(t[0] == '-' ? 1 : 0))
+                    if (ch < '0' || ch > '9') return false;
+                return long.TryParse(t, System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out _);
+            case JsonValueKind.Object:
+                foreach (var prop in e.EnumerateObject())
+                    if (!NumerosInteirosInt64(prop.Value)) return false;
+                return true;
+            case JsonValueKind.Array:
+                foreach (var item in e.EnumerateArray())
+                    if (!NumerosInteirosInt64(item)) return false;
+                return true;
+            default:
+                return true;
+        }
     }
 
     public static bool EmpresaValida(JsonElement e, out string motivo)

@@ -109,7 +109,7 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
         if (!Validacao.ValorCentavosValido(raiz, out var valor))
             return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
         if (!Validacao.PayloadValido(raiz, out var payload))
-            return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON");
+            return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON com números inteiros int64");
         if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef, aceitaNull: true))
             return Erro(422, "corpo_invalido", "origem_ref deve ser string");
 
@@ -159,7 +159,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
             if (!Validacao.ValorCentavosValido(s, out var valor))
                 return Erro(422, "corpo_invalido", "saida.valor_centavos deve ser inteiro (int64) ou null");
             if (!Validacao.PayloadValido(s, out var payload))
-                return Erro(422, "corpo_invalido", "saida.payload deve ser um objeto JSON");
+                return Erro(422, "corpo_invalido", "saida.payload deve ser um objeto JSON com números inteiros int64");
             lista.Add(new MotorServico.SaidaDto(tributo, valor, payload));
         }
 
