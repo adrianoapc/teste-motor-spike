@@ -12,6 +12,20 @@ public readonly record struct FatoUsado(Guid FatoId, int Versao);
 /// com fatos_usados = lista de {"fato_id","versao"} ORDENADA por fato_id.</summary>
 public static class EntradaHash
 {
+    /// <summary>Versão da semântica do cálculo das conferências. Incrementar sempre que uma fórmula/classificação
+    /// mudar o resultado para os mesmos fatos (ex.: v2 = operandos inválidos e fatos retidos). Entra na chave de
+    /// idempotência via <see cref="ChaveRegra"/>, sem alterar o formato canônico de §9.2.</summary>
+    public const int SemanticaCalculo = 2;
+
+    /// <summary>"regra_versao_id" efetivo do hash: id da regra de tolerância combinado de forma determinística
+    /// com <see cref="SemanticaCalculo"/>. Conferências calculadas por semântica anterior têm outro hash e não são reaproveitadas.</summary>
+    public static Guid ChaveRegra(Guid regraVersaoId)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{regraVersaoId:D}|calc-semantica-v{SemanticaCalculo}"));
+        return new Guid(bytes.AsSpan(0, 16));
+    }
+
     public static string Calcular(string cf, IEnumerable<FatoUsado> fatos, Guid regraVersaoId)
     {
         var ordenados = fatos.OrderBy(f => f.FatoId.ToString(), StringComparer.Ordinal).ToList();

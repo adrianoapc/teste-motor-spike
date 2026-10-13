@@ -108,8 +108,10 @@ public static class CalculadoraConferencias
         if (apurado is null) return Ausente("apurado", tributo);
         if (div is null) return Ausente("divisao_socios", "", apurado);
         Int128 soma = 0;
-        if (div.Payload.TryGetProperty("parcelas", out var parcelas) && parcelas.ValueKind == JsonValueKind.Array)
-            foreach (var p in parcelas.EnumerateArray())
+        // 'parcelas' é o container da fórmula: ausente, null, objeto ou escalar => operando inválido.
+        if (!div.Payload.TryGetProperty("parcelas", out var parcelas) || parcelas.ValueKind != JsonValueKind.Array)
+            return Invalido("divisao_socios.parcelas não é array", apurado, div);
+        foreach (var p in parcelas.EnumerateArray())
             {
                 if (p.ValueKind != JsonValueKind.Object) return Invalido("divisao_socios.parcelas[] não é objeto", apurado, div);
                 if (p.TryGetProperty("valor_centavos", out var v) && v.ValueKind != JsonValueKind.Null)

@@ -139,3 +139,18 @@ decisão da fase 1 para o C7). Isso continua correto na v3: a invalidação do C
 (alteração retroativa) toca um caso de competência diferente da do fato publicado,
 e o lock por titular garante que a transação enxergue o estado comitado de todos
 os casos do titular.
+
+### 14. Versão da semântica do cálculo na chave de idempotência (§9.2)
+
+A idempotência é por (`cf`, `entregavel_id`, `entrada_hash`) e o hash só cobre CF, versões dos fatos
+e a regra de tolerância. Quando a fórmula/classificação muda (rodadas de review: operando inválido,
+parcelas não-array, fatos retidos), conferências antigas seriam reaproveitadas sem a nova classificação.
+Decisão: constante `EntradaHash.SemanticaCalculo` (hoje 2); o `regra_versao_id` que entra no hash é
+`EntradaHash.ChaveRegra(id)` = GUID derivado de SHA-256(`<id>|calc-semantica-v<N>`). O formato canônico
+de §9.2 e os vetores de `EntradaHash.Calcular` ficam intactos; a coluna `conferencia.regra_versao_id`
+continua guardando o id real da regra. Efeito: ao subir de versão, as conferências são recalculadas
+na próxima execução (novas linhas; as antigas permanecem como histórico). Alternativa descartada:
+alterar o JSON canônico (quebraria a spec e os vetores compartilhados com os outros spikes).
+Também: `parcelas` ausente/null/objeto/escalar em CF-07 é operando inválido (a spec só define
+"ausente" para fatos, §9.2).
+

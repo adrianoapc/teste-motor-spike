@@ -160,4 +160,31 @@ public class RevisaoPosMergeTeste
     [InlineData("{\"origem_ref\":[]}", false)]
     public void OrigemRef_aceita_null_do_contrato_mas_rejeita_outros_tipos(string json, bool ok)
         => Assert.Equal(ok, Validacao.TextoOpcionalValido(J(json), "origem_ref", out _, aceitaNull: true));
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"parcelas\":null}")]
+    [InlineData("{\"parcelas\":{}}")]
+    [InlineData("{\"parcelas\":5}")]
+    [InlineData("{\"parcelas\":\"x\"}")]
+    public void Cf07_parcelas_nao_array_vira_operando_invalido(string payload)
+    {
+        var c = Calc("CF-07", F("apurado", "DAS", 0), F("divisao_socios", "", null, payload));
+        Assert.NotNull(c.OperandoInvalido);
+    }
+
+    [Fact]
+    public void Cf07_parcelas_array_vazio_continua_valido()
+        => Assert.Null(Calc("CF-07", F("apurado", "DAS", 0), F("divisao_socios", "", null, "{\"parcelas\":[]}")).OperandoInvalido);
+
+    [Fact]
+    public void ChaveRegra_muda_o_hash_e_e_deterministica()
+    {
+        var regra = Guid.NewGuid();
+        var fatos = new[] { new FatoUsado(Guid.NewGuid(), 1) };
+        Assert.Equal(EntradaHash.ChaveRegra(regra), EntradaHash.ChaveRegra(regra));
+        Assert.NotEqual(regra, EntradaHash.ChaveRegra(regra));
+        Assert.NotEqual(EntradaHash.Calcular("CF-07", fatos, regra),
+            EntradaHash.Calcular("CF-07", fatos, EntradaHash.ChaveRegra(regra)));
+    }
 }
