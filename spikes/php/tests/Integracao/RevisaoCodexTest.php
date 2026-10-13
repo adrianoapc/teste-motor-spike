@@ -407,4 +407,31 @@ final class RevisaoCodexTest extends TestCase
         $this->postJson('/competencias/abrir', ['competencia' => self::COMP, 'ator' => 'x', 'empresas' => [$empresa + ['cnpj' => '1']]])->assertStatus(422);
         $this->assertSame(0, DB::table('fechamento.caso_competencia')->where('titular_id', 'TCX21')->count());
     }
+
+    public function test_abrir_rejeita_mais_de_10000_empresas_com_422(): void
+    {
+        $empresas = array_fill(0, 10001, ['titular_id' => 'X', 'regime' => 'SN', 'tem_folha' => false, 'tem_prolabore' => false, 'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805']);
+        $this->postJson('/competencias/abrir', ['competencia' => self::COMP, 'ator' => 'x', 'empresas' => $empresas])->assertStatus(422);
+    }
+
+    public function test_parametros_de_rota_invalidos_dao_422_antes_de_404(): void
+    {
+        $this->getJson('/casos/'.str_repeat('a', 65).'/'.self::COMP)->assertStatus(422);
+        $this->getJson('/casos/T/202613')->assertStatus(422);
+        $this->getJson('/casos/T/'.self::COMP)->assertStatus(404);
+        $corpo = ['ator' => 'x', 'saidas' => [['tributo' => 'DAS', 'payload' => new \stdClass]]];
+        $this->postJson('/casos/T/'.self::COMP.'/entregaveis/E09/concluir', $corpo)->assertStatus(422);
+        $this->postJson('/casos/T/20261/entregaveis/E01/concluir', $corpo)->assertStatus(422);
+        $this->postJson('/casos/T/'.self::COMP.'/entregaveis/E09/override', ['ator' => 'x', 'cf' => 'CF-01', 'motivo' => 'motivo valido'])->assertStatus(422);
+    }
+
+    public function test_logs_de_container_vao_para_stdout(): void
+    {
+        $this->assertSame('stdout', config('logging.default'));
+        $this->assertSame('php://stdout', config('logging.channels.stdout.handler_with.stream'));
+        $caddy = file_get_contents(base_path('Caddyfile'));
+        $this->assertIsString($caddy);
+        $this->assertStringContainsString('output stdout', $caddy);
+        $this->assertStringNotContainsString('stderr', $caddy);
+    }
 }

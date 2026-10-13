@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
+use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fechamento\ConcluirTarefa;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ final readonly class ConcluirController
 
     public function concluir(Request $request, string $titularId, string $competencia, string $tipo): JsonResponse
     {
+        ParametrosDeRota::validar($titularId, $competencia, $tipo);
         $request->validate([
             'ator' => ['required', 'string', 'min:1'],
             'saidas' => ['required', 'array', 'min:1'],

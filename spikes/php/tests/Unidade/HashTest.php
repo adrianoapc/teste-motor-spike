@@ -80,3 +80,10 @@ it('ordena fatos_usados por fato_id no entrada_hash', function (): void {
 
     expect($desordenado)->toBe($ordenado);
 });
+
+it('não escapa U+2028/U+2029 no JSON canônico (UTF-8 literal)', function (): void {
+    $json = HashCanonico::codificar((object) ['a' => "x\u{2028}y\u{2029}z"]);
+    expect($json)->toBe("{\"a\":\"x\u{2028}y\u{2029}z\"}")
+        ->and($json)->not->toContain('\\u2028')
+        ->and(bin2hex($json))->toContain('e280a8')->toContain('e280a9');
+});

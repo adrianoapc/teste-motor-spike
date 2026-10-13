@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
+use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fechamento\RegistrarOverride;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ final readonly class OverrideController
 
     public function registrar(Request $request, string $titularId, string $competencia, string $tipo): JsonResponse
     {
+        ParametrosDeRota::validar($titularId, $competencia, $tipo);
         // Validação de forma (422). A ordem 422→404→409 é garantida pelo use case,
         // que revalida corpo antes de tocar o banco.
         try {

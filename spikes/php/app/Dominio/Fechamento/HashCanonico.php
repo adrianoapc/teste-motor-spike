@@ -34,7 +34,7 @@ final class HashCanonico
         try {
             return json_encode(
                 $normalizado,
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR
             );
         } catch (JsonException $e) {
             throw new \RuntimeException('falha ao serializar JSON canônico: '.$e->getMessage(), 0, $e);

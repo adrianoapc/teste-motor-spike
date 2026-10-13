@@ -6,6 +6,7 @@ namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\AbrirCompetencias;
+use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,6 +20,10 @@ final readonly class CompetenciasController
         $bruto = $request->json()->all();
         CorpoEstrito::exigirChaves($bruto, ['competencia', 'ator', 'empresas'], 'AbrirCompetenciasRequest');
         if (is_array($bruto['empresas'] ?? null)) {
+            // maxItems do contrato, antes da validação por curinga (que estouraria a memória com listas enormes).
+            if (count($bruto['empresas']) > 10000) {
+                throw ErroDeNegocio::invalido('corpo_invalido', 'empresas excede o máximo de 10000');
+            }
             foreach ($bruto['empresas'] as $empresaBruta) {
                 if (is_array($empresaBruta)) {
                     CorpoEstrito::exigirChaves($empresaBruta, ['titular_id', 'regime', 'tem_folha', 'tem_prolabore', 'tem_taxa_municipal', 'filial', 'carteira', 'municipio'], 'Empresa');
@@ -30,7 +35,7 @@ final readonly class CompetenciasController
         $dados = $request->validate([
             'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/'],
             'ator' => ['required', 'string', 'min:1'],
-            'empresas' => ['required', 'array', 'min:1'],
+            'empresas' => ['required', 'array', 'min:1', 'max:10000'],
             'empresas.*.titular_id' => ['required', 'string', 'min:1', 'max:64'],
             'empresas.*.regime' => ['required', 'string', 'in:SN,LP'],
             'empresas.*.tem_folha' => ['required', self::booleanoNativo()],

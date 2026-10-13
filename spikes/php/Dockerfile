@@ -28,7 +28,7 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
 ENV APP_ENV=production \
     APP_DEBUG=false \
     APP_KEY=base64:c3Bpa2UtcGhwLW1vdG9yLWRlLWZlY2hhbWVudG8tLS0tLS0= \
-    LOG_CHANNEL=stderr \
+    LOG_CHANNEL=stdout \
     SERVER_NAME=:8080
 
 EXPOSE 8080
