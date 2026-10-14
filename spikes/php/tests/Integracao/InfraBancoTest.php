@@ -7,6 +7,7 @@ namespace Tests\Integracao;
 use App\Aplicacao\Portas\RepositorioCatalogo;
 use App\Aplicacao\Portas\RepositorioRegras;
 use App\Aplicacao\Portas\UnidadeDeTrabalho;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class InfraBancoTest extends TestCase
@@ -48,6 +49,35 @@ final class InfraBancoTest extends TestCase
         $this->assertSame('insumos.completos', $catalogo->entregavelTipo('E01')->eventoPublicado);
         $this->assertSame('B', $catalogo->conferenciaTipo('CF-01')->severidade);
         $this->assertSame('E03', $catalogo->conferenciaTipo('CF-04')->entregavelTipo);
+    }
+
+    public function test_leituras_de_regra_catalogo_e_dependencia_sao_memorizadas_so_dentro_da_requisicao(): void
+    {
+        /** @var RepositorioRegras $regras */
+        $regras = $this->app->make(RepositorioRegras::class);
+        /** @var RepositorioCatalogo $catalogo */
+        $catalogo = $this->app->make(RepositorioCatalogo::class);
+        $this->assertSame($regras, $this->app->make(RepositorioRegras::class), 'scoped: mesma instância na requisição');
+
+        DB::enableQueryLog();
+        $regras->entregaveisEmUso();
+        $regras->entregaveisEmUso();
+        $regras->entregaveisPorId($regras->entregaveisEmUso()->versaoId);
+        $regras->toleranciaEmUso();
+        $regras->toleranciaEmUso();
+        $catalogo->entregavelTipo('E01');
+        $catalogo->entregavelTipo('E01');
+        $catalogo->conferenciaTipo('CF-01');
+        $catalogo->conferenciaTipo('CF-01');
+        $consultas = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        // regra de entregáveis em uso (1), tolerância em uso (1), tipo de entregável (1), tipo de conferência (1).
+        $this->assertSame(4, $consultas);
+
+        // Nova requisição: instâncias novas, nada de estado herdado.
+        $this->app->forgetScopedInstances();
+        $this->assertNotSame($regras, $this->app->make(RepositorioRegras::class));
     }
 
     public function test_unidade_de_trabalho_roda_numa_transacao(): void

@@ -51,6 +51,10 @@ docker compose --profile php exec spike-php ./vendor/bin/phpstan analyse
 docker compose --profile php exec spike-php ./vendor/bin/pint --test
 ```
 
+Camadas de teste: `tests/Unidade` roda **sem banco** (domínio e casos de uso reais sobre as portas em memória de
+`tests/Unidade/Fakes`, montadas por `Mundo`); `tests/Integracao` roda contra o Postgres com as migrações;
+`tests/Arquitetura` falha se `Dominio`/`Aplicacao` importarem framework ou driver de banco.
+
 ## Verificador (fase 1)
 
 ```sh

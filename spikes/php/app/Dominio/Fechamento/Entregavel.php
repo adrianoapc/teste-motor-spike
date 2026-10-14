@@ -17,6 +17,12 @@ final readonly class Entregavel
         public int $version,
     ) {}
 
+    /** O mesmo entregável no estado novo (o banco incrementa `version` a cada transição). */
+    public function com(EstadoEntregavel $novo): self
+    {
+        return new self($this->id, $this->casoId, $this->tipo, $novo, $this->executor, $this->area, $this->version + 1);
+    }
+
     public function sistema(): bool
     {
         return $this->executor === 'sistema';

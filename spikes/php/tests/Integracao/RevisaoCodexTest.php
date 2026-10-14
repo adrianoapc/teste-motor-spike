@@ -7,7 +7,9 @@ namespace Tests\Integracao;
 use App\Aplicacao\Conferencias\Conferidor;
 use App\Aplicacao\Conferencias\FatosDoCaso;
 use App\Aplicacao\Conferencias\Formulas;
+use App\Aplicacao\Conferencias\ParametrosDeConferencia;
 use App\Aplicacao\Fechamento\Transicionador;
+use App\Aplicacao\Portas\DivergenciaBloqueante;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
@@ -19,7 +21,9 @@ use App\Dominio\Fatos\Fato;
 use App\Dominio\Fechamento\Competencia;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use App\Dominio\Regras\ConferenciaRegra;
+use App\Dominio\Regras\EntradaRegra;
 use App\Dominio\Regras\ItemEntregavel;
+use App\Dominio\Regras\RegraInvalida;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -128,15 +132,15 @@ final class RevisaoCodexTest extends TestCase
 
         $div = $this->app->make(RepositorioConferencia::class)->divergentesBloqueantes($e01->id);
         $this->assertCount(1, $div);
-        $this->assertSame('CF-01', $div[0]['cf']);
+        $this->assertSame('CF-01', $div[0]->cf);
 
         $evento = (array) DB::selectOne("SELECT payload FROM eventos.evento WHERE caso_id = ? AND nome = 'conferencia.divergente' ORDER BY ocorrido_em DESC LIMIT 1", [$caso['id']]);
         $this->assertIsString($evento['payload']);
         $payload = json_decode($evento['payload'], true, flags: JSON_THROW_ON_ERROR);
-        $this->assertSame(['conferencia_id' => $div[0]['id']], $payload);
+        $this->assertSame(['conferencia_id' => $div[0]->id], $payload);
 
         $exc = (array) DB::selectOne("SELECT classe FROM trabalho.excecao WHERE entregavel_id = ? AND tipo = 'CF-01'", [$e01->id]);
-        $this->assertSame($div[0]['classe'], $exc['classe']);
+        $this->assertSame($div[0]->classe, $exc['classe']);
     }
 
     public function test_divergentes_bloqueantes_devolve_a_classe_gravada_e_nao_a_do_catalogo(): void
@@ -150,10 +154,10 @@ final class RevisaoCodexTest extends TestCase
 
         $cf08 = array_values(array_filter(
             $conf->divergentesBloqueantes($e01->id),
-            static fn (array $d): bool => $d['cf'] === 'CF-08',
+            static fn (DivergenciaBloqueante $d): bool => $d->cf === 'CF-08',
         ));
         $this->assertCount(1, $cf08);
-        $this->assertSame('S', $cf08[0]['classe']);
+        $this->assertSame('S', $cf08[0]->classe);
     }
 
     public function test_override_com_json_malformado_devolve_422(): void
@@ -470,7 +474,7 @@ final class RevisaoCodexTest extends TestCase
         $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-a', 'divergente', 1, 2, ['centavos' => 1], 'B', 'O');
         $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-b', 'ok', 1, 1, ['centavos' => 0], 'B', 'O');
         $vigente = $conf->vigente($e01->id, 'CF-01');
-        $this->assertSame('ok', $vigente['resultado'] ?? null);
+        $this->assertSame('ok', $vigente?->resultado);
         $ems = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->whereIn('entrada_hash', ['h-a', 'h-b'])->orderBy('em')->pluck('entrada_hash')->all();
         $this->assertSame(['h-a', 'h-b'], $ems);
     }
@@ -627,8 +631,8 @@ final class RevisaoCodexTest extends TestCase
         $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
         $this->assertNotNull($caso0);
         $regras = $this->app->make(RepositorioRegras::class);
-        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [new EntradaRegra('recibo_obrigacao', 'PGDAS-D', 0, [])], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, new ParametrosDeConferencia($formulas, $regras->toleranciaEmUso(), 'DAS'));
 
         $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
         $this->assertSame('ok', $linha['resultado']);
@@ -648,8 +652,8 @@ final class RevisaoCodexTest extends TestCase
         $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
         $this->assertNotNull($caso0);
         $regras = $this->app->make(RepositorioRegras::class);
-        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
-        $conferidor->conferir($caso0, $e01, $item, $vazio, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [new EntradaRegra('recibo_obrigacao', 'PGDAS-D', 0, [])], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+        $conferidor->conferir($caso0, $e01, $item, $vazio, new ParametrosDeConferencia($formulas, $regras->toleranciaEmUso(), 'DAS'));
 
         $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
         $this->assertSame('divergente', $linha['resultado']);
@@ -676,7 +680,7 @@ final class RevisaoCodexTest extends TestCase
         $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
         $this->assertNotNull($caso0);
         $tolerancia = $this->app->make(RepositorioRegras::class)->toleranciaEmUso();
-        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [new EntradaRegra('recibo_obrigacao', 'PGDAS-D', 0, [])], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
 
         // Conferência LEGADA (semantica 1) inserida à mão, com o MESMO recibo, a mesma versão e a mesma regra.
         $hashLegado = HashConferencia::entradaHash('CF-12', $usados, $tolerancia->versaoId, 1);
@@ -686,8 +690,9 @@ final class RevisaoCodexTest extends TestCase
             [$caso['id'], $e01->id, $tolerancia->versaoId, json_encode($usados, JSON_THROW_ON_ERROR), $hashLegado],
         );
 
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS');
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS'); // idempotente com semantica 2
+        $parametros = new ParametrosDeConferencia($formulas, $tolerancia, 'DAS');
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $parametros);
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $parametros); // idempotente com semantica 2
 
         $linhas = array_map(
             static fn (mixed $l): array => (array) $l,
@@ -698,5 +703,30 @@ final class RevisaoCodexTest extends TestCase
         $this->assertSame('2', self::txt($linhas[1]['semantica_calculo']));
         $this->assertNotSame($linhas[0]['entrada_hash'], $linhas[1]['entrada_hash']);
         $this->assertNull($linhas[1]['esperado_centavos']);
+    }
+
+    public function test_tolerancia_malformada_responde_500_regra_invalida_e_nao_grava_conferencia(): void
+    {
+        $caso = $this->abrirCaso('TCX70');
+        DB::update("UPDATE regras.regra_versao SET conteudo = '{\"observacao\":\"sem padrao\"}'::jsonb WHERE regra_chave = 'fiscal.tolerancia' AND status IN ('provisoria','ativa')");
+        $this->app->forgetScopedInstances(); // próxima requisição: a leitura de regra é refeita
+
+        // A reavaliação lê a tolerância em uso: com a regra malformada o motor para, em vez de assumir 0/0.
+        $this->postJson('/fatos', ['titular_id' => 'TCX70', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => 100])
+            ->assertStatus(500)
+            ->assertJsonPath('erro', 'regra_invalida')
+            ->assertJsonPath('mensagem', fn (string $m): bool => str_contains($m, 'fiscal.tolerancia') && str_contains($m, "'padrao' ausente"));
+
+        $this->assertSame(0, DB::table('conferencias.conferencia')->where('caso_id', $caso['id'])->count());
+    }
+
+    public function test_parametros_ausentes_nao_viram_prolabore_zero(): void
+    {
+        $this->abrirCaso('TCX71');
+        DB::update("UPDATE regras.regra_versao SET conteudo = '{}'::jsonb WHERE regra_chave = 'fiscal.parametros' AND status IN ('provisoria','ativa')");
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(RegraInvalida::class);
+        $this->app->make(RepositorioRegras::class)->parametrosEmUso();
     }
 }

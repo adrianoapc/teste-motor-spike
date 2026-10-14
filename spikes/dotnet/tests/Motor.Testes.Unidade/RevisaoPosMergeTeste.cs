@@ -2,6 +2,7 @@ using System.Text.Json;
 using Motor.Api;
 using Motor.Aplicacao;
 using Motor.Dominio.Conferencias;
+using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
 using Motor.Dominio.Regras;
 using Xunit;
@@ -12,11 +13,12 @@ public class RevisaoPosMergeTeste
 {
     private static JsonElement J(string s) => JsonDocument.Parse(s).RootElement.Clone();
     private static readonly Competencia C = Competencia.Analisar("202609");
-    private static Caso CasoSn() => new(Guid.NewGuid(), "T001", C, J("{\"regime\":\"SN\"}"), "cart", Guid.NewGuid(), "aberto", 1);
+    private static ContextoCalculo Ctx(string? tributoGuia = "DAS", long? prolaboreBp = 6000)
+        => new(C, default!, Contexto.DeSnapshot(J("{\"regime\":\"SN\"}"), 3), tributoGuia, prolaboreBp);
     private static FatoVigente F(string tipo, string trib, long? valor, string payload = "{}")
         => new(Guid.NewGuid(), "T001", C, tipo, trib, 1, valor, J(payload), "h");
     private static CalculoConferencia Calc(string cf, params FatoVigente[] fatos)
-        => CalculadoraConferencias.Calcular(cf, CasoSn(), default!, fatos, 6000);
+        => CalculadoraConferencias.Calcular(cf, Ctx(), fatos);
 
     [Theory]
     [InlineData("202609", true)]
@@ -63,8 +65,8 @@ public class RevisaoPosMergeTeste
     [Fact]
     public void Cf08_produto_acima_de_int64_nao_da_wrap()
     {
-        var c = CalculadoraConferencias.Calcular("CF-08", CasoSn(), default!,
-            new[] { F("faturamento_mes", "", long.MaxValue), F("prolabore", "", 1) }, 6000);
+        var c = CalculadoraConferencias.Calcular("CF-08", Ctx(),
+            new[] { F("faturamento_mes", "", long.MaxValue), F("prolabore", "", 1) });
         Assert.Equal((long)Arredondamento.MeioParaPar((Int128)long.MaxValue * 6000, (Int128)10000), c.Esperado);
     }
 

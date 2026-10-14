@@ -9,37 +9,53 @@ namespace Motor.Aplicacao;
 public sealed class Conferir
 {
     private readonly IRepositorios _r;
-    private readonly Tolerancia _tol;
-    private readonly Guid _tolVersaoId;
-    private readonly int _prolaboreBp;
+    private readonly FiscalEmUso _fiscal;
+    private readonly RegraEntregaveis _regra;
 
-    public Conferir(IRepositorios repos, Tolerancia tol, Guid tolVersaoId, int prolaboreBp)
+    public Conferir(IRepositorios repos, FiscalEmUso fiscal, RegraEntregaveis regra)
     {
         _r = repos;
-        _tol = tol;
-        _tolVersaoId = tolVersaoId;
-        _prolaboreBp = prolaboreBp;
+        _fiscal = fiscal;
+        _regra = regra;
+    }
+
+    /// <summary>Confere o entregável em 'processado' e aplica o desfecho (§9.3): 'validado' (e o evento do
+    /// tipo) ou 'divergente'. Relê o entregável antes e depois, pois a versão muda a cada transição.</summary>
+    public async Task<EstadoEntregavel> ConferirEDesfecharAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
+    {
+        var atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? e;
+        var ok = await ExecutarAsync(caso, atual, item, ctx);
+        atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? atual;
+        if (ok)
+        {
+            await Transicoes.TransicionarAsync(_r, caso, atual, EstadoEntregavel.Validado, "conferencias_ok");
+            await Transicoes.PublicarEventoDoTipoAsync(_r, caso, atual);
+            return EstadoEntregavel.Validado;
+        }
+        await Transicoes.TransicionarAsync(_r, caso, atual, EstadoEntregavel.Divergente, "conferencia_divergente",
+            causadoPorTipo: "conferencia");
+        return EstadoEntregavel.Divergente;
     }
 
     /// <summary>Roda as conferências do item cujo quando casa; devolve true se o entregável
-    /// deve ir para 'validado', false se foi para 'divergente' (alguma B divergente).</summary>
-    public async Task<bool> ExecutarAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx,
-        DateTimeOffset agora)
+    /// deve ir para 'validado', false se alguma B divergiu.</summary>
+    private async Task<bool> ExecutarAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
     {
         var fatos = await _r.Fatos.VigentesDoCasoAsync(caso.TitularId, caso.Competencia);
         var algumaBloqueanteDivergente = false;
+        var contextoCalculo = new ContextoCalculo(caso.Competencia, item, ctx,
+            _regra.TributoDaGuia(ctx, caso.Competencia), _fiscal.ProlaboreBp);
 
         foreach (var cfItem in item.Conferencias)
         {
-            var cf = cfItem.GetProperty("cf").GetString()!;
-            var quando = cfItem.TryGetProperty("quando", out var q) ? q : (JsonElement?)null;
-            if (!Condicao.Casa(quando, ctx))
+            var cf = cfItem.Cf;
+            if (!Condicao.Casa(cfItem.Quando, ctx))
                 continue;
 
-            var tipoCat = await _r.Catalogo.ConferenciaTipoAsync(cf)
+            var tipoCat = await _r.Conferencias.TipoCatalogoAsync(cf)
                 ?? throw new InvalidOperationException($"catálogo sem {cf}");
 
-            var calc = CalculadoraConferencias.Calcular(cf, caso, item, fatos, _prolaboreBp);
+            var calc = CalculadoraConferencias.Calcular(cf, contextoCalculo, fatos);
 
             ResultadoConferencia resultado;
             string severidade;
@@ -56,7 +72,7 @@ public sealed class Conferir
                 diferenca = Json($"{{\"erro\":\"fato ausente: {calc.FatoAusente}\"}}");
                 // classe S quando fato ausente
                 await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                    severidade, "S", tipoCat, agora);
+                    severidade, "S");
                 if (severidade == "B") algumaBloqueanteDivergente = true;
                 continue;
             }
@@ -70,7 +86,7 @@ public sealed class Conferir
                 obtido = null;
                 diferenca = JsonSerializer.SerializeToElement(new { erro = $"operando inválido: {calc.OperandoInvalido}" });
                 await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                    severidade, "S", tipoCat, agora);
+                    severidade, "S");
                 if (severidade == "B") algumaBloqueanteDivergente = true;
                 continue;
             }
@@ -96,12 +112,12 @@ public sealed class Conferir
             else
             {
                 var dif = Int128.Abs((Int128)(esperado ?? 0) - (obtido ?? 0));
-                (resultado, severidade) = Classificacao.Numerica(dif, _tol, tipoCat.Severidade);
+                (resultado, severidade) = Classificacao.Numerica(dif, _fiscal.Tolerancia, tipoCat.Severidade);
                 diferenca = Json($"{{\"centavos\":{dif}}}");
             }
 
             await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                severidade, tipoCat.ClassePadrao, tipoCat, agora);
+                severidade, tipoCat.ClassePadrao);
 
             if (resultado == ResultadoConferencia.Divergente && severidade == "B")
                 algumaBloqueanteDivergente = true;
@@ -112,11 +128,11 @@ public sealed class Conferir
 
     private async Task GravarEDesfechoAsync(Caso caso, Entregavel e, string cf, CalculoConferencia calc,
         ResultadoConferencia resultado, long? esperado, long? obtido, JsonElement diferenca,
-        string severidade, string classe, ConferenciaTipoCatalogo tipoCat, DateTimeOffset agora)
+        string severidade, string classe)
     {
-        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _tolVersaoId, EntradaHash.SemanticaCalculo);
+        var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _fiscal.ToleranciaVersaoId, EntradaHash.SemanticaCalculo);
         var (confId, efetivo) = await _r.Conferencias.InserirOuReaproveitarAsync(new NovaConferencia(
-            cf, caso.Id, e.Id, _tolVersaoId, calc.FatosUsados, entradaHash,
+            cf, caso.Id, e.Id, _fiscal.ToleranciaVersaoId, calc.FatosUsados, entradaHash,
             resultado, esperado, obtido, diferenca, severidade, classe, EntradaHash.SemanticaCalculo));
 
         if (efetivo == ResultadoConferencia.Divergente && severidade == "B")

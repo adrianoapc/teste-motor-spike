@@ -67,8 +67,8 @@ app.MapGet("/health", async (IFabricaUnidade fab) =>
 // ---- /admin/fila ----
 app.MapGet("/admin/fila", async (IFabricaUnidade fab) =>
 {
-    var (pendentes, comErro) = await fab.ContarFilaAsync();
-    return Results.Json(new { pendentes, com_erro = comErro }, jsonOpts);
+    var fila = await fab.ContarFilaAsync();
+    return Results.Json(new { pendentes = fila.Pendentes, com_erro = fila.ComErro }, jsonOpts);
 });
 
 // ---- /competencias/abrir ----
@@ -232,10 +232,10 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
 });
 
 // ---- GET /casos/{titular_id}/{competencia} ----
-app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string competencia, IFabricaUnidade fab) =>
+app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string competencia, MotorServico motor) =>
 {
     if (ErroDeCaminho(competencia, titularId) is { } falhaCaminho) return falhaCaminho;
-    var caso = await fab.ConsultarCasoAsync(titularId, competencia);
+    var caso = await motor.ConsultarCasoAsync(titularId, Competencia.Analisar(competencia));
     if (caso is null) return Erro(404, "nao_encontrado", "caso inexistente");
     return Results.Json(new
     {

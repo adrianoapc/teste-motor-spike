@@ -7,6 +7,7 @@ namespace App\Api\Controllers;
 use App\Api\CorpoEstrito;
 use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fechamento\RegistrarOverride;
+use App\Aplicacao\Fechamento\RegistrarOverrideComando;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
@@ -35,8 +36,12 @@ final readonly class OverrideController
         $cf = isset($cru->cf) && is_string($cru->cf) ? $cru->cf : '';
         $motivo = isset($cru->motivo) && is_string($cru->motivo) ? $cru->motivo : '';
 
-        $resultado = $this->override->registrar($titularId, $competencia, $tipo, $ator, $cf, $motivo);
+        $resultado = $this->override->registrar(new RegistrarOverrideComando($titularId, $competencia, $tipo, $ator, $cf, $motivo));
 
-        return new JsonResponse($resultado);
+        return new JsonResponse([
+            'entregavel_id' => $resultado->entregavelId,
+            'tipo' => $resultado->tipo,
+            'estado' => $resultado->estado,
+        ]);
     }
 }

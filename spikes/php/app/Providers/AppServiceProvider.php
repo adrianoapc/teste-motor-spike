@@ -41,11 +41,13 @@ final class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(UnidadeDeTrabalho::class, UnidadeDeTrabalhoDb::class);
         $this->app->bind(Relogio::class, RelogioDb::class);
-        $this->app->bind(RepositorioRegras::class, RepositorioRegrasDb::class);
-        $this->app->bind(RepositorioCatalogo::class, RepositorioCatalogoDb::class);
+        // `scoped`: uma instância por requisição (memória de leitura de regra, catálogo e dependências); nunca
+        // sobrevive à requisição (tech.md: nenhum estado entre requisições).
+        $this->app->scoped(RepositorioRegras::class, RepositorioRegrasDb::class);
+        $this->app->scoped(RepositorioCatalogo::class, RepositorioCatalogoDb::class);
         $this->app->bind(RepositorioCaso::class, RepositorioCasoDb::class);
         $this->app->bind(RepositorioEntregavel::class, RepositorioEntregavelDb::class);
-        $this->app->bind(RepositorioDependencia::class, RepositorioDependenciaDb::class);
+        $this->app->scoped(RepositorioDependencia::class, RepositorioDependenciaDb::class);
         $this->app->bind(RepositorioFato::class, RepositorioFatoDb::class);
         $this->app->bind(RepositorioConferencia::class, RepositorioConferenciaDb::class);
         $this->app->bind(RepositorioExcecao::class, RepositorioExcecaoDb::class);
