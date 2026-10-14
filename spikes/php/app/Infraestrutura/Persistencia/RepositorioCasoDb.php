@@ -7,6 +7,7 @@ namespace App\Infraestrutura\Persistencia;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Dominio\Fechamento\Caso;
 use App\Dominio\Fechamento\Competencia;
+use App\Dominio\Fechamento\Empresa;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class RepositorioCasoDb implements RepositorioCaso
@@ -48,13 +49,8 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         return $linha === null ? null : $this->mapear($linha);
     }
 
-    public function criar(
-        string $titularId,
-        Competencia $competencia,
-        array $snapshot,
-        string $carteira,
-        string $regraEntregaveisVersaoId,
-    ): Caso {
+    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId): Caso
+    {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             INSERT INTO fechamento.caso_competencia
@@ -64,10 +60,10 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
                       regra_entregaveis_versao_id::text AS regra_id, estado
             SQL,
             [
-                $titularId,
+                $empresa->titularId,
                 $competencia->valor,
-                json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-                $carteira,
+                json_encode($empresa->paraSnapshot(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                $empresa->carteira,
                 $regraEntregaveisVersaoId,
             ],
         );
@@ -117,7 +113,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
             id: $row['id'],
             titularId: $row['titular_id'],
             competencia: new Competencia(trim($row['competencia'])),
-            snapshot: $snapshot,
+            empresa: Empresa::deSnapshot($snapshot),
             carteira: $row['carteira'],
             regraEntregaveisVersaoId: $row['regra_id'],
             estado: $row['estado'],

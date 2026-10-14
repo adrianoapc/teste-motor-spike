@@ -8,21 +8,15 @@ use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
-use Illuminate\Database\ConnectionInterface;
 
 /**
  * Regra de ouro das transições (§4.1), numa única transação (chamada já dentro
  * da transação do comando): atualiza estado/estado_desde/version e grava a linha
  * em fechamento.entregavel_transicao com a versão de regra do caso.
- *
- * Usa SQL direto para a transição (tabela só-inserção, sem repositório próprio).
  */
 final readonly class Transicionador
 {
-    public function __construct(
-        private RepositorioEntregavel $entregaveis,
-        private ConnectionInterface $conexao,
-    ) {}
+    public function __construct(private RepositorioEntregavel $entregaveis) {}
 
     /**
      * @param  'fato'|'conferencia'|'tarefa'|'comando'|'dependencia'|null  $causadoPorTipo
@@ -40,23 +34,8 @@ final readonly class Transicionador
             throw ErroDeNegocio::conflito('estado_concorrente', 'entregável mudou de estado concorrentemente');
         }
 
-        $this->conexao->statement(
-            <<<'SQL'
-            INSERT INTO fechamento.entregavel_transicao
-                (entregavel_id, caso_id, de_estado, para_estado, motivo, causado_por_tipo, causado_por_id, ator, regra_versao_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            SQL,
-            [
-                $entregavel->id,
-                $entregavel->casoId,
-                $entregavel->estado->value,
-                $para->value,
-                $motivo,
-                $causadoPorTipo,
-                $causadoPorId,
-                $ator,
-                $regraVersaoId,
-            ],
+        $this->entregaveis->registrarTransicao(
+            $entregavel, $entregavel->estado, $para, $motivo, $causadoPorTipo, $causadoPorId, $ator, $regraVersaoId,
         );
     }
 
@@ -65,19 +44,8 @@ final readonly class Transicionador
      */
     public function criar(Entregavel $entregavel, string $ator, string $regraVersaoId): void
     {
-        $this->conexao->statement(
-            <<<'SQL'
-            INSERT INTO fechamento.entregavel_transicao
-                (entregavel_id, caso_id, de_estado, para_estado, motivo, causado_por_tipo, causado_por_id, ator, regra_versao_id)
-            VALUES (?, ?, NULL, ?, 'abrir_competencia', 'comando', NULL, ?, ?)
-            SQL,
-            [
-                $entregavel->id,
-                $entregavel->casoId,
-                EstadoEntregavel::AguardandoInsumo->value,
-                $ator,
-                $regraVersaoId,
-            ],
+        $this->entregaveis->registrarTransicao(
+            $entregavel, null, EstadoEntregavel::AguardandoInsumo, 'abrir_competencia', 'comando', null, $ator, $regraVersaoId,
         );
     }
 }

@@ -24,8 +24,6 @@ final readonly class Tributos
 
     private static function regime(Caso $caso): string
     {
-        $regime = $caso->snapshot['regime'] ?? 'SN';
-
-        return is_string($regime) ? $regime : 'SN';
+        return $caso->empresa->regime;
     }
 }

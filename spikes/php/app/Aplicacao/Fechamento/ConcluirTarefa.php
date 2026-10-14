@@ -37,24 +37,25 @@ final readonly class ConcluirTarefa
         private Invalidador $invalidador,
     ) {}
 
-    /**
-     * @param  list<array{tributo?: string, valor_centavos?: int|null, payload?: mixed}>  $saidas
-     * @return array{entregavel_id: string, tipo: string, estado: string}
-     */
-    public function concluir(string $titularId, string $competenciaValor, string $tipo, string $ator, array $saidas): array
+    public function concluir(ConcluirTarefaComando $comando): ResultadoEntregavel
     {
-        return $this->uow->transacao(function () use ($titularId, $competenciaValor, $tipo, $ator, $saidas): array {
+        $titularId = $comando->titularId;
+        $tipo = $comando->tipo;
+        $ator = $comando->ator;
+        $saidas = $comando->saidas;
+
+        return $this->uow->transacao(function () use ($comando, $titularId, $tipo, $ator, $saidas): ResultadoEntregavel {
             // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
             $this->casos->travarTitular($titularId);
-            $competencia = new Competencia($competenciaValor);
+            $competencia = new Competencia($comando->competencia);
             $caso = $this->casos->porTitularCompetencia($titularId, $competencia);
             if ($caso === null) {
-                throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$competenciaValor}");
+                throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$comando->competencia}");
             }
             // Nível 2 antes do 3: chaves dos fatos de saída (ordenadas) antes de travar a linha do entregável.
             $itemPrevio = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId)->item($tipo);
             if ($itemPrevio !== null && $itemPrevio->saidaTipo !== null) {
-                $tributos = array_map(static fn (array $s): string => is_string($s['tributo'] ?? null) ? $s['tributo'] : '', $saidas);
+                $tributos = array_map(static fn (SaidaDaTarefa $s): string => $s->tributo, $saidas);
                 sort($tributos, SORT_STRING);
                 foreach ($tributos as $tributoSaida) {
                     $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $itemPrevio->saidaTipo, $tributoSaida);
@@ -80,8 +81,7 @@ final readonly class ConcluirTarefa
             }
 
             // Conclui a tarefa aberta.
-            $tarefa = $this->tarefas->abertaDoEntregavel($entregavel->id);
-            $tarefaId = $tarefa['id'] ?? null;
+            $tarefaId = $this->tarefas->abertaDoEntregavel($entregavel->id);
             if ($tarefaId !== null) {
                 $this->tarefas->concluir($tarefaId);
             }
@@ -106,20 +106,15 @@ final readonly class ConcluirTarefa
                 $this->avaliar->avaliar($casoAberto);
             }
 
-            $final = $this->recarregar($entregavel->id);
-
-            return ['entregavel_id' => $final->id, 'tipo' => $final->tipo, 'estado' => $final->estado->value];
+            return ResultadoEntregavel::de($this->recarregar($entregavel->id));
         });
     }
 
-    /**
-     * @param  array{tributo?: string, valor_centavos?: int|null, payload?: mixed}  $saida
-     */
-    private function publicarSaida(Caso $caso, Entregavel $entregavel, string $saidaTipo, array $saida): void
+    private function publicarSaida(Caso $caso, Entregavel $entregavel, string $saidaTipo, SaidaDaTarefa $saida): void
     {
-        $tributo = is_string($saida['tributo'] ?? null) ? $saida['tributo'] : '';
-        $valor = array_key_exists('valor_centavos', $saida) ? $saida['valor_centavos'] : null;
-        $payload = $saida['payload'] ?? new \stdClass;
+        $tributo = $saida->tributo;
+        $valor = $saida->valorCentavos;
+        $payload = $saida->payload;
 
         $hash = HashFato::hash($payload, $valor);
         $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo);

@@ -34,21 +34,16 @@ final readonly class PublicarFato
         private Acompanhar $acompanhar,
     ) {}
 
-    /**
-     * @return array{fato_id: string, versao: int, efeito: string}
-     */
-    public function publicar(
-        string $titularId,
-        string $competencia,
-        string $tipo,
-        string $tributo,
-        ?int $valorCentavos,
-        mixed $payload,
-        string $fonte,
-        ?string $origemRef,
-        string $observadoEm,
-    ): array {
-        return $this->uow->transacao(function () use ($titularId, $competencia, $tipo, $tributo, $valorCentavos, $payload, $fonte, $origemRef, $observadoEm): array {
+    public function publicar(PublicarFatoComando $comando): ResultadoFato
+    {
+        $titularId = $comando->titularId;
+        $competencia = $comando->competencia;
+        $tipo = $comando->tipo;
+        $tributo = $comando->tributo;
+        $valorCentavos = $comando->valorCentavos;
+        $payload = $comando->payload;
+
+        return $this->uow->transacao(function () use ($comando, $titularId, $competencia, $tipo, $tributo, $valorCentavos, $payload): ResultadoFato {
             // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
             $this->casos->travarTitular($titularId);
             $hash = HashFato::hash($payload, $valorCentavos);
@@ -56,7 +51,7 @@ final readonly class PublicarFato
             $vigente = $this->fatos->vigente($titularId, $competencia, $tipo, $tributo);
 
             if ($vigente !== null && $vigente->hash === $hash) {
-                return ['fato_id' => $vigente->id, 'versao' => $vigente->versao, 'efeito' => 'sem_mudanca'];
+                return new ResultadoFato($vigente->id, $vigente->versao, 'sem_mudanca');
             }
 
             $versao = $vigente !== null ? $vigente->versao + 1 : 1;
@@ -65,8 +60,8 @@ final readonly class PublicarFato
 
             $fato = $this->fatos->inserir(
                 $titularId, $competencia, $tipo, $tributo, $versao,
-                $valorCentavos, $payload, $fonte, $origemRef, $hash,
-                $fatoAnteriorId, $observadoEm,
+                $valorCentavos, $payload, $comando->fonte, $comando->origemRef, $hash,
+                $fatoAnteriorId, $comando->observadoEm,
             );
 
             $caso = $this->casos->porTitularCompetencia($titularId, new Competencia($competencia));
@@ -91,7 +86,7 @@ final readonly class PublicarFato
                 $this->acompanhar->aplicar($caso, $tipo, $tributo, $efeito === 'nova_versao', $guia !== null ? $guia->id : $fato->id);
             }
 
-            return ['fato_id' => $fato->id, 'versao' => $fato->versao, 'efeito' => $efeito];
+            return new ResultadoFato($fato->id, $fato->versao, $efeito);
         });
     }
 

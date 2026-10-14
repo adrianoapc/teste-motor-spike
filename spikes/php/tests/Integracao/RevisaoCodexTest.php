@@ -8,6 +8,7 @@ use App\Aplicacao\Conferencias\Conferidor;
 use App\Aplicacao\Conferencias\FatosDoCaso;
 use App\Aplicacao\Conferencias\Formulas;
 use App\Aplicacao\Fechamento\Transicionador;
+use App\Aplicacao\Portas\DivergenciaBloqueante;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
@@ -128,15 +129,15 @@ final class RevisaoCodexTest extends TestCase
 
         $div = $this->app->make(RepositorioConferencia::class)->divergentesBloqueantes($e01->id);
         $this->assertCount(1, $div);
-        $this->assertSame('CF-01', $div[0]['cf']);
+        $this->assertSame('CF-01', $div[0]->cf);
 
         $evento = (array) DB::selectOne("SELECT payload FROM eventos.evento WHERE caso_id = ? AND nome = 'conferencia.divergente' ORDER BY ocorrido_em DESC LIMIT 1", [$caso['id']]);
         $this->assertIsString($evento['payload']);
         $payload = json_decode($evento['payload'], true, flags: JSON_THROW_ON_ERROR);
-        $this->assertSame(['conferencia_id' => $div[0]['id']], $payload);
+        $this->assertSame(['conferencia_id' => $div[0]->id], $payload);
 
         $exc = (array) DB::selectOne("SELECT classe FROM trabalho.excecao WHERE entregavel_id = ? AND tipo = 'CF-01'", [$e01->id]);
-        $this->assertSame($div[0]['classe'], $exc['classe']);
+        $this->assertSame($div[0]->classe, $exc['classe']);
     }
 
     public function test_divergentes_bloqueantes_devolve_a_classe_gravada_e_nao_a_do_catalogo(): void
@@ -150,10 +151,10 @@ final class RevisaoCodexTest extends TestCase
 
         $cf08 = array_values(array_filter(
             $conf->divergentesBloqueantes($e01->id),
-            static fn (array $d): bool => $d['cf'] === 'CF-08',
+            static fn (DivergenciaBloqueante $d): bool => $d->cf === 'CF-08',
         ));
         $this->assertCount(1, $cf08);
-        $this->assertSame('S', $cf08[0]['classe']);
+        $this->assertSame('S', $cf08[0]->classe);
     }
 
     public function test_override_com_json_malformado_devolve_422(): void
@@ -470,7 +471,7 @@ final class RevisaoCodexTest extends TestCase
         $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-a', 'divergente', 1, 2, ['centavos' => 1], 'B', 'O');
         $conf->gravarSeNova('CF-01', $caso['id'], $e01->id, $caso['regra'], [], 'h-b', 'ok', 1, 1, ['centavos' => 0], 'B', 'O');
         $vigente = $conf->vigente($e01->id, 'CF-01');
-        $this->assertSame('ok', $vigente['resultado'] ?? null);
+        $this->assertSame('ok', $vigente?->resultado);
         $ems = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->whereIn('entrada_hash', ['h-a', 'h-b'])->orderBy('em')->pluck('entrada_hash')->all();
         $this->assertSame(['h-a', 'h-b'], $ems);
     }

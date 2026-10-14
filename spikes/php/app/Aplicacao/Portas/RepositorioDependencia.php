@@ -11,7 +11,7 @@ interface RepositorioDependencia
     /**
      * Dependências do entregável.
      *
-     * @return list<array{depende_de_id: string, estado_minimo: string}>
+     * @return list<DependenciaGravada>
      */
     public function doEntregavel(string $entregavelId): array;
 
