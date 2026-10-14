@@ -1,0 +1,397 @@
+{
+  "descricao": "Vetores compartilhados do hash do fato (semantica §6). payload e texto JSON bruto (pode estar escapado). valor_centavos e o valor ja parseado; campos_omitidos lista campos que o corpo da requisicao NAO deve conter; valor_centavos_bruto (so em rejeitados) e o texto JSON bruto a usar como valor_centavos. Aceito: canonico = {\"payload\":...,\"valor_centavos\":...} (ver §6: chaves por code point, sem espacos, UTF-8 cru, escapes minimos); sha256 = hex minusculo do UTF-8 de canonico. Rejeitado: 422 corpo_invalido, com envelope valido (titular_id, competencia, tipo, fonte, observado_em).",
+  "fatos": [
+    {
+      "nome": "payload vazio",
+      "payload": "{}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":null}",
+      "sha256": "6ce2074e31e2dd4d213266a5f6667a2a81675aafcd1b82b1fd3e302b6fefb914"
+    },
+    {
+      "nome": "payload vazio com valor",
+      "payload": "{}",
+      "valor_centavos": 12345,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":12345}",
+      "sha256": "21dc33ab19daaf67ca85de2619b847c5cd37ca659dcb4a6d91f39ddb2e76524a"
+    },
+    {
+      "nome": "valor_centavos e payload ausentes",
+      "observacao": "Corpo com os campos payload e valor_centavos OMITIDOS (ausente = {} e null). O canonico e igual ao do vetor 'payload vazio' de proposito: dois vetores iguais so sao permitidos quando rotulados assim.",
+      "campos_omitidos": [
+        "payload",
+        "valor_centavos"
+      ],
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{},\"valor_centavos\":null}",
+      "sha256": "6ce2074e31e2dd4d213266a5f6667a2a81675aafcd1b82b1fd3e302b6fefb914"
+    },
+    {
+      "nome": "ordenacao de chaves aninhadas",
+      "payload": "{\"b\":{\"z\":1,\"a\":2},\"a\":[{\"y\":1,\"x\":2}]}",
+      "valor_centavos": 100,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":[{\"x\":2,\"y\":1}],\"b\":{\"a\":2,\"z\":1}},\"valor_centavos\":100}",
+      "sha256": "a121a5a3deb549d1f6e784d196aebd33128569065d553633a5ccdbc5b607f4c3"
+    },
+    {
+      "nome": "ordem por code point: BMP alto vs nao-BMP",
+      "observacao": "U+FF5E antes de U+1F600 por code point/bytes UTF-8. Ordenar por unidade UTF-16 (D83D < FF5E) inverteria.",
+      "payload": "{\"😀\":1,\"～\":2}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"～\":2,\"😀\":1},\"valor_centavos\":null}",
+      "sha256": "4fefe273ef499dc153a721c48cd3c06c025e61df41c3438e694476049e874cb4"
+    },
+    {
+      "nome": "chaves numericas ordenadas como string",
+      "observacao": "Ordem: \"1\", \"10\", \"9\".",
+      "payload": "{\"9\":1,\"10\":2,\"1\":3}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"1\":3,\"10\":2,\"9\":1},\"valor_centavos\":null}",
+      "sha256": "1b1c4e64701688f13a80e87de865fe12041684d9a57125fa0fbd10bd065fd935"
+    },
+    {
+      "nome": "unicode nao ASCII",
+      "payload": "{\"descricao\":\"ação\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"descricao\":\"ação\"},\"valor_centavos\":null}",
+      "sha256": "bddd395a66665c9e80cecdd795a0082f1e59ce0c6c31ac54726dd1e54ff6d9d7"
+    },
+    {
+      "nome": "emoji",
+      "payload": "{\"e\":\"😀\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"e\":\"😀\"},\"valor_centavos\":null}",
+      "sha256": "c2bc015e6721eb88e274a9589725ddd37f38ee22f9a764e7fa001746bcb34a78"
+    },
+    {
+      "nome": "U+2028 e U+2029 literais",
+      "observacao": "O texto do payload contem os caracteres U+2028/U+2029 crus (invisiveis); no arquivo aparecem como escape JSON \\u2028/\\u2029 do proprio arquivo, e depois de ler o arquivo viram caracteres crus. Canonico os mantem crus.",
+      "payload": "{\"t\":\"a\u2028b\u2029c\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"t\":\"a\u2028b\u2029c\"},\"valor_centavos\":null}",
+      "sha256": "b17a99795d6f2d1afc77f9c9ceb23b07bc6a487cb56adb0ddf3dd1fe7e98e66e"
+    },
+    {
+      "nome": "U+2028 e U+2029 escapados",
+      "observacao": "Entrada escapada \\u2028/\\u2029; canonico sai com os caracteres crus (mesmo sha256 do vetor literal, mas aqui o texto de entrada e ASCII).",
+      "payload": "{\"t\":\"a\\u2028b\\u2029c\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"t\":\"a\u2028b\u2029c\"},\"valor_centavos\":null}",
+      "sha256": "b17a99795d6f2d1afc77f9c9ceb23b07bc6a487cb56adb0ddf3dd1fe7e98e66e"
+    },
+    {
+      "nome": "escapes de entrada decodificados",
+      "observacao": "\\u00e7 sai como 'ç' cru; \\/ sai como '/' sem escape.",
+      "payload": "{\"\\u00e7\":\"a\\/b\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"ç\":\"a/b\"},\"valor_centavos\":null}",
+      "sha256": "7574765b46f64178aac433750065f34f414247a315f43d71f97ef5f81b390597"
+    },
+    {
+      "nome": "par substituto escapado valido",
+      "observacao": "Par substituto valido vira o emoji U+1F600 cru.",
+      "payload": "{\"e\":\"\\ud83d\\ude00\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"e\":\"😀\"},\"valor_centavos\":null}",
+      "sha256": "c2bc015e6721eb88e274a9589725ddd37f38ee22f9a764e7fa001746bcb34a78"
+    },
+    {
+      "nome": "strings com aspas, barra invertida, barra, DEL",
+      "observacao": "DEL (U+007F) sai cru; '/' sai sem escape.",
+      "payload": "{\"q\":\"a\\\"b\",\"bs\":\"c\\\\d\",\"sl\":\"e/f\",\"del\":\"g\\u007fh\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"bs\":\"c\\\\d\",\"del\":\"gh\",\"q\":\"a\\\"b\",\"sl\":\"e/f\"},\"valor_centavos\":null}",
+      "sha256": "1b56f9cd97c417de1f4defcd051c8b3f292cb48f07b588eb870e8ddcccac6f50"
+    },
+    {
+      "nome": "strings com caracteres de controle",
+      "observacao": "Controles escapados: \\u0001, \\b, \\f, \\n, \\r, \\t, \\u001f (hex minusculo).",
+      "payload": "{\"c\":\"\\u0001\\b\\f\\n\\r\\t\\u001f\"}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"c\":\"\\u0001\\b\\f\\n\\r\\t\\u001f\"},\"valor_centavos\":null}",
+      "sha256": "823d6bde0ae91a19ef35a7f7b1c4f6b2bd5a289d68bb88afa1618d7aae0b07d5"
+    },
+    {
+      "nome": "int64 maximo",
+      "payload": "{\"n\":9223372036854775807}",
+      "valor_centavos": 9223372036854775807,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":9223372036854775807},\"valor_centavos\":9223372036854775807}",
+      "sha256": "a662ca55bae7e6594d1710edf24d8afd8fcc352382caabbbba08e1fd7e6d50c0"
+    },
+    {
+      "nome": "int64 minimo",
+      "payload": "{\"n\":-9223372036854775808}",
+      "valor_centavos": -9223372036854775808,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":-9223372036854775808},\"valor_centavos\":-9223372036854775808}",
+      "sha256": "58d52e2f1369477d6aaa83da092cecef0e16f6082b6b4bc6fbafffb00b04c080"
+    },
+    {
+      "nome": "inteiros negativos",
+      "payload": "{\"n\":-1,\"m\":-250}",
+      "valor_centavos": -500,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"m\":-250,\"n\":-1},\"valor_centavos\":-500}",
+      "sha256": "8aaae2f182d204e5639969378a03904a9e229dfb69311521fda0dbbaed99215b"
+    },
+    {
+      "nome": "zero",
+      "payload": "{\"n\":0}",
+      "valor_centavos": 0,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"n\":0},\"valor_centavos\":0}",
+      "sha256": "e5afcfb4b9ff515c3701d467deeb866059834112cb20e13dcf501887b6459495"
+    },
+    {
+      "nome": "booleanos null strings arrays",
+      "payload": "{\"t\":true,\"f\":false,\"n\":null,\"s\":\"x\",\"a\":[1,\"b\",null,true,[]],\"o\":{}}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":[1,\"b\",null,true,[]],\"f\":false,\"n\":null,\"o\":{},\"s\":\"x\",\"t\":true},\"valor_centavos\":null}",
+      "sha256": "964538fbefa112bebb6544c46d9f550e530db8b79d98cdc4f89defa6c034d8a9"
+    },
+    {
+      "nome": "aliquota em pontos-base",
+      "payload": "{\"aliquota_bp\":650}",
+      "valor_centavos": 100000,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"aliquota_bp\":650},\"valor_centavos\":100000}",
+      "sha256": "3f4e6b1164169ea86983a54d80cf13717045c9282e8a8af53dd1c246ad5b8f86"
+    },
+    {
+      "nome": "aninhamento de 20 niveis",
+      "payload": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{}}}}}}}}}}}}}}}}}}}}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{}}}}}}}}}}}}}}}}}}}},\"valor_centavos\":null}",
+      "sha256": "d46d6db26fc388ad0e66c335d24043c324bc979f379a46596ff9e2f3a8be343d"
+    },
+    {
+      "nome": "aninhamento de 64 niveis (limite)",
+      "observacao": "payload conta como nivel 1.",
+      "payload": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "valor_centavos": null,
+      "esperado": "aceito",
+      "canonico": "{\"payload\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}},\"valor_centavos\":null}",
+      "sha256": "3a8d0d24b825db75c378b9d542dc75cfa5e240f451c89e095e2b22c38131dda3"
+    },
+    {
+      "nome": "REJ 0.5",
+      "payload": "{\"n\":0.5}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1.0",
+      "payload": "{\"n\":1.0}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1.50",
+      "payload": "{\"n\":1.50}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1e2",
+      "payload": "{\"n\":1e2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 1E2",
+      "payload": "{\"n\":1E2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ -0",
+      "payload": "{\"n\":-0}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ 0.1234567890123456789",
+      "payload": "{\"n\":0.1234567890123456789}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ inteiro muito grande",
+      "payload": "{\"n\":123456789012345678901234567890}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ int64 maximo + 1",
+      "payload": "{\"n\":9223372036854775808}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ int64 minimo - 1",
+      "payload": "{\"n\":-9223372036854775809}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ inteiro com mais de 4300 digitos",
+      "observacao": "4301 digitos '9' (fora de int64; tambem estoura o limite de digitos de parsers como o do Python).",
+      "payload": "{\"n\":99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ fracao dentro de objeto",
+      "payload": "{\"a\":{\"b\":{\"c\":2.5}}}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ fracao dentro de array",
+      "payload": "{\"a\":[1,2,[3,0.25]]}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ chave duplicada no topo",
+      "payload": "{\"a\":1,\"a\":2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ chave duplicada aninhada",
+      "payload": "{\"x\":{\"a\":1,\"a\":2}}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ chave duplicada em array de objetos",
+      "payload": "{\"l\":[{\"k\":1},{\"k\":1,\"k\":2}]}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ chave duplicada com valor fracionario",
+      "payload": "{\"n\":0.5,\"n\":1}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ chave duplicada via escape",
+      "observacao": "Duplicata so depois de decodificar o escape.",
+      "payload": "{\"a\":1,\"\\u0061\":2}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ substituto isolado escapado",
+      "observacao": "Substituto isolado nao e codificavel em UTF-8 (hash indefinido entre linguagens): rejeitado.",
+      "payload": "{\"s\":\"\\ud800\"}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ substituto isolado em chave",
+      "payload": "{\"\\udc00\":1}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ aninhamento de 65 niveis",
+      "observacao": "Acima do limite de 64 (payload e o nivel 1).",
+      "payload": "{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL escapado em valor de string",
+      "observacao": "U+0000 rejeitado: jsonb do PostgreSQL nao armazena U+0000.",
+      "payload": "{\"s\":\"a\\u0000b\"}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL escapado em chave",
+      "payload": "{\"a\\u0000b\":1}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL aninhado em array e objeto",
+      "payload": "{\"l\":[{\"k\":[\"x\",\"\\u0000\"]}]}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL em campo de texto tipo",
+      "observacao": "Envelope valido, mas o campo de texto tipo contem U+0000 (o valor em campos_texto ja vem decodificado do arquivo).",
+      "payload": "{}",
+      "campos_texto": {
+        "tipo": "a\u0000b"
+      },
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL em campo de texto tributo",
+      "payload": "{}",
+      "campos_texto": {
+        "tributo": "\u0000"
+      },
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos 1.0",
+      "payload": "{}",
+      "valor_centavos_bruto": "1.0",
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos 1e2",
+      "payload": "{}",
+      "valor_centavos_bruto": "1e2",
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos -0",
+      "payload": "{}",
+      "valor_centavos_bruto": "-0",
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos string \"600\"",
+      "payload": "{}",
+      "valor_centavos_bruto": "\"600\"",
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos true",
+      "payload": "{}",
+      "valor_centavos_bruto": "true",
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ valor_centavos int64 maximo + 1",
+      "payload": "{}",
+      "valor_centavos_bruto": "9223372036854775808",
+      "esperado": "rejeitado"
+    }
+  ]
+}

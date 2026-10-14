@@ -1,0 +1,32 @@
+[importlinter]
+root_package = motor
+
+[importlinter:contract:camadas]
+name = Camadas limpas (dominio < aplicacao < infraestrutura < api)
+type = layers
+layers =
+    motor.api
+    motor.infraestrutura
+    motor.aplicacao
+    motor.dominio
+
+[importlinter:contract:dominio-sem-framework]
+name = Dominio nao importa framework nem banco
+type = forbidden
+source_modules =
+    motor.dominio
+forbidden_modules =
+    fastapi
+    psycopg
+    pydantic
+    uvicorn
+
+[importlinter:contract:aplicacao-sem-api-nem-driver]
+name = Aplicacao nao importa api nem driver de banco
+type = forbidden
+source_modules =
+    motor.aplicacao
+forbidden_modules =
+    motor.api
+    psycopg
+    fastapi
