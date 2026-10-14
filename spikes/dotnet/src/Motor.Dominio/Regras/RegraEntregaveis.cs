@@ -36,6 +36,7 @@ public sealed class RegraEntregaveis
     public RegraEntregaveis(Guid versaoId, JsonElement conteudo)
     {
         VersaoId = versaoId;
+        ItemEntregavel.ExigirObjeto(conteudo, "fechamento.entregaveis");
         EstadoMinimoPadrao = conteudo.TryGetProperty("estado_minimo_padrao", out var emp)
             ? Estados.Analisar(emp.GetString()!)
             : EstadoEntregavel.Validado;
@@ -73,27 +74,41 @@ public sealed class ItemEntregavel
     public PosValidacaoRegra? PosValidacao { get; }
     public AcompanhamentoRegra? Acompanhamento { get; }
 
+    internal static void ExigirObjeto(JsonElement e, string caminho)
+    {
+        if (e.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException($"regra {caminho}: esperado objeto JSON, veio {e.ValueKind}");
+    }
+
+    private static string TextoObrigatorio(JsonElement pai, string campo, string caminho)
+    {
+        ExigirObjeto(pai, caminho);
+        if (!pai.TryGetProperty(campo, out var v) || v.ValueKind != JsonValueKind.String || v.GetString() is not { } t)
+            throw new InvalidOperationException($"regra {caminho}.{campo} ausente ou não é texto");
+        return t;
+    }
+
     public ItemEntregavel(JsonElement bruto)
     {
-        Tipo = bruto.GetProperty("tipo").GetString()!;
-        Executor = bruto.GetProperty("executor").GetString()!;
+        Tipo = TextoObrigatorio(bruto, "tipo", "entregaveis[]");
+        Executor = TextoObrigatorio(bruto, "executor", $"entregaveis[{Tipo}]");
         Quando = Obj(bruto, "quando");
         EncerraCaso = bruto.TryGetProperty("encerra_caso", out var enc) && enc.ValueKind == JsonValueKind.True;
         SaidaTipo = bruto.TryGetProperty("saida", out var s) && s.ValueKind == JsonValueKind.Object
-            ? s.GetProperty("tipo").GetString()
+            ? TextoObrigatorio(s, "tipo", $"{Tipo}.saida")
             : null;
         Dependencias = Lista(bruto, "depende_de").Select(d => new DependenciaRegra(
-            d.GetProperty("tipo").GetString()!,
+            TextoObrigatorio(d, "tipo", $"{Tipo}.depende_de[]"),
             d.TryGetProperty("estado_minimo", out var em) && em.ValueKind == JsonValueKind.String
                 ? Estados.Analisar(em.GetString()!) : null,
             Obj(d, "quando"))).ToList();
         Entradas = Lista(bruto, "entradas").Select(e => new EntradaRegra(
-            e.GetProperty("tipo").GetString()!,
+            TextoObrigatorio(e, "tipo", $"{Tipo}.entradas[]"),
             e.TryGetProperty("tributo", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : "",
             e.TryGetProperty("competencia_relativa", out var cr) && cr.ValueKind == JsonValueKind.Number ? cr.GetInt32() : 0,
             Obj(e, "quando"))).ToList();
         Conferencias = Lista(bruto, "conferencias")
-            .Select(c => new ConferenciaRegra(c.GetProperty("cf").GetString()!, Obj(c, "quando"))).ToList();
+            .Select(c => new ConferenciaRegra(TextoObrigatorio(c, "cf", $"{Tipo}.conferencias[]"), Obj(c, "quando"))).ToList();
         PosValidacao = bruto.TryGetProperty("pos_validacao", out var pv) && pv.ValueKind == JsonValueKind.Object
             ? new PosValidacaoRegra(
                 pv.TryGetProperty("liberacao", out var l) && l.ValueKind == JsonValueKind.String && l.GetString() == "automatica",
@@ -110,13 +125,13 @@ public sealed class ItemEntregavel
             .Select(e => new EntradaResolvida(competencia.Somar(e.CompetenciaRelativa), e.Tipo, e.Tributo));
 
     private static JsonElement? Obj(JsonElement pai, string nome) =>
-        pai.TryGetProperty(nome, out var v) && v.ValueKind != JsonValueKind.Null ? v : null;
+        pai.ValueKind == JsonValueKind.Object && pai.TryGetProperty(nome, out var v) && v.ValueKind != JsonValueKind.Null ? v : null;
 
     private static IEnumerable<JsonElement> Lista(JsonElement pai, string nome) =>
-        pai.TryGetProperty(nome, out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray() : [];
+        pai.ValueKind == JsonValueKind.Object && pai.TryGetProperty(nome, out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray() : [];
 
     private static string? TipoDoBloco(JsonElement pai, string chave) =>
-        pai.TryGetProperty(chave, out var o) && o.ValueKind == JsonValueKind.Object
+        pai.ValueKind == JsonValueKind.Object && pai.TryGetProperty(chave, out var o) && o.ValueKind == JsonValueKind.Object
         && o.TryGetProperty("tipo", out var t) && t.ValueKind == JsonValueKind.String
             ? t.GetString() : null;
 }

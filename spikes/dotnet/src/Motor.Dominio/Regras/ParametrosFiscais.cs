@@ -10,6 +10,8 @@ public static class ParametrosFiscais
     /// é erro explícito (a conferência numérica não tem como seguir sem ela).</summary>
     public static Tolerancia LerTolerancia(JsonElement conteudo)
     {
+        if (conteudo.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("fiscal.tolerancia: conteúdo não é um objeto JSON");
         if (!conteudo.TryGetProperty("padrao", out var padrao) || padrao.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("fiscal.tolerancia sem o objeto 'padrao'");
         return new Tolerancia(
@@ -21,7 +23,7 @@ public static class ParametrosFiscais
     /// malformado devolve <c>null</c>: o consumidor trata como operando inválido, nunca como 0.</summary>
     public static long? LerProlaboreBp(JsonElement? conteudo)
     {
-        if (conteudo is not { } c || !c.TryGetProperty("prolabore_percentual_bp", out var bp)
+        if (conteudo is not { ValueKind: JsonValueKind.Object } c || !c.TryGetProperty("prolabore_percentual_bp", out var bp)
             || bp.ValueKind != JsonValueKind.Number || !bp.TryGetInt64(out var valor))
             return null;
         return valor;

@@ -165,4 +165,27 @@ public class RegraPinadaTeste
         Assert.Equal(new[] { "202512", "202511" }, r.Select(x => x.Competencia.ToString()));
         Assert.All(r, x => Assert.Equal("IRPJ", x.Tributo));
     }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("5")]
+    [InlineData("\"x\"")]
+    public void Raiz_que_nao_e_objeto_nao_lanca_excecao_crua(string raiz)
+    {
+        Assert.Null(ParametrosFiscais.LerProlaboreBp(J(raiz)));
+        Assert.Throws<InvalidOperationException>(() => ParametrosFiscais.LerTolerancia(J(raiz)));
+        Assert.Throws<InvalidOperationException>(() => new RegraEntregaveis(Guid.NewGuid(), J(raiz)));
+    }
+
+    [Theory]
+    [InlineData("""{"entregaveis":[null]}""")]
+    [InlineData("""{"entregaveis":[{"tipo":"E1"}]}""")]
+    [InlineData("""{"entregaveis":[{"tipo":"E1","executor":"sistema","entradas":[5]}]}""")]
+    [InlineData("""{"entregaveis":[{"tipo":"E1","executor":"sistema","conferencias":[{"cf":1}]}]}""")]
+    public void Itens_malformados_da_regra_dao_falha_clara(string json)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => new RegraEntregaveis(Guid.NewGuid(), J(json)));
+        Assert.Contains("regra", ex.Message);
+    }
 }
