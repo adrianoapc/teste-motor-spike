@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from psycopg.errors import LockNotAvailable
 
 from motor.aplicacao.erros import ErroNegocio
 from motor.dominio.dinheiro import ValorForaDoIntervalo
@@ -27,3 +28,9 @@ async def tratar_valor_fora_do_intervalo(_req: Request, exc: Exception) -> JSONR
 async def tratar_validacao(_req: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, RequestValidationError)
     return _resposta(422, "corpo_invalido", str(exc.errors()))
+
+
+async def tratar_lock_indisponivel(_req: Request, exc: Exception) -> JSONResponse:
+    """`lock_timeout` estourou (banco.py): outro comando segura o recurso; o cliente repete."""
+    assert isinstance(exc, LockNotAvailable)
+    return _resposta(409, "conflito_concorrencia", str(exc))

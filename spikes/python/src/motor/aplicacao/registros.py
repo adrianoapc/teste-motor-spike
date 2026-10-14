@@ -63,10 +63,18 @@ class RegraEntregaveis:
     estado_minimo_padrao: str
     itens: list[ItemEntregavel]
     por_tipo: dict[str, ItemEntregavel] = field(default_factory=dict)
+    # tipo -> tipos dos itens que dependem dele (`depende_de`), para propagar a reavaliação (§7.4).
+    dependentes: dict[str, frozenset[str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.por_tipo:
             self.por_tipo = {it.tipo: it for it in self.itens}
+        if not self.dependentes:
+            mapa: dict[str, set[str]] = {}
+            for it in self.itens:
+                for dep in it.depende_de:
+                    mapa.setdefault(str(dep["tipo"]), set()).add(it.tipo)
+            self.dependentes = {k: frozenset(v) for k, v in mapa.items()}
 
     @property
     def item_de_entrega(self) -> ItemEntregavel | None:

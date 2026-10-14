@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field
 
 from motor.aplicacao.conferencia import conferir, contexto_do_caso
 from motor.aplicacao.erros import conflito, invalido, nao_encontrado
@@ -17,7 +18,25 @@ from motor.aplicacao.registros import (
 from motor.dominio.condicao import casa
 from motor.dominio.estados import EstadoEntregavel as E
 from motor.dominio.hashing import hash_fato
-from motor.dominio.prontidao import entradas_resolvidas, esta_pronto, tributo_da_entrada
+from motor.dominio.prontidao import ChaveFato, entradas_resolvidas, esta_pronto, tributo_da_entrada
+
+# Ator das transições automáticas (prontidão, processamento, conferências, liberação,
+# encerramento, invalidação). Só ações de pessoa gravam o ator informado (abertura, conclusão de
+# tarefa, override): ver DUVIDAS D11.
+ATOR_SISTEMA = "sistema"
+
+
+@dataclass
+class _Pendencias:
+    """O que mudou nesta transação e pede reavaliação (§6 passo 2, §7.4).
+
+    Substitui "reavaliar tudo de todos os casos abertos do titular": só os entregáveis que têm
+    uma chave publicada como entrada resolvida ou gatilho de pós-validação, ou que mudaram de
+    estado fora da avaliação (invalidação, conclusão de tarefa, override), e o que deles depende.
+    """
+
+    fatos: list[tuple[str, str, str]] = field(default_factory=list)  # (competência, tipo, tributo)
+    entregaveis: set[tuple[str, str]] = field(default_factory=set)  # (caso_id, tipo) que mudaram
 
 
 # =============================================================================
@@ -66,7 +85,7 @@ def abrir_caso(
             uow.gravar_dependencia(criados[item.tipo].id, alvo.id, estado_minimo)
 
     uow.gravar_evento("competencia.aberta", caso.id, None, {"caso_id": caso.id})
-    avaliar_caso(uow, caso, regra, ator)
+    avaliar_caso(uow, caso, regra)
     return (titular_id, caso.id, True)
 
 
@@ -83,11 +102,15 @@ def publicar_fato(
     payload: Mapping[str, object],
     fonte: str,
     observado_em: str,
-    reavaliar: bool = True,
+    pendencias: _Pendencias | None = None,
     excluir_entregavel_id: str | None = None,
     origem_ref: str | None = None,
 ) -> tuple[str, int, str]:
-    """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
+    """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}.
+
+    Sem `pendencias`, reavalia o que o fato afeta ao final (§6 passo 2). Com `pendencias`
+    (ConcluirTarefa), só acumula: quem chamou reavalia depois, uma vez.
+    """
     h = hash_fato(payload, valor_centavos)
     # Ordem global: 1) titular, 2) chave do fato, 3) linhas de entregável (por tipo).
     # Reentrante: /concluir já travou o titular antes de chamar esta função.
@@ -120,15 +143,17 @@ def publicar_fato(
     regra_do_fato = _regra_do_caso(uow, caso_do_fato) if caso_do_fato else None
     entrega_disponibilizada_antes = _entrega_em_disponibilizado(uow, caso_do_fato, regra_do_fato)
 
+    pend = _Pendencias() if pendencias is None else pendencias
+    pend.fatos.append((competencia, tipo, tributo))
     # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR).
     if efeito == "nova_versao" and vigente is not None:
-        _invalidar(uow, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
+        pend.entregaveis.update(
+            _invalidar(uow, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
+        )
 
-    if reavaliar:
-        # §11.4 passo 3: reavaliação dos casos abertos do titular.
-        for caso in uow.casos_abertos_do_titular(titular_id):
-            regra = _regra_do_caso(uow, caso)
-            avaliar_caso(uow, caso, regra, ator="sistema")
+    if pendencias is None:
+        # §11.4 passo 3: reavaliação do que este fato afeta nos casos abertos do titular.
+        _reavaliar_titular(uow, titular_id, pend)
 
     # §10.3: acompanhamento depois do protocolo (gravado, não sem_mudanca).
     _acompanhamento_pos_protocolo(
@@ -166,11 +191,12 @@ def concluir_tarefa(
 
     saida_tipo = str(item.saida["tipo"])
     agora = uow.hora()
+    pend = _Pendencias()
     for s in saidas:
         publicar_fato(
             uow, caso.titular_id, caso.competencia, saida_tipo, s.tributo,
             s.valor_centavos, s.payload,
-            "tarefa", agora, reavaliar=False, excluir_entregavel_id=ent.id,
+            "tarefa", agora, pendencias=pend, excluir_entregavel_id=ent.id,
         )
         fv = uow.fato_vigente(caso.titular_id, caso.competencia, saida_tipo, s.tributo)
         if fv is not None:
@@ -180,10 +206,10 @@ def concluir_tarefa(
     uow.transicionar(
         ent, E.PROCESSADO, "tarefa_concluida", "tarefa", tarefa_id, ator, regra.versao_id
     )
-    _conferir_entregavel(uow, caso, ent, regra, ator)
+    _conferir_entregavel(uow, caso, ent, regra)
+    pend.entregaveis.add((caso.id, ent.tipo))  # mudou de estado fora da avaliação
 
-    for caso_aberto in uow.casos_abertos_do_titular(caso.titular_id):
-        avaliar_caso(uow, caso_aberto, _regra_do_caso(uow, caso_aberto), ator="sistema")
+    _reavaliar_titular(uow, caso.titular_id, pend)
 
     atual = uow.buscar_entregavel(caso.id, tipo)
     assert atual is not None
@@ -235,16 +261,17 @@ def override_conferencia(
     uow.resolver_excecoes(ent.id, None, [cf], "override")
     uow.gravar_evento("conferencia.override", caso.id, ent.id, {"conferencia_id": conf_id})
 
+    pend = _Pendencias()
     if not uow.ha_divergente_b_sem_override(ent.id, exceto_cf=cf):
         uow.transicionar(
             ent, E.VALIDADO, "override", "conferencia", conf_id, ator, regra.versao_id
         )
+        pend.entregaveis.add((caso.id, ent.tipo))  # mudou de estado fora da avaliação
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
 
-    for caso_aberto in uow.casos_abertos_do_titular(caso.titular_id):
-        avaliar_caso(uow, caso_aberto, _regra_do_caso(uow, caso_aberto), ator="sistema")
+    _reavaliar_titular(uow, caso.titular_id, pend)
 
     atual = uow.buscar_entregavel(caso.id, tipo)
     assert atual is not None
@@ -255,20 +282,70 @@ def override_conferencia(
 # AvaliarCaso (§7, §10) — repete até não haver mudança
 # =============================================================================
 def avaliar_caso(
-    uow: UnidadeDeTrabalho, caso: Caso, regra: RegraEntregaveis, ator: str
+    uow: UnidadeDeTrabalho,
+    caso: Caso,
+    regra: RegraEntregaveis,
+    sementes: Collection[str] | None = None,
 ) -> None:
+    """Percorre o caso em voltas, em ordem de tipo, um passo por entregável (§7.4).
+
+    `sementes=None` avalia todos os entregáveis (abertura do caso). Com `sementes` (tipos),
+    só esses são avaliados; quando um entregável muda, ele próprio e os que dependem dele
+    entram na fila (na mesma volta, se vierem depois na ordem de tipo, como no percurso
+    completo). Termina quando a fila esvazia, o mesmo ponto fixo do percurso completo.
+    """
     ctx = contexto_do_caso(caso)
+    fila = None if sementes is None else set(sementes)
     while True:
         mudou = False
         entregaveis = uow.entregaveis_do_caso_para_atualizar(caso.id)
+        if fila is not None:
+            fila &= {e.tipo for e in entregaveis}  # tipos que o caso não tem não esperam volta
         for ent in entregaveis:
             item = regra.por_tipo.get(ent.tipo)
             if item is None:
                 continue
-            if _passo(uow, caso, ent, item, regra, ctx, ator):
+            if fila is not None:
+                if ent.tipo not in fila:
+                    continue
+                fila.discard(ent.tipo)
+            if _passo(uow, caso, ent, item, regra, ctx):
                 mudou = True
-        if not mudou:
+                if fila is not None:
+                    fila.add(ent.tipo)
+                    fila |= regra.dependentes.get(ent.tipo, frozenset())
+        if not (mudou if fila is None else fila):
             return
+
+
+def _reavaliar_titular(uow: UnidadeDeTrabalho, titular_id: str, pend: _Pendencias) -> None:
+    """Reavalia, em cada caso aberto do titular, só o que as pendências afetam (§6 passo 2)."""
+    for caso in uow.casos_abertos_do_titular(titular_id):
+        regra = _regra_do_caso(uow, caso)
+        sementes = _sementes_do_caso(caso, regra, pend)
+        if sementes:
+            avaliar_caso(uow, caso, regra, sementes=sementes)
+
+
+def _sementes_do_caso(caso: Caso, regra: RegraEntregaveis, pend: _Pendencias) -> set[str]:
+    """Tipos do caso a reavaliar: entrada resolvida (§7.1, com competência relativa) ou gatilho
+    de pós-validação (§10) casando com um fato publicado, mais os que mudaram de estado e quem
+    depende deles. O resto está no ponto fixo da avaliação anterior e nada o altera."""
+    ctx = contexto_do_caso(caso)
+    publicadas = {ChaveFato(*f) for f in pend.fatos}
+    sementes: set[str] = {tipo for caso_id, tipo in pend.entregaveis if caso_id == caso.id}
+    for tipo in list(sementes):
+        sementes |= regra.dependentes.get(tipo, frozenset())
+    for item in regra.itens:
+        if publicadas.intersection(entradas_resolvidas(item.entradas, ctx, caso.competencia)):
+            sementes.add(item.tipo)
+            continue
+        gatilho = (item.pos_validacao or {}).get("disponibilizado_quando")
+        if isinstance(gatilho, Mapping) and (
+            ChaveFato(caso.competencia, str(gatilho["tipo"]), _tributo_da_guia(item, ctx) or "")
+        ) in publicadas:
+            sementes.add(item.tipo)
+    return sementes
 
 
 def _passo(
@@ -278,38 +355,37 @@ def _passo(
     item: ItemEntregavel,
     regra: RegraEntregaveis,
     ctx: Mapping[str, object],
-    ator: str,
 ) -> bool:
     estado = ent.estado
     rv = regra.versao_id
 
-    def tr(para: str, motivo: str, por_tipo: str | None, por_id: str | None, a: str) -> None:
-        uow.transicionar(ent, para, motivo, por_tipo, por_id, a, rv)
+    def tr(para: str, motivo: str, por_tipo: str | None, por_id: str | None) -> None:
+        uow.transicionar(ent, para, motivo, por_tipo, por_id, ATOR_SISTEMA, rv)
 
     if estado in (E.AGUARDANDO_INSUMO, E.INVALIDADO):
         if _pronto(uow, caso, ent, item, ctx):
-            tr(E.PRONTO, "prontidao", "dependencia", None, "sistema")
+            tr(E.PRONTO, "prontidao", "dependencia", None)
             _ligar_entradas(uow, caso, ent, item, ctx)
             if item.executor == "humano":
                 uow.criar_tarefa(caso.id, ent.id, "executar_entregavel", caso.carteira)
             return True
         if estado == E.INVALIDADO:
-            tr(E.AGUARDANDO_INSUMO, "prontidao", "dependencia", None, "sistema")
+            tr(E.AGUARDANDO_INSUMO, "prontidao", "dependencia", None)
             return True
         return False
 
     if estado == E.PRONTO and item.executor == "sistema":
-        tr(E.PROCESSADO, "processamento_sistema", "comando", None, "sistema")
-        _conferir_entregavel(uow, caso, ent, regra, ator)
+        tr(E.PROCESSADO, "processamento_sistema", "comando", None)
+        _conferir_entregavel(uow, caso, ent, regra)
         return True
 
     if estado == E.VALIDADO:
         pos = item.pos_validacao
         if pos is not None and pos.get("liberacao") == "automatica":
-            tr(E.LIBERADO, "liberacao_automatica", "comando", None, "sistema")
+            tr(E.LIBERADO, "liberacao_automatica", "comando", None)
             return True
         if item.encerra_caso:
-            tr(E.ENCERRADO, "encerramento", "comando", None, "sistema")
+            tr(E.ENCERRADO, "encerramento", "comando", None)
             uow.encerrar_caso(caso.id)
             uow.gravar_evento("fechamento.concluido", caso.id, None, {"caso_id": caso.id})
             return True
@@ -318,7 +394,7 @@ def _passo(
     if estado == E.LIBERADO:
         pos = item.pos_validacao
         if pos is not None and _fato_gatilho(uow, caso, item, ctx, pos, "disponibilizado_quando"):
-            tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None, "sistema")
+            tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None)
             fato_id = _guia_vigente_da_entrega(uow, caso, item, ctx)
             uow.gravar_evento(
                 "documento.disponibilizado",
@@ -394,8 +470,11 @@ def _invalidar(
     fato_anterior_id: str,
     fato_novo_id: str,
     excluir_entregavel_id: str | None,
-) -> None:
+) -> list[tuple[str, str]]:
     """Invalidação por nova versão de fato já usado (§11).
+
+    Devolve (caso_id, tipo) dos entregáveis que foram a `invalidado`, para a reavaliação.
+
 
     Sementes = entregáveis ligados à versão ANTERIOR do fato, menos o
     entregável sendo concluído (§8 item 4). Aplica a tabela por estado (§11.2),
@@ -403,6 +482,7 @@ def _invalidar(
     tratado no máximo uma vez (§11.1).
     """
     sementes = uow.entregaveis_com_fato(fato_anterior_id)
+    invalidados: list[tuple[str, str]] = []
     visitados: set[str] = set()
     if excluir_entregavel_id is not None:
         visitados.add(excluir_entregavel_id)
@@ -425,7 +505,8 @@ def _invalidar(
                 uow.gravar_evento("excecao.aberta", caso.id, None, {"excecao_id": nova})
             continue
         for ent in sorted(ents, key=lambda e: e.tipo):
-            _invalidar_entregavel(uow, caso, ent, fato_novo_id, visitados)
+            _invalidar_entregavel(uow, caso, ent, fato_novo_id, visitados, invalidados)
+    return invalidados
 
 
 def _invalidar_entregavel(
@@ -434,6 +515,7 @@ def _invalidar_entregavel(
     ent: Entregavel,
     fato_novo_id: str,
     visitados: set[str],
+    invalidados: list[tuple[str, str]],
 ) -> None:
     """Aplica a tabela §11.2 a um entregável e cascateia pelos dependentes."""
     if ent.id in visitados:
@@ -445,16 +527,17 @@ def _invalidar_entregavel(
     if estado in _INVALIDAVEIS:
         era_divergente = estado == E.DIVERGENTE
         uow.transicionar(
-            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, "sistema",
+            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, ATOR_SISTEMA,
             caso.regra_entregaveis_versao_id,
         )
+        invalidados.append((caso.id, ent.tipo))
         uow.gravar_evento("entregavel.invalidado", caso.id, ent.id, {"entregavel_id": ent.id})
         uow.cancelar_tarefa_aberta(ent.id)
         if era_divergente:
             uow.resolver_excecoes(ent.id, "CF-", None, "fato_alterado")
         # Cascata: só a partir de quem foi para invalidado.
         for dep in uow.dependentes_de(caso.id, ent.id):
-            _invalidar_entregavel(uow, caso, dep, fato_novo_id, visitados)
+            _invalidar_entregavel(uow, caso, dep, fato_novo_id, visitados, invalidados)
     elif estado == E.DISPONIBILIZADO:
         # Documento já protocolado precisa ser substituído (§11.2).
         nova = uow.abrir_excecao_unica(caso.id, ent.id, "substituicao", "O", caso.carteira)
@@ -569,7 +652,7 @@ def _fato_gatilho(
 
 
 def _conferir_entregavel(
-    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, regra: RegraEntregaveis, ator: str
+    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, regra: RegraEntregaveis
 ) -> None:
     """Roda as conferências do item (quando casa) e aplica o desfecho (§9.3)."""
     item = regra.por_tipo[ent.tipo]
@@ -603,10 +686,10 @@ def _conferir_entregavel(
     if alguma_b_divergente:
         uow.transicionar(
             ent, E.DIVERGENTE, "conferencia_divergente", "conferencia",
-            ultima_conferencia_id, ator, rv
+            ultima_conferencia_id, ATOR_SISTEMA, rv
         )
     else:
-        uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, "sistema", rv)
+        uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, ATOR_SISTEMA, rv)
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})

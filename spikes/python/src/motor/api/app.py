@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from psycopg.errors import LockNotAvailable
 
 from motor.api.erros import (
     tratar_erro_negocio,
+    tratar_lock_indisponivel,
     tratar_validacao,
     tratar_valor_fora_do_intervalo,
 )
@@ -52,6 +54,9 @@ app.router.route_class = RotaValidada
 app.add_exception_handler(ErroNegocio, tratar_erro_negocio)
 app.add_exception_handler(ValorForaDoIntervalo, tratar_valor_fora_do_intervalo)
 app.add_exception_handler(RequestValidationError, tratar_validacao)
+
+
+app.add_exception_handler(LockNotAvailable, tratar_lock_indisponivel)  # lock_timeout (banco.py)
 
 
 @app.get("/health")

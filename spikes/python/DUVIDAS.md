@@ -13,8 +13,11 @@ Registrado também em `REGISTRO-COMPILADOR.md` se virar erro de tipo.
 ## D2 — Escopo da reavaliação após publicar fato
 
 A §6.2 pede reavaliar os entregáveis afetados; o design fixou **todos os entregáveis de
-todos os casos abertos do titular** como superconjunto seguro. Adotado — é correto e simples;
-o custo extra é irrelevante na escala de C1/C7.
+todos os casos abertos do titular** como superconjunto seguro. Adotado na fase 1, quando o
+custo era irrelevante na escala de C1/C7.
+
+**Superado (manutenção 3, ver D11).** O motor agora reavalia só o que a §6.2 manda. A decisão
+"superconjunto seguro" foi trocada por um recorte provado equivalente (D11).
 
 ## D3 — Ordem de avaliação dentro de uma volta
 
@@ -60,6 +63,8 @@ Enquanto só existe **uma** versão em uso (fase 1 e início da fase 2, pós-V00
 é idêntico; mas §2 exige que o caso **sempre** use a versão com que foi aberto, mesmo que outra
 seja publicada depois. Correção pertence à **Task 12** (reavaliação em passos e versão fixa do
 caso): ler a regra por `versao_id` do caso, com cache por `versao_id` dentro da transação.
+**Cache por `versao_id` dentro da transação: entregue na manutenção 2 (D10).** A regra pinada é
+imutável, então a leitura e a montagem acontecem uma vez por transação.
 Fora isso, a revisão da base da fase 1 (domínio: hash canônico, arredondamento meio-para-o-par,
 competência com virada de ano, ordem de estados; infra: unidade de trabalho com uma transação
 por comando e `FOR UPDATE`) não encontrou divergência com a semântica v3.
@@ -137,3 +142,83 @@ idêntica à da `main` nos cenários C1-C10).
 - **Assinaturas que mudaram:** `conferir(..., regra)` e `_acompanhamento_pos_protocolo(..., regra,
   ...)` recebem a regra do caso; `dependencias_do_entregavel` virou `dependencias_com_estado`
   (devolve `(estado_atual, estado_minimo)`).
+
+Observação de robustez (**corrigida na manutenção 3, ver D12**): na primeira tentativa, com as
+três spikes no ar, o Postgres reiniciou (pressão de memória do host) e o pool do spike ficou com
+conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O pool agora usa
+`check=ConnectionPool.check_connection` (descarta a conexão morta ao entregá-la) e toda conexão
+sai com `lock_timeout` (D12). Nota sobre os números acima: o tempo de parede do C6 varia muito de
+uma execução para outra na mesma base de código (observado 40-70 s), por isso as manutenções
+2 e 3 comparam o custo por **contagem de SQLs**.
+
+## D11 — Manutenção 3: reavaliação por sementes e ator das transições automáticas
+
+**Recorte da reavaliação (spec §6 passo 2, §7.1, §10).** Antes, todo fato reavaliava todos os
+entregáveis de todos os casos abertos do titular (SELECT FOR UPDATE de cada caso, 2 voltas ou
+mais, uma consulta por dependência e por entrada). Agora (`_Pendencias`, `_reavaliar_titular`,
+`avaliar_caso(..., sementes)`):
+
+- **Sementes** de cada caso aberto do titular = entregáveis cuja entrada resolvida (com
+  `competencia_relativa`) é a chave de um fato publicado na transação + entregáveis cujo gatilho
+  de pós-validação (`disponibilizado_quando`) é essa chave + entregáveis que mudaram de estado
+  FORA da avaliação (invalidação §11, conclusão de tarefa §8, override §8.1) + os que dependem
+  deles. Caso sem semente não é nem lido nem travado.
+- **Propagação:** quando um entregável muda no passo, ele e seus dependentes entram na fila
+  (na mesma volta se vierem depois na ordem de tipo, como no percurso completo; senão, na
+  próxima). A avaliação termina quando a fila esvazia. A abertura do caso continua avaliando
+  todos os entregáveis (§5 passo 6).
+- **Por que é equivalente ao percurso completo.** Antes do comando o titular está num ponto
+  fixo da avaliação. Um passo de entregável depende só do estado dele, do estado das suas
+  dependências, da presença das suas entradas resolvidas e do fato-gatilho: se nenhum mudou, o
+  passo não faz nada. Os vetores de mudança são exatamente as sementes + propagação.
+- **Prova empírica, não só argumento:** (1) verificador 10/10; (2) a sequência de transições e
+  eventos por caso dos cenários C1-C10 é idêntica à da versão anterior; (3)
+  `scripts/diferencial_reavaliacao.py` roda a MESMA sequência aleatória (abrir, fatos coerentes
+  e ruidosos, conclusões, overrides, caminho feliz até o protocolo, retificações) nos dois modos
+  e compara transições, eventos, exceções, conferências, tarefas e estados finais. O script
+  apanha mutantes (tirar a propagação aos dependentes dos que mudaram, ou o gatilho de
+  pós-validação) e compara também o modo completo com ele mesmo, para separar divergência de
+  não determinismo. Ele FAZ TRUNCATE do banco de `MOTOR_DB`: usar banco descartável.
+- **Risco assumido:** se um dia entrar um caminho que mude estado de entregável fora de
+  invalidação/conclusão/override sem registrar em `_Pendencias`, o recorte o perde. A regra de
+  ouro (§4.1) concentra as mudanças em `transicionar`; o script diferencial é a rede de proteção.
+
+**Ator das transições automáticas.** A semântica fixa `ator` só nos casos de ação de pessoa:
+`tarefa_concluida` e `override` levam `corpo.ator` (§8 item 6, §8.1) e a invalidação leva
+`sistema` (§11.2); a criação leva o ator da abertura (§5). Para o desfecho da conferência
+(§9.3) ela é omissa. Estava inconsistente: `processado -> validado` gravava `sistema` e
+`processado -> divergente` gravava o ator do chamador (o `ator` da abertura, da conclusão ou
+`sistema`, conforme quem disparou). Decisão: **toda transição automática grava `sistema`**
+(`ATOR_SISTEMA`): prontidão, processamento, conferências (ok ou divergente), liberação,
+protocolo, encerramento e invalidação. O parâmetro `ator` saiu de `avaliar_caso`, `_passo` e
+`_conferir_entregavel`. Efeito observável: só em `processado -> divergente` disparado por
+`/concluir` ou pela abertura (antes gravava o ator da requisição, agora `sistema`); a pessoa
+continua registrada em `tarefa_concluida` do mesmo entregável.
+
+## D12 — Manutenção 3: pool de conexões
+
+- `ConnectionPool(check=ConnectionPool.check_connection)`: ao entregar uma conexão do pool o
+  psycopg a testa e descarta a morta (restart do Postgres, `pg_terminate_backend`), em vez de
+  devolver `OperationalError` até alguém reiniciar o contêiner (o que o D8 observou). Custo: uma
+  consulta trivial por retirada de conexão.
+- `lock_timeout = 10 s` em toda conexão do pool (`options=-c lock_timeout=10000`,
+  `banco.LOCK_TIMEOUT_MS`). Vale para os advisory locks (titular, chave de fato, exceção) e
+  para o `FOR UPDATE` das linhas. É folga larga sobre a espera normal (p95 do lote do C6
+  0,13-0,15 s); só dispara com transação travada de verdade. Estourou: o Postgres devolve
+  55P03 (`LockNotAvailable`), a transação dá rollback e a API responde **409
+  `conflito_concorrencia`** (o mesmo código de `ConflitoConcorrencia`; o cliente repete).
+  Antes, esperar para sempre prendia a conexão do pool e a requisição.
+- Espera por uma conexão livre do pool: o padrão do psycopg-pool (30 s, `PoolTimeout`)
+  continua; não foi alterado porque o C6 nunca chega perto.
+- Testes de integração em `tests/integracao/test_pool.py` (conexão morta descartada, mordido: sem
+  `check` o teste falha; `lock_timeout` presente; espera acima do tempo vira 55P03 e 409).
+
+## D13 — O que ficou como decisão consciente (revisão de manutenção)
+
+- **Catálogos por conferência.** `tolerancia_em_uso`, `parametros_em_uso` e `tipo_conferencia`
+  ainda são lidos a cada conferência (cache só da regra pinada, que o D7 prometeu). São 2-3
+  leituras por conferência; deixar para quando o custo aparecer na medida.
+- **Abertura do caso (~82-96 SQLs).** Dominada pela criação (entregável, transição, dependências,
+  tarefas, eventos) e pela avaliação completa do §5 passo 6; não foi tocada.
+- **Locks.** A ordem global (titular, chave, linhas) e o `SELECT ... FOR UPDATE` de todo o caso a
+  cada volta ficaram: o recorte reduz quantos casos são travados, não a política de trava.
