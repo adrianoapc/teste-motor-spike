@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Aplicacao\Fechamento;
 
+use App\Aplicacao\Portas\Relogio;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioEvento;
@@ -34,6 +35,7 @@ final readonly class ConcluirTarefa
         private Transicionador $transicionador,
         private AvaliarCaso $avaliar,
         private Invalidador $invalidador,
+        private Relogio $relogio,
     ) {}
 
     public function concluir(ConcluirTarefaComando $comando): ResultadoEntregavel
@@ -107,7 +109,8 @@ final readonly class ConcluirTarefa
         $versao = $vigente !== null ? $vigente->versao + 1 : 1;
         $fato = $this->fatos->inserir(
             $caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo, $versao,
-            $saida->valorCentavos, $saida->payload, 'tarefa', null, $hash, $vigente?->id, $this->agoraDoBanco(),
+            // observado_em das saídas = instante atual do banco (design: hora sempre do banco, nunca do PHP).
+            $saida->valorCentavos, $saida->payload, 'tarefa', null, $hash, $vigente?->id, $this->relogio->agora(),
         );
         $this->eventos->gravar('fato.publicado', $caso->id, null, ['fato_id' => $fato->id]);
         $this->entregaveis->ligarFato($entregavel->id, $fato->id, 'saida');
@@ -117,11 +120,5 @@ final readonly class ConcluirTarefa
         if ($vigente !== null) {
             $this->invalidador->invalidar($vigente->id, $fato->id, $entregavel->id);
         }
-    }
-
-    private function agoraDoBanco(): string
-    {
-        // observado_em das saídas = instante atual do servidor (design: decisões fixas).
-        return (new \DateTimeImmutable)->format(DATE_ATOM);
     }
 }

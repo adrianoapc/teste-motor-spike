@@ -59,6 +59,8 @@ final class Mundo
 
     public UnidadeDeTrabalhoMemoria $uow;
 
+    public RelogioFixo $relogio;
+
     public Transicionador $transicionador;
 
     public Excecoes $abertura;
@@ -95,6 +97,7 @@ final class Mundo
         $this->catalogo = new CatalogoMemoria;
         $this->regras = new RegrasMemoria(RegraEntregaveis::de('regra-v2', 2, $conteudoDaRegra ?? self::regraPadrao()));
         $this->uow = new UnidadeDeTrabalhoMemoria;
+        $this->relogio = new RelogioFixo;
 
         $this->transicionador = new Transicionador($this->entregaveis, $this->catalogo, $this->eventos);
         $this->abertura = new Excecoes($this->excecoes, $this->eventos);
@@ -118,7 +121,7 @@ final class Mundo
         );
         $this->concluir = new ConcluirTarefa(
             $this->uow, $this->casos, $this->entregaveis, $this->tarefas, $this->fatos, $this->eventos, $this->regras,
-            $this->transicionador, $this->avaliar, $this->invalidador,
+            $this->transicionador, $this->avaliar, $this->invalidador, $this->relogio,
         );
         $this->override = new RegistrarOverride(
             $this->uow, $this->casos, $this->entregaveis, $this->conferencias, $this->excecoes, $this->eventos,

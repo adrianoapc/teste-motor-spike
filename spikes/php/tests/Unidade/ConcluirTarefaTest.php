@@ -117,6 +117,29 @@ it('saída nova sobre fato já usado invalida os dependentes mas não o próprio
         ->and($m->estado($caso, 'E11'))->toBe('aguardando_insumo');
 });
 
+it('observado_em da saída vem do relógio do banco (port Relogio), não do PHP', function (): void {
+    $m = new Mundo;
+    casoComE03Pronto($m);
+    $leiturasAntes = $m->relogio->leituras;
+
+    concluirE03($m);
+
+    $apurado = $m->fatos->vigente('T1', Mundo::COMP, 'apurado', 'DAS') ?? throw new RuntimeException;
+    expect($m->fatos->observadoEm[$apurado->id])->toBe('2026-01-15 12:00:00+00')
+        ->and($m->relogio->leituras)->toBe($leiturasAntes + 1);
+});
+
+it('saída idêntica ao fato vigente não consulta o relógio (nada é gravado)', function (): void {
+    $m = new Mundo;
+    casoComE03Pronto($m);
+    $m->fato('apurado', 300000, new stdClass, 'DAS');
+    $leiturasAntes = $m->relogio->leituras;
+
+    concluirE03($m);
+
+    expect($m->relogio->leituras)->toBe($leiturasAntes);
+});
+
 it('ordem de locks: titular, depois as chaves dos fatos de saída ordenadas, antes da linha do entregável (§13)', function (): void {
     $m = new Mundo;
     casoComE03Pronto($m);

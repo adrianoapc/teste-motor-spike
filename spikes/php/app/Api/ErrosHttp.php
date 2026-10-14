@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Api;
 
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Regras\RegraInvalida;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -27,6 +28,11 @@ final class ErrosHttp
 
         $exceptions->render(function (ErroDeNegocio $e): JsonResponse {
             return self::corpo($e->codigo, $e->getMessage(), $e->status);
+        });
+
+        // Regra malformada é erro de configuração do servidor (500), mas explícito: nada de assumir padrão.
+        $exceptions->render(function (RegraInvalida $e): JsonResponse {
+            return self::corpo('regra_invalida', $e->getMessage(), 500);
         });
 
         $exceptions->render(function (NotFoundHttpException $e): JsonResponse {

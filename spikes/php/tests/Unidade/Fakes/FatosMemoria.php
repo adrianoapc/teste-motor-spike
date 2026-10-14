@@ -12,6 +12,9 @@ final class FatosMemoria implements RepositorioFato
     /** @var list<Fato> todas as versões, na ordem de inserção */
     public array $versoes = [];
 
+    /** @var array<string, string> id do fato => observado_em gravado */
+    public array $observadoEm = [];
+
     /** @var list<string> chaves travadas ("tipo|tributo"), na ordem */
     public array $travas = [];
 
@@ -49,6 +52,7 @@ final class FatosMemoria implements RepositorioFato
     ): Fato {
         $fato = new Fato('fato-'.(count($this->versoes) + 1), $titularId, $competencia, $tipo, $tributo, $versao, $valorCentavos, $payload, $hash);
         $this->versoes[] = $fato;
+        $this->observadoEm[$fato->id] = $observadoEm;
 
         return $fato;
     }
