@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Motor.Dominio.Conferencias;
+using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
 using Motor.Dominio.Regras;
 
@@ -100,7 +101,8 @@ public interface IEntregavelRepo
     Task<Entregavel?> PorChaveComTravaAsync(Guid casoId, string tipo);
     Task<Entregavel> CriarAsync(Guid casoId, string tipo, string executor, string area);
     Task GravarDependenciaAsync(Guid entregavelId, Guid dependeDeId, EstadoEntregavel estadoMinimo);
-    Task<IReadOnlyList<Dependencia>> DependenciasDoAsync(Guid entregavelId);
+    /// <summary>Todas as dependências materializadas dos entregáveis do caso (imutáveis depois da abertura, §5.4).</summary>
+    Task<IReadOnlyList<Dependencia>> DependenciasDoCasoAsync(Guid casoId);
     /// <summary>Aplica a transição: UPDATE estado/estado_desde/version + INSERT na transição (§4.1).</summary>
     Task TransicionarAsync(Entregavel atual, NovaTransicao transicao, DateTimeOffset agora);
     Task LigarFatoAsync(Guid entregavelId, Guid fatoId, string papel);
