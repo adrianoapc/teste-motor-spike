@@ -4,12 +4,16 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from psycopg.errors import LockNotAvailable
 
-from motor.api.erros import ErroDominio, tratar_erro_dominio, tratar_validacao
+from motor.api.erros import (
+    tratar_erro_negocio,
+    tratar_lock_indisponivel,
+    tratar_validacao,
+    tratar_valor_fora_do_intervalo,
+)
 from motor.api.modelos import (
     AbrirCompetenciasRequest,
     AbrirCompetenciasResponse,
@@ -26,8 +30,9 @@ from motor.api.modelos import (
 )
 from motor.api.numeros import RotaValidada
 from motor.aplicacao import motor_fechamento as mf
-from motor.aplicacao.motor_fechamento import ErroNegocio
-from motor.aplicacao.portas import ConflitoConcorrencia
+from motor.aplicacao.erros import ErroNegocio, nao_encontrado
+from motor.aplicacao.registros import SaidaTarefa
+from motor.dominio.dinheiro import ValorForaDoIntervalo
 from motor.infraestrutura import banco
 from motor.infraestrutura.log import configurar_log
 from motor.infraestrutura.unidade_de_trabalho import unidade_de_trabalho
@@ -46,30 +51,12 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Motor do fechamento — spike Python", lifespan=ciclo_de_vida)
 # Forma do corpo (§6/§8 passo 0) e rota sem NUL, antes de qualquer consulta ou gravação.
 app.router.route_class = RotaValidada
-app.add_exception_handler(ErroDominio, tratar_erro_dominio)
+app.add_exception_handler(ErroNegocio, tratar_erro_negocio)
+app.add_exception_handler(ValorForaDoIntervalo, tratar_valor_fora_do_intervalo)
 app.add_exception_handler(RequestValidationError, tratar_validacao)
 
 
-async def _tratar_negocio(_req: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, ErroNegocio)
-    return JSONResponse(
-        status_code=exc.status,
-        content={"erro": exc.codigo, "mensagem": exc.mensagem},
-    )
-
-
-app.add_exception_handler(ErroNegocio, _tratar_negocio)
-
-
-async def _tratar_concorrencia(_req: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(
-        status_code=409,
-        content={"erro": "conflito_concorrencia", "mensagem": str(exc)},
-    )
-
-
-app.add_exception_handler(ConflitoConcorrencia, _tratar_concorrencia)
-app.add_exception_handler(LockNotAvailable, _tratar_concorrencia)  # lock_timeout (banco.py)
+app.add_exception_handler(LockNotAvailable, tratar_lock_indisponivel)  # lock_timeout (banco.py)
 
 
 @app.get("/health")
@@ -129,7 +116,7 @@ def concluir(
     titular_id: str, competencia: str, tipo: str, req: ConcluirRequest
 ) -> EntregavelEstado:
     """§8: conclui a tarefa humana de um entregável."""
-    saidas = [s.model_dump() for s in req.saidas]
+    saidas = [SaidaTarefa(s.tributo, s.valor_centavos, s.payload) for s in req.saidas]
     with unidade_de_trabalho() as uow:
         ent = mf.concluir_tarefa(uow, titular_id, competencia, tipo, req.ator, saidas)
     return EntregavelEstado(entregavel_id=ent.id, tipo=ent.tipo, estado=ent.estado)
@@ -153,8 +140,6 @@ def consultar_caso(titular_id: str, competencia: str) -> CasoResponse:
     with unidade_de_trabalho() as uow:
         caso = uow.buscar_caso(titular_id, competencia)
         if caso is None:
-            from motor.api.erros import nao_encontrado
-
             raise nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
         entregaveis = [
             EntregavelResumo(

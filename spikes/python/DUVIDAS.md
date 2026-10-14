@@ -76,6 +76,73 @@ do Requisito 19 com folga larga: abertura em 49,2 s (teto 300 s) e p95 do lote 0
 (teto 30 s), 0 erros. **Decisão:** manter o processamento **síncrono dentro da requisição** —
 não foi preciso ir para `eventos.fila` (§13). Medidas em `METRICAS.md` (seção Fase 3).
 
+Observação de robustez (não corrigida, fora do escopo da medição): na primeira tentativa, com
+as três spikes no ar, o Postgres reiniciou (pressão de memória do host) e o pool do spike ficou
+com conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O `ConnectionPool` do
+psycopg aceita `check=ConnectionPool.check_connection`, que descartaria a conexão morta sozinho;
+é um endurecimento barato se o motor precisar sobreviver a quedas do banco em produção. No
+spike, o run válido foi feito com o banco íntegro e só esta spike contendo o Postgres.
+
+## D9 — Manutenção 1: uma hierarquia de erro, um handler, sem código morto
+
+Revisão de manutenção/complexidade (code-review xhigh). Sem mudança de comportamento observável.
+
+- **Uma só hierarquia de erro.** `ErroDominio` (api) e `ErroNegocio` (aplicação) eram idênticas.
+  Ficou `motor.aplicacao.erros.ErroNegocio` (+ `nao_encontrado`/`conflito`/`invalido`), com
+  UM handler em `api/erros.py`. `ConflitoConcorrencia` agora é subclasse (409
+  `conflito_concorrencia`), então perdeu o handler próprio. Fica em `aplicacao` porque a
+  regra de camadas só deixa `api → aplicacao`.
+- **int64: validação só na borda, tradução em um lugar.** A borda (`numeros._inteiro` para
+  qualquer número do JSON e `Int64` estrito do Pydantic para `valor_centavos`) continua a barrar
+  entrada com `corpo_invalido`. Saíram os `try/except` de `publicar_fato`,
+  `_conferir_entregavel` e `_valor_opcional` (que conferia de novo o que o Pydantic já garantia;
+  as saídas de `/concluir` agora chegam tipadas como `SaidaTarefa`). O único valor que ainda
+  pode estourar depois da borda é o **calculado** (esperado/obtido de uma conferência, coluna
+  `bigint`): `conferencia._gravar` chama `garantir_int64` e um exception handler único
+  (`ValorForaDoIntervalo` → 422 `valor_fora_do_intervalo`) faz a tradução. A transação dá
+  rollback como antes.
+- **Código morto removido:** `_indexar_por_tributo`, `saiu_de_divergente_tem_excecao_cf`,
+  `tarefa_aberta_do_entregavel`, `Centavos`, o `conflito()` duplicado da api, o parâmetro
+  `uow` sem uso de `_tributo_da_guia`, e `excecao_aberta_existe` saiu do protocolo da unidade de
+  trabalho (só a implementação o usa, dentro de `abrir_excecao_unica`). `_gravar` passou a
+  receber `TipoConferencia` (sem import local nem `assert isinstance`).
+  Observação: `.kiro/specs/spike-python/design.md` cita `Centavos = NewType(...)` como tipo de
+  domínio; nunca foi usado no código e foi retirado (a spec é somente leitura para esta tarefa).
+
+## D10 — Manutenção 2: regras lidas da regra pinada e prontidão pura
+
+Sem mudança de comportamento observável (verificador 10/10, sequência de transições e eventos
+idêntica à da `main` nos cenários C1-C10).
+
+- **Prontidão como função de domínio (requisito 11.3).** `motor.dominio.prontidao` decide
+  "está pronto?" (`esta_pronto`: dependências no estado mínimo E toda entrada resolvida
+  presente, §7.2) e resolve as entradas da regra em chaves de fato (`entradas_resolvidas`, §7.1,
+  com `quando` e `competencia_relativa`). Testada sem banco em `tests/unidade/test_prontidao.py`.
+  A aplicação (`_pronto`) só carrega os dados: o estado das dependências vem de UMA consulta com
+  JOIN (antes: 1 + N) e a presença das entradas entra como gerador, então o banco só é lido
+  se as dependências cumprem e para na primeira entrada ausente (mesma ordem de curto-circuito
+  de antes).
+- **Tributos e tipos lidos da regra pinada do caso (§2), sem repetir o conhecimento.**
+  O tributo da guia (DAS/IRPJ) vem das `entradas` do item de entrega; o do recibo do CF-12
+  (PGDAS-D/DCTFWEB) das `entradas` do item conferido (E10); o tipo do fato de protocolo
+  (`documento_disponibilizado`) vem de `pos_validacao.disponibilizado_quando`; os tipos de falha,
+  confirmação e pendência já vinham de `acompanhamento`. O "E11" fixo some: o item de entrega é
+  o que declara `pos_validacao`/`acompanhamento` (`RegraEntregaveis.item_de_entrega`).
+  Os tipos de fato das fórmulas (`guia`, `apurado`, `recibo_obrigacao`) continuam no código:
+  são a definição da conferência (§9.1), não uma regra de negócio mutável.
+- **Lacuna da regra (CF-07).** A regra v2 não declara `apurado` nas entradas do E04, embora a
+  fórmula do §9.1 use `apurado[DAS]` (SN) / `apurado[IRPJ]` (LP). Decisão: o tributo do `apurado`
+  é o da guia do item de entrega (é a mesma tabela regime -> tributo do §9.1). Se a regra
+  pinada não declara a entrada exigida (guia, recibo), a conferência vira insumo ausente
+  (`divergente`, classe `S`), nunca exceção.
+- **Cache da regra por `versao_id` dentro da transação** (promessa do D7). A regra pinada é
+  imutável; `UnidadeDeTrabalhoSQL.regra_entregaveis_da_versao` lê e monta uma vez por
+  transação. Foi preciso aqui (e não só no PR de reavaliação) porque agora `publicar_fato`
+  consulta a regra do caso para achar o item de entrega: sem cache seriam +1 leitura por fato.
+- **Assinaturas que mudaram:** `conferir(..., regra)` e `_acompanhamento_pos_protocolo(..., regra,
+  ...)` recebem a regra do caso; `dependencias_do_entregavel` virou `dependencias_com_estado`
+  (devolve `(estado_atual, estado_minimo)`).
+
 Observação de robustez (**corrigida na manutenção 3, ver D12**): na primeira tentativa, com as
 três spikes no ar, o Postgres reiniciou (pressão de memória do host) e o pool do spike ficou com
 conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O pool agora usa

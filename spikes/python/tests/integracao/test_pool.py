@@ -12,7 +12,7 @@ from psycopg import Connection
 from psycopg.errors import LockNotAvailable
 from psycopg.rows import dict_row
 
-from motor.api.app import _tratar_concorrencia
+from motor.api.erros import tratar_lock_indisponivel
 from motor.infraestrutura import banco
 from motor.infraestrutura.unidade_de_trabalho import UnidadeDeTrabalhoSQL
 
@@ -67,6 +67,6 @@ def test_espera_por_lock_alem_do_timeout_falha_com_55p03_e_vira_409(pool: None) 
     finally:
         dono.rollback()
         dono.close()
-    resp = asyncio.run(_tratar_concorrencia(None, e.value))  # type: ignore[arg-type]
+    resp = asyncio.run(tratar_lock_indisponivel(None, e.value))  # type: ignore[arg-type]
     assert resp.status_code == 409
     assert json.loads(bytes(resp.body))["erro"] == "conflito_concorrencia"

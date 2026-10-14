@@ -25,6 +25,7 @@ final readonly class Invalidador
         private RepositorioDependencia $dependencias,
         private RepositorioTarefa $tarefas,
         private RepositorioExcecao $excecoes,
+        private Excecoes $abertura,
         private RepositorioEvento $eventos,
         private Transicionador $transicionador,
     ) {}
@@ -70,10 +71,7 @@ final readonly class Invalidador
 
         // Caso encerrado (§11.3): nenhuma transição; abre uma exceção competencia_encerrada.
         if ($caso->encerrado()) {
-            $excId = $this->excecoes->abrirUnica($casoId, null, 'competencia_encerrada', 'O', $caso->carteira);
-            if ($excId !== null) {
-                $this->eventos->gravar('excecao.aberta', $casoId, null, ['excecao_id' => $excId]);
-            }
+            $this->abertura->abrirUnica($casoId, null, 'competencia_encerrada', 'O', $caso->carteira);
 
             return;
         }
@@ -119,10 +117,7 @@ final readonly class Invalidador
                 }
             } elseif ($atual->estado === EstadoEntregavel::Disponibilizado) {
                 // Documento já protocolado: substituição (§11.2), sem transição.
-                $excId = $this->excecoes->abrirUnica($casoId, $atual->id, 'substituicao', 'O', $caso->carteira);
-                if ($excId !== null) {
-                    $this->eventos->gravar('excecao.aberta', $casoId, $atual->id, ['excecao_id' => $excId]);
-                }
+                $this->abertura->abrirUnica($casoId, $atual->id, 'substituicao', 'O', $caso->carteira);
             }
         }
     }

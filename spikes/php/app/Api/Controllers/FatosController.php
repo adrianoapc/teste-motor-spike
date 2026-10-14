@@ -6,6 +6,7 @@ namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
 use App\Aplicacao\Fatos\PublicarFato;
+use App\Aplicacao\Fatos\PublicarFatoComando;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
@@ -64,11 +65,15 @@ final readonly class FatosController
         $origemRef = isset($cru->origem_ref) && is_string($cru->origem_ref) ? $cru->origem_ref : null;
         $observadoEm = $this->texto($cru, 'observado_em');
 
-        $resultado = $this->publicar->publicar(
+        $resultado = $this->publicar->publicar(new PublicarFatoComando(
             $titularId, $competencia, $tipo, $tributo, $valor, $payload, $fonte, $origemRef, $observadoEm,
-        );
+        ));
 
-        return new JsonResponse($resultado);
+        return new JsonResponse([
+            'fato_id' => $resultado->fatoId,
+            'versao' => $resultado->versao,
+            'efeito' => $resultado->efeito,
+        ]);
     }
 
     /** RFC 3339 (date-time do OpenAPI): fração e fuso `Z`/`±hh:mm` opcionais/obrigatórios conforme a RFC. */

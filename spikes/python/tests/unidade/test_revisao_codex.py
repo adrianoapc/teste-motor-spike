@@ -1,14 +1,20 @@
 """Regressões dos achados da revisão (PR #5): regra fixada, eventos, tributo, origem_ref."""
 from __future__ import annotations
 
+import asyncio
+import json
 from dataclasses import dataclass, field
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from motor.api.app import app
+from motor.api.erros import tratar_erro_negocio, tratar_valor_fora_do_intervalo
 from motor.api.modelos import FatoRequest
 from motor.aplicacao import motor_fechamento as mf
 from motor.aplicacao.conferencia import conferir
+from motor.aplicacao.erros import ConflitoConcorrencia, ErroNegocio
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
@@ -18,6 +24,7 @@ from motor.aplicacao.registros import (
     TipoConferencia,
     Tolerancia,
 )
+from motor.dominio.dinheiro import ValorForaDoIntervalo
 
 
 def _caso(regime: str = "SN") -> Caso:
@@ -138,10 +145,64 @@ def _e11() -> Entregavel:
     )
 
 
+_GUIA = [
+    {"tipo": "guia", "tributo": "DAS", "quando": [{"regime": "SN"}]},
+    {"tipo": "guia", "tributo": "IRPJ", "quando": [{"regime": "LP"}]},
+]
+_RECIBO = [
+    {"tipo": "recibo_obrigacao", "tributo": "PGDAS-D", "quando": [{"regime": "SN"}]},
+    {"tipo": "recibo_obrigacao", "tributo": "DCTFWEB", "quando": [{"regime": "LP"}]},
+]
+
+
+def _ent(tipo: str) -> Entregavel:
+    return Entregavel(
+        id=tipo.lower(), caso_id="caso-1", tipo=tipo, estado="processado",
+        executor="sistema", area="fiscal", version=1,
+    )
+
+
+def _regra_pinada() -> RegraEntregaveis:
+    """Regra com as entradas que a V006 declara: guia no E11 (item de entrega), recibo no E10."""
+    return RegraEntregaveis(
+        versao_id="rv-antiga", estado_minimo_padrao="validado",
+        itens=[
+            ItemEntregavel(
+                tipo="E10", executor="sistema", quando=[], depende_de=[], entradas=_RECIBO,
+                saida=None, conferencias=[{"cf": "CF-12"}],
+            ),
+            _item_e11(),
+        ],
+    )
+
+
+def _item_e11() -> ItemEntregavel:
+    return ItemEntregavel(
+        tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=_GUIA,
+        saida=None, conferencias=[],
+        pos_validacao={
+            "liberacao": "automatica",
+            "disponibilizado_quando": {"tipo": "documento_disponibilizado"},
+        },
+        acompanhamento={
+            "falha": {"tipo": "entrega_falhou"},
+            "confirmacao": {"tipo": "recebimento_confirmado"},
+            "pendencia": {"tipo": "recebimento_pendente"},
+        },
+    )
+
+
+_REGRA = _regra_pinada()
+
+
 def _regra_e11() -> RegraEntregaveis:
     item = ItemEntregavel(
-        tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=[],
+        tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=_GUIA,
         saida=None, conferencias=[],
+        pos_validacao={
+            "liberacao": "automatica",
+            "disponibilizado_quando": {"tipo": "documento_disponibilizado"},
+        },
         acompanhamento={
             "falha": {"tipo": "entrega_falhou"},
             "confirmacao": {"tipo": "recebimento_confirmado"},
@@ -149,6 +210,13 @@ def _regra_e11() -> RegraEntregaveis:
         },
     )
     return RegraEntregaveis(versao_id="rv-antiga", estado_minimo_padrao="validado", itens=[item])
+
+
+def _acompanhar(uow: _Fake, tipo: str, tributo: str) -> None:
+    """Fato `novo` chegando com o E11 já em disponibilizado."""
+    mf._acompanhamento_pos_protocolo(  # type: ignore[arg-type]
+        uow, uow.caso, uow.regra, tipo, tributo, "novo", True
+    )
 
 
 def test_regra_do_caso_usa_a_versao_fixada_no_caso() -> None:
@@ -159,7 +227,7 @@ def test_regra_do_caso_usa_a_versao_fixada_no_caso() -> None:
 
 
 def test_publicar_fato_trava_chave_antes_de_ler_vigente_e_grava_origem_ref() -> None:
-    uow = _Fake()
+    uow = _Fake(regra=_regra_e11())
     mf.publicar_fato(
         uow, "T1", "202609", "guia", "DAS", 100, {}, "api", "2026-09-01T00:00:00+00:00",  # type: ignore[arg-type]
         origem_ref="ref-123",
@@ -171,29 +239,29 @@ def test_publicar_fato_trava_chave_antes_de_ler_vigente_e_grava_origem_ref() -> 
 def test_acompanhamento_ignora_tributo_que_nao_e_o_da_guia() -> None:
     uow = _Fake(e11=_e11(), regra=_regra_e11())
     # SN → guia é DAS; falha publicada em IRPJ não abre exceção.
-    mf._acompanhamento_pos_protocolo(uow, uow.caso, "entrega_falhou", "IRPJ", "novo", True)  # type: ignore[arg-type]
+    _acompanhar(uow, "entrega_falhou", "IRPJ")
     assert uow.excecoes == [] and uow.eventos == []
 
 
 def test_acompanhamento_tributo_da_guia_abre_excecao_com_id() -> None:
     uow = _Fake(e11=_e11(), regra=_regra_e11())
-    mf._acompanhamento_pos_protocolo(uow, uow.caso, "entrega_falhou", "DAS", "novo", True)  # type: ignore[arg-type]
+    _acompanhar(uow, "entrega_falhou", "DAS")
     assert uow.excecoes == ["entrega_falhou"]
     assert uow.eventos == [("excecao.aberta", {"excecao_id": "exc-entrega_falhou"})]
 
 
 def test_acompanhamento_lp_usa_irpj() -> None:
     uow = _Fake(caso=_caso("LP"), e11=_e11(), regra=_regra_e11())
-    mf._acompanhamento_pos_protocolo(uow, uow.caso, "entrega_falhou", "DAS", "novo", True)  # type: ignore[arg-type]
+    _acompanhar(uow, "entrega_falhou", "DAS")
     assert uow.excecoes == []
-    mf._acompanhamento_pos_protocolo(uow, uow.caso, "entrega_falhou", "IRPJ", "novo", True)  # type: ignore[arg-type]
+    _acompanhar(uow, "entrega_falhou", "IRPJ")
     assert uow.excecoes == ["entrega_falhou"]
 
 
 def test_conferir_fato_ausente_mantem_severidade_do_catalogo_e_classe_s() -> None:
     uow = _Fake()
     ent = _e11()
-    resultado, severidade, conf_id, classe, _ = conferir(uow, uow.caso, ent, "CF-01")  # type: ignore[arg-type]
+    resultado, severidade, conf_id, classe, _ = conferir(uow, uow.caso, ent, "CF-01", _REGRA)  # type: ignore[arg-type]
     assert (resultado, severidade, conf_id, classe) == ("divergente", "B", "conf-1", "S")
     assert uow.confs[0]["severidade"] == "B"
     assert uow.confs[0]["classe"] == "S"
@@ -266,7 +334,7 @@ def test_cf12_seleciona_o_recibo_do_tributo_exigido(
     certo = _fato("recibo_obrigacao", tributo_certo)
     errado = _fato("recibo_obrigacao", tributo_errado)
     uow.fatos_caso = [errado, certo]  # o errado vem primeiro: busca só por tipo o pegaria
-    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E10"), "CF-12", _REGRA)  # type: ignore[arg-type]
     assert resultado == "ok"
     assert [u["fato_id"] for u in uow.confs[0]["fatos_usados"]] == [certo.id]  # type: ignore[attr-defined,union-attr]
 
@@ -274,14 +342,14 @@ def test_cf12_seleciona_o_recibo_do_tributo_exigido(
 def test_cf12_so_com_recibo_do_tributo_errado_e_fato_ausente() -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fato("recibo_obrigacao", "DCTFWEB")]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-12")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _ent("E10"), "CF-12", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
 def test_conferencia_reaproveitada_vira_a_corrente() -> None:
     uow = _Fake()
     uow.existente = ("divergente", "B", "conf-antiga", "O", False)
-    res = conferir(uow, uow.caso, _e11(), "CF-01")  # type: ignore[arg-type]
+    res = conferir(uow, uow.caso, _e11(), "CF-01", _REGRA)  # type: ignore[arg-type]
     assert res == ("divergente", "B", "conf-antiga", "O", False)
     assert uow.marcadas == ["conf-antiga"]
     assert uow.confs == []  # nada novo inserido
@@ -292,9 +360,9 @@ def test_comandos_que_escrevem_travam_o_titular_antes_de_qualquer_outra_coisa() 
     ordem: list[str] = []
     uow.travar_titular = lambda t: ordem.append("titular")  # type: ignore[method-assign]
     uow.buscar_caso = lambda t, c: (ordem.append("caso"), None)[1]  # type: ignore[method-assign]
-    with pytest.raises(mf.ErroNegocio):
+    with pytest.raises(ErroNegocio):
         mf.concluir_tarefa(uow, "T1", "202609", "E1", "a", [])  # type: ignore[arg-type]
-    with pytest.raises(mf.ErroNegocio):
+    with pytest.raises(ErroNegocio):
         mf.override_conferencia(uow, "T1", "202609", "E1", "CF-01", "a", "motivo ok")  # type: ignore[arg-type]
     assert ordem == ["titular", "caso", "titular", "caso"]
 
@@ -332,20 +400,34 @@ def test_valor_centavos_fora_do_int64_da_422_nos_modelos(v: int) -> None:
     assert SaidaItem(valor_centavos=-(2**63)).valor_centavos == -(2**63)
 
 
-def test_publicar_fato_e_saida_de_concluir_fora_do_int64_dao_erro_de_negocio_422() -> None:
-    uow = _Fake()
-    with pytest.raises(mf.ErroNegocio) as e:
-        mf.publicar_fato(
-            uow, "T1", "202609", "guia", "DAS", 2**63, {}, "api",  # type: ignore[arg-type]
-            "2026-09-01T00:00:00+00:00",
-        )
-    assert e.value.status == 422
-    with pytest.raises(mf.ErroNegocio) as e2:
-        mf._valor_opcional(2**63)
-    assert e2.value.status == 422
+def test_publicar_fato_com_valor_fora_do_int64_e_barrado_na_borda_com_422() -> None:
+    corpo = {"titular_id": "T1", "competencia": "202609", "tipo": "guia", "tributo": "DAS",
+             "valor_centavos": 2**63, "payload": {}, "fonte": "api",
+             "observado_em": "2026-09-01T10:00:00Z"}
+    r = TestClient(app).post("/fatos", json=corpo)
+    assert r.status_code == 422
+    assert r.json()["erro"] == "corpo_invalido"
 
 
-def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
+def test_handler_unico_traduz_valor_fora_do_intervalo_em_422() -> None:
+    resp = asyncio.run(
+        tratar_valor_fora_do_intervalo(None, ValorForaDoIntervalo("x fora do intervalo int64"))  # type: ignore[arg-type]
+    )
+    assert resp.status_code == 422
+    assert json.loads(bytes(resp.body)) == {
+        "erro": "valor_fora_do_intervalo", "mensagem": "x fora do intervalo int64",
+    }
+
+
+def test_handler_unico_de_negocio_cobre_conflito_de_concorrencia() -> None:
+    resp = asyncio.run(
+        tratar_erro_negocio(None, ConflitoConcorrencia("E1 não está mais em pronto"))  # type: ignore[arg-type]
+    )
+    assert resp.status_code == 409
+    assert json.loads(bytes(resp.body))["erro"] == "conflito_concorrencia"
+
+
+def test_conferencia_com_resultado_fora_do_int64_levanta_valor_fora_do_intervalo() -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [
         Fato(id="f1", titular_id="T1", competencia="202609", tipo="faturamento_mes",
@@ -364,9 +446,8 @@ def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
             saida=None, conferencias=[{"cf": "CF-08"}],
         )],
     )
-    with pytest.raises(mf.ErroNegocio) as e:
+    with pytest.raises(ValorForaDoIntervalo):
         mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
-    assert e.value.status == 422
 
 
 def _fv(tipo: str, tributo: str = "", valor: int | None = 100,
@@ -384,7 +465,7 @@ def test_cf04_aliquota_ausente_ou_invalida_vira_insumo_ausente_classe_s(ruim: ob
     payload: dict[str, object] = {} if ruim is None else {"aliquota_bp": ruim}
     uow.fatos_caso = [_fv("faturamento_mes"), _fv("aliquota_mes", payload=payload),
                       _fv("apurado", "DAS")]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-04")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-04", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
@@ -395,7 +476,7 @@ def test_cf04_aliquota_ausente_ou_invalida_vira_insumo_ausente_classe_s(ruim: ob
 def test_cf09_folha_incompleta_vira_insumo_ausente(payload: dict[str, object]) -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fv("folha", payload=payload), _fv("guia", "INSS"), _fv("guia", "FGTS")]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-09")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-09", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
@@ -407,7 +488,7 @@ def test_cf09_folha_incompleta_vira_insumo_ausente(payload: dict[str, object]) -
 def test_cf07_parcelas_invalidas_viram_insumo_ausente(payload: dict[str, object]) -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fv("apurado", "DAS"), _fv("divisao_socios", payload=payload)]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-07")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-07", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
@@ -418,7 +499,7 @@ def test_cf07_parcelas_validas_continuam_funcionando() -> None:
         _fv("divisao_socios", payload={"parcelas": [{"valor_centavos": 100},
                                                     {"valor_centavos": 200}]}),
     ]
-    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-07")  # type: ignore[arg-type]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-07", _REGRA)  # type: ignore[arg-type]
     assert resultado == "ok"
 
 
@@ -434,12 +515,6 @@ def test_valor_centavos_nao_inteiro_estrito_da_422(v: object) -> None:
         SaidaItem(valor_centavos=v)  # type: ignore[arg-type]
 
 
-def test_valor_opcional_rejeita_bool() -> None:
-    with pytest.raises(mf.ErroNegocio) as e:
-        mf._valor_opcional(True)
-    assert e.value.status == 422
-
-
 @pytest.mark.parametrize("payload", [{}, {"competencia_impressa": None},
                                      {"competencia_impressa": 202609}])
 def test_cf06_competencia_impressa_ausente_ou_nao_string_e_insumo_ausente(
@@ -447,15 +522,62 @@ def test_cf06_competencia_impressa_ausente_ou_nao_string_e_insumo_ausente(
 ) -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fv("guia", "DAS", payload=payload)]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "S")
 
 
 def test_cf06_competencia_diferente_segue_divergencia_comum() -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [_fv("guia", "DAS", payload={"competencia_impressa": "202608"})]
-    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06")  # type: ignore[arg-type]
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06", _REGRA)  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "D")
+
+
+# -- tributos lidos da regra pinada (e não fixos por regime no código) ---------------------------
+def test_cf05_usa_o_tributo_da_guia_declarado_na_regra() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    item = _item_e11()
+    # a regra pinada deste caso declara outro tributo para o SN: o motor segue a regra.
+    item.entradas = [{"tipo": "guia", "tributo": "SIMPLES", "quando": [{"regime": "SN"}]}]
+    regra = RegraEntregaveis(versao_id="rv-antiga", estado_minimo_padrao="validado", itens=[item])
+    uow.fatos_caso = [_fv("apurado", "SIMPLES", valor=500), _fv("guia", "SIMPLES", valor=500),
+                      _fv("apurado", "DAS", valor=1), _fv("guia", "DAS", valor=2)]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _e11(), "CF-05", regra)  # type: ignore[arg-type]
+    assert resultado == "ok"
+
+
+def test_cf07_usa_o_tributo_da_guia_do_item_de_entrega() -> None:
+    uow = _Fake(caso=_caso("LP"))
+    uow.fatos_caso = [
+        _fv("apurado", "IRPJ", valor=300),
+        _fv("divisao_socios", payload={"parcelas": [{"valor_centavos": 300}]}),
+    ]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
+    assert resultado == "ok"
+
+
+def test_regra_sem_a_entrada_exigida_vira_insumo_ausente_classe_s() -> None:
+    uow = _Fake(caso=_caso("SN"))
+    vazia = RegraEntregaveis(versao_id="rv-antiga", estado_minimo_padrao="validado", itens=[])
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-05", vazia)  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
+
+
+def test_reenvio_usa_o_tipo_do_gatilho_declarado_em_pos_validacao() -> None:
+    uow = _Fake(e11=_e11(), regra=_regra_e11())
+    assert uow.regra is not None
+    uow.regra.itens[0].pos_validacao = {
+        "liberacao": "automatica", "disponibilizado_quando": {"tipo": "protocolo_novo"},
+    }
+    uow.vigentes[("guia", "DAS")] = _fato("guia", "DAS")
+    mf._acompanhamento_pos_protocolo(  # type: ignore[arg-type]
+        uow, uow.caso, uow.regra, "documento_disponibilizado", "DAS", "nova_versao", True
+    )
+    assert uow.eventos == []  # o tipo antigo, fixo no código, deixou de valer
+    mf._acompanhamento_pos_protocolo(  # type: ignore[arg-type]
+        uow, uow.caso, uow.regra, "protocolo_novo", "DAS", "nova_versao", True
+    )
+    assert [n for n, _ in uow.eventos] == ["documento.disponibilizado"]
 
 
 def test_desfecho_automatico_da_conferencia_grava_sempre_o_ator_sistema() -> None:

@@ -21,15 +21,21 @@ Implementa o contrato comum (`contrato/openapi.yaml`) e a semântica normativa
 ```
 src/Motor.Dominio/        value objects e lógica pura: Competencia, Centavos/arred,
                           EstadoEntregavel, Condicao (quando), HashCanonico,
-                          EntradaHash, Classificacao, RegraEntregaveis. Sem I/O.
+                          EntradaHash, Classificacao, RegraEntregaveis (regra tipada),
+                          Prontidao (§7.2), CalculadoraConferencias (§9.1),
+                          ParametrosFiscais. Sem I/O.
 src/Motor.Aplicacao/      casos de uso (AbrirCompetencias, PublicarFato,
-                          ConcluirTarefa), AvaliarCaso (ponto fixo), Conferir,
-                          CalculadoraConferencias; interfaces de repositório (Portas.cs).
-src/Motor.Infraestrutura/ repositórios Npgsql/Dapper, unidade de trabalho (transação),
-                          leitura das regras em uso e dos catálogos.
+                          ConcluirTarefa, ConsultarCaso), AvaliarCaso (ponto fixo), Conferir,
+                          FiscalEmUso, Transicoes; portas por módulo em Portas/
+                          (Fechamento, Fatos, Conferencias, Trabalho, Eventos, Regras).
+src/Motor.Infraestrutura/ unidade de trabalho (transação) e um repositório Npgsql/Dapper por
+                          módulo, em pasta própria (Fechamento/, Fatos/, Conferencias/, Trabalho/,
+                          Eventos/, Regras/); cada pasta só lê as tabelas do seu esquema
+                          (verificado por ModulosTeste).
 src/Motor.Api/            Program.cs (rotas), validação de corpo (422), mapeamento de erro.
 tests/Motor.Testes.Unidade/     vetores obrigatórios dos requisitos (domínio puro).
-tests/Motor.Testes.Arquitetura/ NetArchTest: dependências entre camadas.
+tests/Motor.Testes.Arquitetura/ NetArchTest: dependências entre camadas; ModulosTeste:
+                                módulo não lê tabela de outro módulo.
 ```
 
 Dependências de projeto: Aplicacao → Dominio; Infraestrutura → Aplicacao, Dominio;

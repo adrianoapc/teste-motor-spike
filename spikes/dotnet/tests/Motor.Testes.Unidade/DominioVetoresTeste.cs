@@ -95,15 +95,14 @@ public class DominioVetoresTeste
     [Fact]
     public void Cf06_diferenca_com_control_char_gera_json_valido()
     {
-        var caso = new Caso(Guid.NewGuid(), "T001", Competencia.Analisar("202609"),
-            JsonDocument.Parse("{\"regime\":\"SN\"}").RootElement.Clone(), "cart", Guid.NewGuid(), "aberto", 1);
+        var ctx = new ContextoCalculo(Competencia.Analisar("202609"), default!,
+            Contexto.DeSnapshot(JsonDocument.Parse("{\"regime\":\"SN\"}").RootElement.Clone(), 3), "DAS", null);
         // guia[DAS] com competencia_impressa contendo \n (ex.: valor OCR mal formado)
         var guia = new FatoVigente(Guid.NewGuid(), "T001", Competencia.Analisar("202609"),
             "guia", "DAS", 1, 600000,
             JsonDocument.Parse("{\"competencia_impressa\":\"2026\\n09\"}").RootElement.Clone(),
             "hash");
-        var item = default(ItemEntregavel);
-        var calc = CalculadoraConferencias.Calcular("CF-06", caso, item!, new[] { guia }, 0);
+        var calc = CalculadoraConferencias.Calcular("CF-06", ctx, new[] { guia });
         Assert.NotNull(calc.Textual);
         Assert.False(calc.Textual!.Value.Igual);
         // o ponto do fix: a diferença é um JsonElement válido mesmo com o control char
@@ -142,7 +141,10 @@ public class DominioVetoresTeste
     public void OrdemDosEstados()
     {
         Assert.True(EstadoEntregavel.Validado.PeloMenos(EstadoEntregavel.Pronto));
-        Assert.True(EstadoEntregavel.Pago.PeloMenos(EstadoEntregavel.Pago));
+        // §4 (v3): 'pago' é aposentado, ordem nula, e nunca é >= a nada
+        Assert.False(EstadoEntregavel.Pago.PeloMenos(EstadoEntregavel.Pago));
+        Assert.False(EstadoEntregavel.Encerrado.PeloMenos(EstadoEntregavel.Pago));
+        Assert.Null(EstadoEntregavel.Pago.Ordem());
         Assert.False(EstadoEntregavel.Pronto.PeloMenos(EstadoEntregavel.Validado));
         // ordem nula nunca é >= a nada
         Assert.False(EstadoEntregavel.Divergente.PeloMenos(EstadoEntregavel.AguardandoInsumo));

@@ -70,3 +70,10 @@ registrar o resto aqui.
   `entrada_hash` muda (novas versões de fato), a idempotência (§9.2) não bloqueia: o
   C9 fica com `conferencias_total = 2` para a mesma CF-01 (`divergente:B`, depois
   `ok:B`), e o override gravado na primeira conferência permanece.
+
+## Refatoração de manutenção (PRs de camadas, testes e robustez)
+
+- **D17. Regra malformada falha alto.** `fiscal.tolerancia` sem `padrao.ok_ate_centavos`/`alerta_ate_centavos` inteiros (0 <= ok <= alerta) ou `fiscal.parametros` sem `prolabore_percentual_bp` inteiro (0..10000) lança `RegraInvalida`; a API responde 500 `{"erro":"regra_invalida","mensagem":...}` em vez de assumir tolerância 0/0 ou pró-labore 0%. O contrato não enumera códigos de 500; este é erro de configuração do servidor, não de entrada.
+- **D18. Tributo do recibo (CF-12) vem da regra.** O tributo exigido é o da entrada `recibo_obrigacao` do item cujo `quando` casa com o contexto do caso (SN: PGDAS-D, LP: DCTFWEB na regra v2). Item sem entrada aplicável é `RegraInvalida`.
+- **D19. `observado_em` das saídas de tarefa = `now()` do banco** (port `Relogio`/`RelogioDb`), não o relógio do PHP: dentro da transação é o instante de início dela.
+- **D20. Memória de leitura por requisição.** Regra (por id e a em uso), catálogo e dependências são lidos uma vez por requisição (repositórios `scoped`; dependências são descartadas em `gravar`). Nenhum estado sobrevive à requisição.

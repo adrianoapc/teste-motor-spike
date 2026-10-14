@@ -12,7 +12,7 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from motor.aplicacao.portas import ConflitoConcorrencia
+from motor.aplicacao.erros import ConflitoConcorrencia
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
@@ -31,6 +31,8 @@ class UnidadeDeTrabalhoSQL:
 
     def __init__(self, conn: Connection[dict[str, Any]]) -> None:
         self._conn = conn
+        # A regra pinada de uma versão é imutável: lê e monta uma vez por transação.
+        self._regras: dict[str, RegraEntregaveis] = {}
 
     def _um(self, sql: str, params: Sequence[object] = ()) -> dict[str, Any] | None:
         with self._conn.cursor() as cur:
@@ -70,14 +72,18 @@ class UnidadeDeTrabalhoSQL:
         return self._montar_regra_entregaveis(versao_id, conteudo)
 
     def regra_entregaveis_da_versao(self, versao_id: str) -> RegraEntregaveis:
-        row = self._um(
-            "SELECT id, conteudo FROM regras.regra_versao "
-            "WHERE id = %s AND regra_chave = 'fechamento.entregaveis'",
-            (versao_id,),
-        )
-        if row is None:
-            raise LookupError(f"versão de regra inexistente: {versao_id}")
-        return self._montar_regra_entregaveis(str(row["id"]), row["conteudo"])
+        regra = self._regras.get(versao_id)
+        if regra is None:
+            row = self._um(
+                "SELECT id, conteudo FROM regras.regra_versao "
+                "WHERE id = %s AND regra_chave = 'fechamento.entregaveis'",
+                (versao_id,),
+            )
+            if row is None:
+                raise LookupError(f"versão de regra inexistente: {versao_id}")
+            regra = self._montar_regra_entregaveis(str(row["id"]), row["conteudo"])
+            self._regras[versao_id] = regra
+        return regra
 
     @staticmethod
     def _montar_regra_entregaveis(
@@ -348,13 +354,14 @@ class UnidadeDeTrabalhoSQL:
             (entregavel_id, depende_de_id, estado_minimo),
         )
 
-    def dependencias_do_entregavel(self, entregavel_id: str) -> list[tuple[str, str]]:
+    def dependencias_com_estado(self, entregavel_id: str) -> list[tuple[str, str]]:
         rows = self._todos(
-            "SELECT depende_de_id, estado_minimo FROM fechamento.entregavel_dependencia "
-            "WHERE entregavel_id = %s",
+            "SELECT a.estado, d.estado_minimo FROM fechamento.entregavel_dependencia d "
+            "JOIN fechamento.entregavel a ON a.id = d.depende_de_id "
+            "WHERE d.entregavel_id = %s",
             (entregavel_id,),
         )
-        return [(str(r["depende_de_id"]), str(r["estado_minimo"])) for r in rows]
+        return [(str(r["estado"]), str(r["estado_minimo"])) for r in rows]
 
     def ligar_fato(self, entregavel_id: str, fato_id: str, papel: str) -> None:
         self._exec(
@@ -527,14 +534,6 @@ class UnidadeDeTrabalhoSQL:
         assert row is not None
         return str(row["id"])
 
-    def tarefa_aberta_do_entregavel(self, entregavel_id: str) -> str | None:
-        row = self._um(
-            "SELECT id FROM trabalho.tarefa_humana "
-            "WHERE entregavel_id = %s AND estado = 'aberta' ORDER BY criada_em LIMIT 1",
-            (entregavel_id,),
-        )
-        return str(row["id"]) if row else None
-
     def concluir_tarefa_aberta(self, entregavel_id: str) -> str | None:
         row = self._um(
             "UPDATE trabalho.tarefa_humana "
@@ -641,14 +640,6 @@ class UnidadeDeTrabalhoSQL:
             (caso_id, depende_de_id),
         )
         return [self._entregavel(r) for r in rows]
-
-    def saiu_de_divergente_tem_excecao_cf(self, entregavel_id: str) -> bool:
-        row = self._um(
-            "SELECT 1 FROM trabalho.excecao "
-            "WHERE entregavel_id = %s AND estado = 'aberta' AND tipo LIKE 'CF-%%' LIMIT 1",
-            (entregavel_id,),
-        )
-        return row is not None
 
     # -- override (§8.1) ------------------------------------------------------
     def conferencia_vigente(self, cf: str, entregavel_id: str) -> dict[str, Any] | None:

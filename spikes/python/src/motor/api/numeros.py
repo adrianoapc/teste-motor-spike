@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import Request, Response
 from fastapi.routing import APIRoute
 
-from motor.api.erros import invalido
+from motor.aplicacao.erros import invalido
 from motor.dominio.dinheiro import INT64_MAX, INT64_MIN
 
 PROFUNDIDADE_MAXIMA_PAYLOAD = 64

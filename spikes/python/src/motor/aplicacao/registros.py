@@ -1,6 +1,7 @@
 """Registros simples que o motor manipula (sem pydantic, sem driver)."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 
@@ -74,6 +75,24 @@ class RegraEntregaveis:
                 for dep in it.depende_de:
                     mapa.setdefault(str(dep["tipo"]), set()).add(it.tipo)
             self.dependentes = {k: frozenset(v) for k, v in mapa.items()}
+
+    @property
+    def item_de_entrega(self) -> ItemEntregavel | None:
+        """O item que o §10 chama de entrega ao cliente: o que declara `pos_validacao` ou
+        `acompanhamento` na regra (no spike, o E11). Evita fixar o tipo no código."""
+        for it in self.itens:
+            if it.pos_validacao is not None or it.acompanhamento is not None:
+                return it
+        return None
+
+
+@dataclass(slots=True)
+class SaidaTarefa:
+    """Uma saída informada ao concluir a tarefa de um entregável (§8 item 4)."""
+
+    tributo: str
+    valor_centavos: int | None
+    payload: Mapping[str, object]
 
 
 @dataclass(slots=True)

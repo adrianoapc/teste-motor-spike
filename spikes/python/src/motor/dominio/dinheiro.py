@@ -5,10 +5,6 @@ desempate "meio para o par" (banker's rounding), só com inteiros (§9.1).
 """
 from __future__ import annotations
 
-from typing import NewType
-
-Centavos = NewType("Centavos", int)
-
 INT64_MIN = -(2**63)
 INT64_MAX = 2**63 - 1
 
