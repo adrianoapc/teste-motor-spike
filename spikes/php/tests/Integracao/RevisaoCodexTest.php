@@ -7,6 +7,7 @@ namespace Tests\Integracao;
 use App\Aplicacao\Conferencias\Conferidor;
 use App\Aplicacao\Conferencias\FatosDoCaso;
 use App\Aplicacao\Conferencias\Formulas;
+use App\Aplicacao\Conferencias\ParametrosDeConferencia;
 use App\Aplicacao\Fechamento\Transicionador;
 use App\Aplicacao\Portas\DivergenciaBloqueante;
 use App\Aplicacao\Portas\RepositorioCaso;
@@ -629,7 +630,7 @@ final class RevisaoCodexTest extends TestCase
         $this->assertNotNull($caso0);
         $regras = $this->app->make(RepositorioRegras::class);
         $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, new ParametrosDeConferencia($formulas, $regras->toleranciaEmUso(), 'DAS'));
 
         $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
         $this->assertSame('ok', $linha['resultado']);
@@ -650,7 +651,7 @@ final class RevisaoCodexTest extends TestCase
         $this->assertNotNull($caso0);
         $regras = $this->app->make(RepositorioRegras::class);
         $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
-        $conferidor->conferir($caso0, $e01, $item, $vazio, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+        $conferidor->conferir($caso0, $e01, $item, $vazio, new ParametrosDeConferencia($formulas, $regras->toleranciaEmUso(), 'DAS'));
 
         $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
         $this->assertSame('divergente', $linha['resultado']);
@@ -687,8 +688,9 @@ final class RevisaoCodexTest extends TestCase
             [$caso['id'], $e01->id, $tolerancia->versaoId, json_encode($usados, JSON_THROW_ON_ERROR), $hashLegado],
         );
 
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS');
-        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS'); // idempotente com semantica 2
+        $parametros = new ParametrosDeConferencia($formulas, $tolerancia, 'DAS');
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $parametros);
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $parametros); // idempotente com semantica 2
 
         $linhas = array_map(
             static fn (mixed $l): array => (array) $l,

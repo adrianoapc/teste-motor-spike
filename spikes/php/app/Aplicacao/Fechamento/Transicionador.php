@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Aplicacao\Fechamento;
 
+use App\Aplicacao\Portas\RepositorioCatalogo;
 use App\Aplicacao\Portas\RepositorioEntregavel;
+use App\Aplicacao\Portas\RepositorioEvento;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
@@ -16,9 +18,15 @@ use App\Dominio\Fechamento\EstadoEntregavel;
  */
 final readonly class Transicionador
 {
-    public function __construct(private RepositorioEntregavel $entregaveis) {}
+    public function __construct(
+        private RepositorioEntregavel $entregaveis,
+        private RepositorioCatalogo $catalogo,
+        private RepositorioEvento $eventos,
+    ) {}
 
     /**
+     * Devolve o entregável no estado novo (estado e version já atualizados), sem reler o banco.
+     *
      * @param  'fato'|'conferencia'|'tarefa'|'comando'|'dependencia'|null  $causadoPorTipo
      */
     public function transicionar(
@@ -29,7 +37,7 @@ final readonly class Transicionador
         string $regraVersaoId,
         ?string $causadoPorTipo = null,
         ?string $causadoPorId = null,
-    ): void {
+    ): Entregavel {
         if (! $this->entregaveis->salvarEstado($entregavel->id, $entregavel->estado, $para)) {
             throw ErroDeNegocio::conflito('estado_concorrente', 'entregável mudou de estado concorrentemente');
         }
@@ -37,6 +45,32 @@ final readonly class Transicionador
         $this->entregaveis->registrarTransicao(
             $entregavel, $entregavel->estado, $para, $motivo, $causadoPorTipo, $causadoPorId, $ator, $regraVersaoId,
         );
+
+        return $entregavel->com($para);
+    }
+
+    /**
+     * Transição para `validado` + evento publicado do tipo do entregável (catálogo), se houver.
+     * Único caminho para validar: conferências ok (§9.3) e override (§8.1).
+     *
+     * @param  'conferencia'  $causadoPorTipo
+     */
+    public function validar(
+        Entregavel $entregavel,
+        string $motivo,
+        string $ator,
+        string $regraVersaoId,
+        string $causadoPorTipo,
+        ?string $causadoPorId,
+    ): Entregavel {
+        $validado = $this->transicionar($entregavel, EstadoEntregavel::Validado, $motivo, $ator, $regraVersaoId, $causadoPorTipo, $causadoPorId);
+
+        $evento = $this->catalogo->entregavelTipo($entregavel->tipo)->eventoPublicado;
+        if ($evento !== null) {
+            $this->eventos->gravar($evento, $entregavel->casoId, $entregavel->id, ['entregavel_id' => $entregavel->id]);
+        }
+
+        return $validado;
     }
 
     /**

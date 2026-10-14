@@ -33,6 +33,13 @@ interface RepositorioEntregavel
     public function porId(string $entregavelId): ?Entregavel;
 
     /**
+     * Como porId, para quem acabou de usar o id: a ausência é falha de integridade, não resultado.
+     *
+     * @throws \RuntimeException se não existir
+     */
+    public function obter(string $entregavelId): Entregavel;
+
+    /**
      * Grava o novo estado (estado, estado_desde = instante da transição, version+1) só se
      * o estado atual ainda for $esperado. Devolve false se outra transação já o mudou.
      */
