@@ -78,17 +78,38 @@ SDK .NET 10.0; Docker Desktop, 10 CPUs, 7,75 GiB; Postgres próprio para esta sp
 - Verificador **10/10** em 3 execuções completas (77, 80 e 72 s), sem `AdminShutdown`. O erro da rodada 2 não reapareceu em 6 execuções contra Postgres dedicado; **a causa continua desconhecida** (dica fraca: Postgres sem outros bancos concorrentes).
 - Migração V007 aplicada; um INSERT real grava `semantica_calculo=2`.
 
-## C6, 3 execuções
+
+## Tempo de parede do C6: ordem de grandeza, não comparação
+O tempo de parede do C6 só é comparável **dentro da mesma sessão e do mesmo ambiente** (mesma máquina, mesma carga, mesmo modo de montagem do Docker). Não é comparável entre agentes, sessões ou linguagens, e as medições abaixo **não permitem concluir que um spike é mais lento que outro**. Protocolo para a próxima rodada: seção "Protocolo recomendado para o comparativo" do README raiz.
+
+## C6, medições conhecidas do .NET
 | Execução | Abertura de 4.500 casos | p95 das 300 publicações |
 |---|---|---|
-| 1 | 67,07 s | 0,075 s |
-| 2 | 73,49 s | 0,044 s |
-| 3 | 67,90 s | 0,035 s |
+| 14/10, execução 1 | 67,07 s | 0,075 s |
+| 14/10, execução 2 | 73,49 s | 0,044 s |
+| 14/10, execução 3 | 67,90 s | 0,035 s |
 
 0 erros; 336 checagens; I5 0,176-0,197 s.
 
-- A seção de escala acima registra 76,4 s e p95 0,064 s. A diferença (4-12% mais rápido) **NÃO é distinguível de ruído**: hardware e carga distintos, sem A/B controlado.
+- A seção de escala acima registra 76,4 s e p95 0,064 s (sessão anterior). A diferença para 14/10 **NÃO é distinguível de ruído**: ambiente e carga distintos, sem A/B controlado. Não se conclui nada sobre ser mais lento ou mais rápido que outro spike.
 - O spike pina 1 core (101-113% CPU, 70-80 MiB). **NÃO PROVADO (hipótese):** 1 core limita a abertura.
+
+## SQLs por operação (antes e depois da refatoração de manutenção)
+Métrica confiável: contagem de SQLs por operação com `log_statement=all`, **incluindo `BEGIN`/`COMMIT`**. **Os cenários de medição diferem entre os spikes; por isso as tabelas dos três spikes NÃO são comparáveis linha a linha.**
+
+.NET, cenário: 1 empresa SN com folha.
+
+| Operação | Antes | Depois |
+|---|---|---|
+| Abrir 1 caso | 112 | 80 |
+| Fato de E01 sem pronto | 35 | 20 |
+| Fato que deixa E01 pronto e conferido | 91 | 40 |
+| Fato de alíquota | 82 | 34 |
+| Fato repetido | 6 | 6 |
+| Nova versão de fato | 103 | 55 |
+
+## Contagem de testes atual (main)
+**234** testes (224 unidade + 10 arquitetura); antes, 195 (192 + 3) em `998cad0`. O texto "27 unitários" mais acima é histórico.
 
 ## Limitação do teste de drift da fixture
 O teste só compara de fato se `contrato/` estiver visível a partir do diretório de saída dos testes (ele sobe a partir de `AppContext.BaseDirectory`). Se só `spikes/dotnet` for montado, ou dentro do build do Dockerfile (que copia só `src`), o teste **passa SEM comparar**.

@@ -118,8 +118,35 @@ PHP 8.4.26, FrankenPHP v1.13.1, Caddy v2.11.7; Docker Desktop, 10 CPUs, 7,75 GiB
 - Laravel Pint **falhava** em `bootstrap/app.php`. **Pendência em andamento** (não resolvida neste PR): será corrigida em outro PR, `fix/php-cf12-pint`.
 - Verificador **10/10**.
 
-## C6
-Abertura de 4.500 casos: **86,03 s**; p95 das 300 publicações **0,102 s**; 0 erros.
+
+## Tempo de parede do C6: ordem de grandeza, não comparação
+O tempo de parede do C6 só é comparável **dentro da mesma sessão e do mesmo ambiente** (mesma máquina, mesma carga, mesmo modo de montagem do Docker). Não é comparável entre agentes, sessões ou linguagens, e as medições abaixo **não permitem concluir que um spike é mais lento que outro**. Protocolo para a próxima rodada: seção "Protocolo recomendado para o comparativo" do README raiz.
+
+## C6, medições conhecidas do PHP
+| Medição | Abertura de 4.500 casos | p95 das 300 publicações | Contexto |
+|---|---|---|---|
+| 12/10, fase 3 (histórico acima) | 82,9 s | 0,099 s | só o spike PHP no ar |
+| 14/10 | 86,03 s | 0,102 s | Docker Desktop, carga média 2,75–4,1; 0 erros |
+
+Sem conclusão de que um spike seja mais lento que outro.
+
+## SQLs por operação (antes e depois da refatoração de manutenção)
+Métrica confiável: contagem de SQLs por operação com `log_statement=all`, **incluindo `BEGIN`/`COMMIT`**. **Os cenários de medição diferem entre os spikes; por isso as tabelas dos três spikes NÃO são comparáveis linha a linha.**
+
+PHP, cenário: 20 casos abertos numa requisição.
+
+| Medida | Antes | Depois |
+|---|---|---|
+| SQLs por caso | 104,0 | 80,7 |
+| Leituras de `regra_versao` | 100 | 3 |
+| Leituras de `entregavel_tipo` | 200 | 10 |
+| Leituras de `entregavel_dependencia` | 380 | 200 |
+| Fluxo SN completo por HTTP (9 requisições), SQLs | 536 | 490 |
+
+Linhas em `app/`: 4.894 -> 5.429 (+535, +11%). Testes unitários: 477 -> 2.564 linhas; casos de teste: 193 -> 308.
+
+## Contagem de testes atual (main)
+Pest **308**; os 65 acima eram de 14/10 em `998cad0`.
 
 ## Pior caso contratual
 `POST /competencias/abrir` com 10.000 empresas válidas em **uma** requisição: HTTP 200 em **245,1 s**, 10.000 criados, 100.007 entregáveis, ~24,5 ms/empresa. Sem estourar `max_execution_time=900` nem `memory_limit=1024M`. Pico do contêiner 202,7 MiB e 104% CPU; pico do Postgres 151,7 MiB.

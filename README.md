@@ -86,6 +86,22 @@ O harness de cada spike é um **teste unitário/de integração da própria spik
 
 `contrato/vetores-entrada-hash.json` traz vetores do `entrada_hash` da conferência (semântica §9.2, incluindo `semantica_calculo`). Formato: objeto `{"descricao": texto, "vetores": [...]}`; cada vetor tem `nome`, `cf` (texto), `fatos_usados_entrada` (lista `[{"fato_id": uuid, "versao": int}]`, possivelmente fora de ordem), `regra_versao_id` (uuid), `semantica_calculo` (inteiro >= 1), `canonico` e `sha256`. Para cada vetor, o spike ordena `fatos_usados_entrada` por `fato_id` (texto, code point), monta o JSON canônico `{"cf","fatos_usados","regra_versao_id"}` (chaves por code point, sem espaços, UTF-8 cru), acrescenta `"semantica_calculo":N` como última chave **somente se N > 1**, e o JSON e o SHA-256 (hex minúsculo do UTF-8) precisam ser idênticos a `canonico` e `sha256`. Os valores foram calculados em Python e conferidos contra `EntradaHash.Calcular` do .NET (9/9). Este arquivo é separado de `contrato/vetores-hash.json`.
 
+## Protocolo recomendado para o comparativo
+
+Tempos de parede do C6 variaram de 17,6 s a 328 s com o **mesmo** código em sessões e ambientes diferentes; não servem para comparar spikes. Para a próxima rodada (nada é executado agora):
+
+1. **Máquina quieta**, sem outros contêineres ou spikes no ar, e a mesma máquina para as três linguagens.
+2. **Mesmo modo de montagem do Docker**: imagem com o código embutido, **sem bind mount**.
+3. **N >= 3 execuções** de cada medição; reportar **mediana e dispersão** (mínimo e máximo), nunca uma execução só.
+4. **SQLs por operação** como métrica principal: `log_statement=all` no Postgres, contando todas as instruções, **incluindo `BEGIN`/`COMMIT`**.
+5. **Conjunto fixo de operações, idêntico nas três linguagens**, sobre o mesmo cenário (1 empresa SN com folha):
+   - abrir 1 caso SN com folha;
+   - fato que não afeta nada;
+   - fato que leva o E01 a validado;
+   - fato repetido (mesmo conteúdo);
+   - nova versão de um fato existente.
+6. Registrar junto: commit, versões das imagens, CPUs/memória do Docker e carga média da máquina.
+
 ## Dados
 
 - Os cenários usam **pseudônimos** (`T001`, `T002`) e valores inventados.
