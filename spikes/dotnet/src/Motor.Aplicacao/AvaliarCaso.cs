@@ -25,7 +25,7 @@ public sealed class AvaliarCaso
         _conferir = conferir;
     }
 
-    public async Task ExecutarAsync(Caso caso, DateTimeOffset agora)
+    public async Task ExecutarAsync(Caso caso)
     {
         var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
 
@@ -47,34 +47,34 @@ public sealed class AvaliarCaso
                     {
                         foreach (var fato in entradas)
                             await _r.Entregaveis.LigarFatoAsync(e.Id, fato.Id, "entrada");
-                        await Transicionar(caso, e, EstadoEntregavel.Pronto, "prontidao", "comando", null, "sistema", agora);
+                        await Transicionar(caso, e, EstadoEntregavel.Pronto, "prontidao");
                         if (item.Executor == "humano")
                             await _r.Tarefas.CriarAsync(caso.Id, e.Id, "executar_entregavel", caso.Carteira);
                         mudou = true;
                     }
                     else if (e.Estado == EstadoEntregavel.Invalidado)
                     {
-                        await Transicionar(caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao", "comando", null, "sistema", agora);
+                        await Transicionar(caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao");
                         mudou = true;
                     }
                 }
                 else if (e.Estado == EstadoEntregavel.Pronto && item.Executor == "sistema")
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Processado, "processamento_sistema", "comando", null, "sistema", agora);
-                    await ConferirEDesfecharAsync(caso, e, item, ctx, agora);
+                    await Transicionar(caso, e, EstadoEntregavel.Processado, "processamento_sistema");
+                    _estados[e.Id] = await _conferir.ConferirEDesfecharAsync(caso, e, item, ctx);
                     mudou = true;
                 }
                 else if (e.Estado == EstadoEntregavel.Validado && item.EncerraCaso)
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Encerrado, "encerramento", "comando", null, "sistema", agora);
-                    await _r.Casos.EncerrarAsync(caso.Id, agora);
+                    await Transicionar(caso, e, EstadoEntregavel.Encerrado, "encerramento");
+                    await _r.Casos.EncerrarAsync(caso.Id);
                     await _r.Eventos.GravarComIdAsync("fechamento.concluido", caso.Id, null, "caso_id", caso.Id);
                     mudou = true;
                     break; // caso encerrado; nada mais a avaliar
                 }
                 else if (e.Estado == EstadoEntregavel.Validado && item.PosValidacao is { LiberacaoAutomatica: true })
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Liberado, "liberacao_automatica", "comando", null, "sistema", agora);
+                    await Transicionar(caso, e, EstadoEntregavel.Liberado, "liberacao_automatica");
                     mudou = true;
                 }
                 else if (e.Estado == EstadoEntregavel.Liberado && item.PosValidacao is { } pos)
@@ -84,7 +84,7 @@ public sealed class AvaliarCaso
                     if (await ProtocoloDisponivelAsync(caso, pos, ctx))
                     {
                         var guia = await GuiaDeEntradaAsync(caso, ctx);
-                        await Transicionar(caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato", null, "sistema", agora);
+                        await Transicionar(caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato");
                         if (guia is not null)
                             await _r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e.Id,
                                 "entregavel_id", e.Id, "fato_id", guia.Id);
@@ -95,30 +95,6 @@ public sealed class AvaliarCaso
                 }
             }
         } while (mudou);
-    }
-
-    private async Task ConferirEDesfecharAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx, DateTimeOffset agora)
-    {
-        // recarrega o entregável no estado processado (version mudou)
-        var atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? e;
-        var ok = await _conferir.ExecutarAsync(caso, atual, item, ctx, agora);
-        atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? atual;
-        if (ok)
-        {
-            await Transicionar(caso, atual, EstadoEntregavel.Validado, "conferencias_ok", "comando", null, "sistema", agora);
-            await PublicarEventoDoTipoAsync(caso, atual);
-        }
-        else
-        {
-            await Transicionar(caso, atual, EstadoEntregavel.Divergente, "conferencia_divergente", "conferencia", null, "sistema", agora);
-        }
-    }
-
-    private async Task PublicarEventoDoTipoAsync(Caso caso, Entregavel e)
-    {
-        var cat = await _r.Catalogo.EntregavelTipoAsync(e.Tipo);
-        if (cat?.EventoPublicado is { } nome)
-            await _r.Eventos.GravarComIdAsync(nome, caso.Id, e.Id, "entregavel_id", e.Id);
     }
 
     /// <summary>Existe o fato <c>disponibilizado_quando</c> (tipo da regra) com o tributo da guia de entrada?</summary>
@@ -158,11 +134,10 @@ public sealed class AvaliarCaso
         return Prontidao.Satisfeita(dependencias, presentes) ? fatos : null;
     }
 
-    private async Task Transicionar(Caso caso, Entregavel e, EstadoEntregavel para, string motivo,
-        string? causadoPorTipo, string? causadoPorId, string ator, DateTimeOffset agora)
+    /// <summary>Transição única (Transicoes) mantendo em sincronia o estado em memória da volta.</summary>
+    private async Task Transicionar(Caso caso, Entregavel e, EstadoEntregavel para, string motivo, string? causadoPorTipo = "comando")
     {
-        await _r.Entregaveis.TransicionarAsync(e, new NovaTransicao(
-            e.Id, caso.Id, e.Estado, para, motivo, causadoPorTipo, causadoPorId, ator, caso.RegraVersaoId), agora);
+        await Transicoes.TransicionarAsync(_r, caso, e, para, motivo, causadoPorTipo);
         _estados[e.Id] = para;
     }
 }
