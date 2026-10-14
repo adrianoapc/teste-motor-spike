@@ -1,0 +1,18 @@
+{
+	frankenphp
+	# Sem modo worker: cada requisição sobe o PHP do zero (Requisito 1.4).
+	auto_https off
+}
+
+:8080 {
+	root * /app/public
+	encode zstd gzip
+
+	# Log de acesso em JSON, uma linha por requisição, para stdout (Requisito 1.5).
+	log {
+		output stdout
+		format json
+	}
+
+	php_server
+}
