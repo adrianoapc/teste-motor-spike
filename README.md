@@ -76,6 +76,12 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 3. Fazer cada uma em sessão separada, sem uma ler a pasta de outra.
 4. Ao fim de cada tarefa com verificador, guardar o `--relatorio`.
 
+## Vetores do hash
+
+`contrato/vetores-hash.json` traz vetores compartilhados do hash do fato (semântica §6): ordem das chaves por code point, escapes mínimos, `payload` só com inteiros int64, sem chave duplicada, até 64 níveis. **As três spikes (`spikes/dotnet`, `spikes/python`, `spikes/php`) devem passar nos vetores.**
+
+O harness de cada spike é um **teste unitário/de integração da própria spike** que lê `contrato/vetores-hash.json` (não é o verificador HTTP). Para cada vetor `aceito`, o JSON canônico e o SHA-256 calculados a partir de `payload` (texto JSON bruto) e `valor_centavos` precisam ser idênticos a `canonico` e `sha256`. Para cada `rejeitado`, a API (ou a camada de validação do corpo) responde 422 `corpo_invalido`; o corpo é montado com um envelope válido (`titular_id`, `competencia`, `tipo`, `fonte`, `observado_em`) mais o `payload` bruto e, quando existir, `valor_centavos_bruto` como texto JSON do campo `valor_centavos`. Em vetores com `campos_texto` (objeto `{campo: string}`, ex. `{"tipo": "a\u0000b"}`), cada valor já vem decodificado do arquivo e substitui o campo de mesmo nome do envelope (`tipo`, `tributo`, `fonte`, `titular_id`...); o resultado esperado é 422 `corpo_invalido` (U+0000 não é aceito em campo de texto). Os vetores de NUL valem só para o corpo da requisição, não para parâmetros de caminho (nestes, 422 da aplicação ou 400 do servidor web são conformes; o .NET só exercita o corpo). Em vetores com `campos_omitidos`, esses campos não devem constar do corpo.
+
 ## Dados
 
 - Os cenários usam **pseudônimos** (`T001`, `T002`) e valores inventados.

@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Motor do fechamento — contrato comum do spike
-  version: "1.1.0"
+  version: "1.2.0"
   description: |
-    Contrato que as DUAS spikes (.NET 10 e Python) implementam exatamente igual.
+    Contrato que as TRES spikes (.NET 10, Python e PHP) implementam exatamente igual.
     Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
     Nenhuma rota extra é exigida; rotas extras não são usadas pelo verificador.
     Sem autenticação no spike.
@@ -12,6 +12,8 @@ servers:
     description: spike .NET
   - url: http://localhost:8082
     description: spike Python
+  - url: http://localhost:8083
+    description: spike PHP
 
 paths:
   /health:
@@ -47,6 +49,11 @@ paths:
   /fatos:
     post:
       summary: PublicarFato (semântica §6)
+      description: |
+        422 corpo_invalido também quando o payload tem número que não seja inteiro int64 (fração,
+        expoente, -0, fora da faixa), chave duplicada, substituto Unicode isolado ou mais de 64
+        níveis; valor_centavos só aceita inteiro int64 ou null. O corpo é validado por inteiro
+        antes de qualquer gravação.
       requestBody:
         required: true
         content:
@@ -77,6 +84,10 @@ paths:
   /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir:
     post:
       summary: ConcluirTarefa de entregável humano (semântica §8)
+      description: |
+        A forma do corpo (inclusive as regras de payload do §6 em TODAS as saídas) é validada antes
+        de qualquer consulta ou gravação: 422 corpo_invalido sem efeito parcial. Depois: 404, 409 e
+        422 por entregável sem saída na regra.
       parameters:
         - $ref: "#/components/parameters/TitularId"
         - $ref: "#/components/parameters/Competencia"
@@ -166,12 +177,29 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
     Invalido:
-      description: Corpo inválido
+      description: |
+        Corpo inválido (erro = corpo_invalido): JSON malformado, campo ausente ou de tipo errado etc.
+        Em POST /fatos e /concluir, também: número do payload (ou valor_centavos) que não seja inteiro
+        int64, chave duplicada, substituto Unicode isolado, U+0000 em qualquer string ou chave (também em
+        campos de texto do corpo) ou profundidade acima de 64 (semântica §6).
+        U+0000 em parâmetro de caminho é rejeitado com este 422 ou com 400 do servidor web (ambos conformes).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
 
   schemas:
+    ValorJson:
+      description: "Valor JSON do payload: número só como inteiro int64 (semântica §6)."
+      nullable: true
+      oneOf:
+        - { type: integer, format: int64 }
+        - { type: string }
+        - { type: boolean }
+        - type: array
+          items: { $ref: "#/components/schemas/ValorJson" }
+        - type: object
+          additionalProperties: { $ref: "#/components/schemas/ValorJson" }
+
     Erro:
       type: object
       required: [erro, mensagem]
@@ -237,7 +265,11 @@ components:
         tipo: { type: string, minLength: 1 }
         tributo: { type: string, default: "" }
         valor_centavos: { type: integer, format: int64, nullable: true }
-        payload: { type: object, default: {} }
+        payload:
+          type: object
+          default: {}
+          additionalProperties: { $ref: "#/components/schemas/ValorJson" }
+          description: "Objeto livre cujos números são só inteiros int64 (sem fração, expoente ou -0), sem chave duplicada, até 64 níveis; caso contrário 422 corpo_invalido. Ver semântica §6."
         fonte: { type: string, minLength: 1 }
         origem_ref: { type: string, nullable: true }
         observado_em: { type: string, format: date-time }
@@ -265,7 +297,11 @@ components:
             properties:
               tributo: { type: string, default: "" }
               valor_centavos: { type: integer, format: int64, nullable: true }
-              payload: { type: object, default: {} }
+              payload:
+                type: object
+                default: {}
+                additionalProperties: { $ref: "#/components/schemas/ValorJson" }
+                description: "Objeto livre cujos números são só inteiros int64 (sem fração, expoente ou -0), sem chave duplicada, até 64 níveis; caso contrário 422 corpo_invalido. Ver semântica §6."
 
     OverrideRequest:
       type: object
