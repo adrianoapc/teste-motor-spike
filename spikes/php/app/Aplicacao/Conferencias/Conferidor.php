@@ -85,7 +85,7 @@ final readonly class Conferidor
         ResultadoFormula $r,
         Tolerancia $tolerancia,
     ): void {
-        $entradaHash = HashConferencia::entradaHash($cf, $r->fatosUsados, $tolerancia->versaoId);
+        $entradaHash = HashConferencia::entradaHash($cf, $r->fatosUsados, $tolerancia->versaoId, HashConferencia::SEMANTICA_CALCULO);
 
         // Fato ausente → divergente, classe S (§9.2).
         if ($r->fatoAusente !== null) {
