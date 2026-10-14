@@ -97,7 +97,7 @@ final readonly class Conferidor
             return;
         }
 
-        // CF-06 e CF-12: comparação de texto / existência.
+        // CF-06 (texto) e CF-12 (existência): sem valores em centavos (esperado/obtido NULL).
         if ($r->comparacaoTexto) {
             $resultado = $r->textoIgual ? 'ok' : 'divergente';
             $this->conferencias->gravarSeNova(
