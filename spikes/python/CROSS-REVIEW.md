@@ -83,7 +83,7 @@ Medidas em `spikes/python/METRICAS.md` (seções Fase 1/2/3 + Manutenção); dec
 
 2. **Fronteiras de camada.** `dominio` não depende de nada além da stdlib; `aplicacao`
    não depende de `api` nem de driver concreto (psycopg). Há teste de arquitetura
-   (`tests/unidade/test_arquitetura.py`, via import-linter) — confira se nenhum vazamento
+   (`tests/unidade/test_arquitetura.py`, que roda `lint-imports`; nota: antes do PR `fix/python-importlinter` esse teste não executava nada, ver DUVIDAS D14) — confira se nenhum vazamento
    passou (ex.: `import psycopg` em `aplicacao`).
 
 3. **Dinheiro inteiro em centavos** em todo caminho; nenhum `float`. `valor_centavos` é
@@ -99,7 +99,7 @@ Medidas em `spikes/python/METRICAS.md` (seções Fase 1/2/3 + Manutenção); dec
 
 6. **mypy `--strict src` sem `# type: ignore` em `src/`** (os testes têm `# type: ignore`
    pontuais para injetar fakes; mypy não roda neles) e `ruff` limpo. O contrato de camadas é
-   verificado por `tests/unidade/test_arquitetura.py` (`python -m importlinter.cli lint`). Os erros que o mypy barrou antes de teste estão em `REGISTRO-COMPILADOR.md`.
+   verificado por `tests/unidade/test_arquitetura.py` (`lint-imports`; até o PR `fix/python-importlinter` o teste chamava `python -m importlinter.cli lint`, que não analisa nada, ver DUVIDAS D14). Os erros que o mypy barrou antes de teste estão em `REGISTRO-COMPILADOR.md`.
 
 ## Decisões que valem contestar (estão em DUVIDAS.md)
 

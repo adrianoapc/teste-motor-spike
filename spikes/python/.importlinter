@@ -1,5 +1,6 @@
 [importlinter]
 root_package = motor
+include_external_packages = True
 
 [importlinter:contract:camadas]
 name = Camadas limpas (dominio < aplicacao < infraestrutura < api)
