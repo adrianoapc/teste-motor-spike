@@ -320,6 +320,44 @@
       "esperado": "rejeitado"
     },
     {
+      "nome": "REJ NUL escapado em valor de string",
+      "observacao": "U+0000 rejeitado: jsonb do PostgreSQL nao armazena U+0000.",
+      "payload": "{\"s\":\"a\\u0000b\"}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL escapado em chave",
+      "payload": "{\"a\\u0000b\":1}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL aninhado em array e objeto",
+      "payload": "{\"l\":[{\"k\":[\"x\",\"\\u0000\"]}]}",
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL em campo de texto tipo",
+      "observacao": "Envelope valido, mas o campo de texto tipo contem U+0000 (o valor em campos_texto ja vem decodificado do arquivo).",
+      "payload": "{}",
+      "campos_texto": {
+        "tipo": "a\u0000b"
+      },
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
+      "nome": "REJ NUL em campo de texto tributo",
+      "payload": "{}",
+      "campos_texto": {
+        "tributo": "\u0000"
+      },
+      "valor_centavos": null,
+      "esperado": "rejeitado"
+    },
+    {
       "nome": "REJ valor_centavos 1.0",
       "payload": "{}",
       "valor_centavos_bruto": "1.0",
