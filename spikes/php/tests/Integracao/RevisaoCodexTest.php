@@ -176,7 +176,7 @@ final class RevisaoCodexTest extends TestCase
         $this->postJson('/casos/T/'.self::COMP.'/entregaveis/E01/concluir', [
             'ator' => 'x',
             'saidas' => [['tributo' => 'DAS', 'valor_centavos' => $valor, 'payload' => new \stdClass]],
-        ])->assertStatus(422)->assertJsonPath('erro', 'valor_nao_inteiro');
+        ])->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
     }
 
     public function test_concluir_aceita_valor_centavos_nulo_na_validacao_de_forma(): void
@@ -193,7 +193,7 @@ final class RevisaoCodexTest extends TestCase
         $this->postJson('/fatos', [
             'titular_id' => 'TCX6', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
             'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => '100',
-        ])->assertStatus(422)->assertJsonPath('erro', 'valor_nao_inteiro');
+        ])->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX6')->count());
     }
 
@@ -313,7 +313,7 @@ final class RevisaoCodexTest extends TestCase
     {
         $corpo = '{"titular_id":"TCX13","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00-03:00","payload":'.$payloadJson.'}';
         $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
-            ->assertStatus(422)->assertJsonPath('erro', 'payload_invalido');
+            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX13')->count());
     }
 
@@ -322,7 +322,7 @@ final class RevisaoCodexTest extends TestCase
     {
         $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":'.$payloadJson.'}]}';
         $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E01/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
-            ->assertStatus(422)->assertJsonPath('erro', 'payload_invalido');
+            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
     }
 
     public function test_fato_sem_payload_assume_objeto_vazio(): void
@@ -347,7 +347,7 @@ final class RevisaoCodexTest extends TestCase
     {
         $corpo = '{"ator":"x","saidas":[{"tributo":'.$tributoJson.',"valor_centavos":1,"payload":{}}]}';
         $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E01/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
-            ->assertStatus(422)->assertJsonPath('erro', 'tributo_invalido');
+            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
     }
 
     /**
@@ -483,37 +483,6 @@ final class RevisaoCodexTest extends TestCase
         $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
     }
 
-    /** @return iterable<string, array{string}> */
-    public static function vetoresRejeitados(): iterable
-    {
-        $json = file_get_contents(__DIR__.'/../fixtures/vetores-hash.json');
-        self::assertIsString($json);
-        /** @var array{fatos: list<array{nome: string, payload: string, valor_centavos: int|null, esperado: string, canonico?: string, sha256?: string}>} $d */
-        $d = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
-        foreach ($d['fatos'] as $f) {
-            if ($f['esperado'] === 'rejeitado') {
-                yield $f['nome'] => [$f['payload']];
-            }
-        }
-    }
-
-    #[DataProvider('vetoresRejeitados')]
-    public function test_fatos_rejeita_numeros_invalidos_no_payload_com_422(string $payloadJson): void
-    {
-        $corpo = '{"titular_id":"TCX40","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","payload":'.$payloadJson.'}';
-        $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
-            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
-        $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX40')->count());
-    }
-
-    #[DataProvider('vetoresRejeitados')]
-    public function test_concluir_rejeita_numeros_invalidos_no_payload_da_saida_com_422(string $payloadJson): void
-    {
-        $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":'.$payloadJson.'}]}';
-        $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E03/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
-            ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
-    }
-
     public function test_fato_com_payload_de_inteiros_int64_e_aceito_e_hash_confere(): void
     {
         $corpo = '{"titular_id":"TCX42","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775807,"payload":{"n":9223372036854775807}}';
@@ -526,5 +495,67 @@ final class RevisaoCodexTest extends TestCase
     {
         $corpo = '{"titular_id":"TCX41","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775808}';
         $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
+    }
+
+    public function test_tributo_vazio_e_aceito_e_textos_valem_como_enviados(): void
+    {
+        $base = ['competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavos' => 1];
+        $this->postJson('/fatos', $base + ['titular_id' => 'TS1 ', 'tributo' => ''])->assertOk();
+        $this->postJson('/fatos', $base + ['titular_id' => '   '])->assertOk();
+        $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', 'TS1 ')->where('tributo', '')->count());
+        $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', '   ')->count());
+
+        // /competencias/abrir usa o MESMO texto (sem trim): 'TS2 ' e '  ' são titulares válidos e distintos.
+        $empresa = ['regime' => 'SN', 'tem_folha' => false, 'tem_prolabore' => false, 'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805'];
+        $this->postJson('/competencias/abrir', ['competencia' => self::COMP, 'ator' => 'x', 'empresas' => [['titular_id' => 'TS2 '] + $empresa, ['titular_id' => '  '] + $empresa]])->assertOk()->assertJsonCount(2, 'criados');
+        $this->assertSame(1, DB::table('fechamento.caso_competencia')->where('titular_id', 'TS2 ')->count());
+        $this->assertSame(1, DB::table('fechamento.caso_competencia')->where('titular_id', '  ')->count());
+    }
+
+    /** @return iterable<string, array{string, int}> */
+    public static function fusos(): iterable
+    {
+        yield '+15:59 aceito' => ['2026-10-01T09:00:00+15:59', 200];
+        yield '-15:59 aceito' => ['2026-10-01T09:00:00-15:59', 200];
+        yield '+16:00 recusado' => ['2026-10-01T09:00:00+16:00', 422];
+        yield '+23:00 recusado' => ['2026-10-01T09:00:00+23:00', 422];
+        yield '+10:60 recusado' => ['2026-10-01T09:00:00+10:60', 422];
+    }
+
+    #[DataProvider('fusos')]
+    public function test_observado_em_com_fuso_fora_do_intervalo_do_postgres_da_422_e_nao_500(string $data, int $status): void
+    {
+        $this->postJson('/fatos', ['titular_id' => 'TFUSO', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => $data])->assertStatus($status);
+    }
+
+    public function test_erros_500_e_405_saem_em_json_sem_accept(): void
+    {
+        $r = $this->call('PUT', '/fatos');
+        $this->assertSame(405, $r->getStatusCode());
+        $this->assertStringContainsString('"erro":"metodo_nao_permitido"', (string) $r->getContent());
+
+        $this->app->make('router')->get('/__falha', static function (): never {
+            throw new \RuntimeException('boom');
+        });
+        $r = $this->call('GET', '/__falha');
+        $this->assertSame(500, $r->getStatusCode());
+        $this->assertSame('{"erro":"erro_interno","mensagem":"erro interno"}', (string) $r->getContent());
+    }
+
+    public function test_app_key_do_dockerfile_tem_32_bytes(): void
+    {
+        $docker = file_get_contents(base_path('Dockerfile'));
+        $this->assertIsString($docker);
+        $this->assertSame(1, preg_match('/APP_KEY=base64:([A-Za-z0-9+\/=]+)/', $docker, $m));
+        $this->assertSame(32, strlen((string) base64_decode($m[1] ?? "", true)));
+    }
+
+    public function test_concluir_saidas_vazio_ou_item_invalido_da_422_antes_de_404(): void
+    {
+        $url = '/casos/TNAOEXISTE/'.self::COMP.'/entregaveis/E03/concluir';
+        $this->postJson($url, ['ator' => 'x', 'saidas' => []])->assertStatus(422);
+        $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":{}},{"tributo":"X","valor_centavos":1.5,"payload":{}}]}';
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
+        $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"ator":"x","saidas":[{"payload":{"a":1,"a":2}}]}')->assertStatus(422);
     }
 }

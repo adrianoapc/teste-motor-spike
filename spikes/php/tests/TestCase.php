@@ -18,4 +18,11 @@ abstract class TestCase extends BaseTestCase
 
         return $app;
     }
+
+    /** Fecha as conexões de cada teste: sem isso, centenas de testes esgotam max_connections do Postgres. */
+    protected function tearDown(): void
+    {
+        $this->app->make('db')->disconnect();
+        parent::tearDown();
+    }
 }

@@ -14,7 +14,10 @@ use JsonException;
  *  - inteiro que cabe em int64 (e não é "-0") → int nativo;
  *  - qualquer outro número (fração, expoente, "-0", fora de int64) → NumeroJson, marcador de "número
  *    inválido para o payload" (guarda só o lexema, para mensagens; nunca vira float);
- *  - objetos → stdClass, listas → array (preserva {} vs []).
+ *  - objetos → stdClass, listas → array (preserva {} vs []);
+ *  - chave duplicada em qualquer objeto (comparada depois de decodificar escapes) → JsonException (§6);
+ *  - substituto UTF-16 isolado → JsonException (json_decode recusa);
+ *  - U+0000 em string ou chave → JsonException: o jsonb do Postgres não aceita (decisão do spike; a §6 não cobre).
  *
  * Regra de negócio (decisão do usuário, PR #7): números do `payload` só podem ser inteiros int64;
  * qualquer NumeroJson, em qualquer profundidade, é rejeitado com 422 `corpo_invalido`
@@ -23,7 +26,11 @@ use JsonException;
  */
 final class JsonCru
 {
-    private const PROFUNDIDADE_MAX = 512;
+    /** Limite do parser (corpo inteiro); o do payload (64, §6) é validado à parte por `profundidade`. */
+    private const PROFUNDIDADE_MAX = 128;
+
+    /** Profundidade máxima do payload (§6): o próprio objeto payload é o nível 1. */
+    public const PAYLOAD_PROFUNDIDADE_MAX = 64;
 
     private int $i = 0;
 
@@ -41,6 +48,47 @@ final class JsonCru
         }
 
         return $v;
+    }
+
+    /** Níveis de objetos/arrays aninhados (escalar = 0; o próprio $v conta como nível 1). */
+    public static function profundidade(mixed $v): int
+    {
+        $max = 0;
+        if ($v instanceof \stdClass) {
+            foreach (get_object_vars($v) as $x) {
+                $max = max($max, self::profundidade($x));
+            }
+
+            return $max + 1;
+        }
+        if (is_array($v)) {
+            foreach ($v as $x) {
+                $max = max($max, self::profundidade($x));
+            }
+
+            return $max + 1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Regra do payload (§6), depois da decodificação: objeto, só inteiros int64, até 64 níveis.
+     * Devolve a mensagem do erro, ou null se válido.
+     */
+    public static function erroDoPayload(mixed $payload): ?string
+    {
+        if (! $payload instanceof \stdClass) {
+            return 'payload deve ser um objeto';
+        }
+        if (! self::somenteInteiros($payload)) {
+            return 'números do payload devem ser inteiros int64 (sem fração, expoente, -0 ou fora da faixa)';
+        }
+        if (self::profundidade($payload) > self::PAYLOAD_PROFUNDIDADE_MAX) {
+            return 'payload excede '.self::PAYLOAD_PROFUNDIDADE_MAX.' níveis';
+        }
+
+        return null;
     }
 
     /** true se todo número em qualquer profundidade é int64 nativo (nenhum NumeroJson, nenhum float). */
@@ -137,6 +185,9 @@ final class JsonCru
                 throw new JsonException('chave de objeto esperada');
             }
             $chave = $this->texto();
+            if (property_exists($o, $chave)) {
+                throw new JsonException('chave duplicada: '.$chave);
+            }
             $this->espacos();
             if (($this->s[$this->i] ?? '') !== ':') {
                 throw new JsonException('":" esperado');
@@ -199,6 +250,9 @@ final class JsonCru
                 $decodificado = json_decode(substr($this->s, $ini, $this->i - $ini), false, 512, JSON_THROW_ON_ERROR);
                 if (! is_string($decodificado)) {
                     throw new JsonException('texto inválido');
+                }
+                if (str_contains($decodificado, "\0")) {
+                    throw new JsonException('U+0000 não é aceito em texto ou chave');
                 }
 
                 return $decodificado;

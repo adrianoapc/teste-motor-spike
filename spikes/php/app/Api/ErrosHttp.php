@@ -8,6 +8,8 @@ use App\Aplicacao\Suporte\ErroDeNegocio;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -30,6 +32,19 @@ final class ErrosHttp
         $exceptions->render(function (NotFoundHttpException $e): JsonResponse {
             // Todas as rotas da API respondem JSON.
             return self::corpo('nao_encontrado', 'recurso não encontrado', 404);
+        });
+
+        $exceptions->render(function (MethodNotAllowedHttpException $e): JsonResponse {
+            return self::corpo('metodo_nao_permitido', 'método não permitido', 405);
+        });
+
+        // Qualquer outra falha (HTTP ou 500) sai em {erro,mensagem}, mesmo sem Accept: application/json.
+        $exceptions->render(function (\Throwable $e): JsonResponse {
+            if ($e instanceof HttpExceptionInterface) {
+                return self::corpo('erro_http', 'requisição não atendida', $e->getStatusCode());
+            }
+
+            return self::corpo('erro_interno', 'erro interno', 500);
         });
     }
 

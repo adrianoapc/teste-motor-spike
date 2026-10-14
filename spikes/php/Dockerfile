@@ -24,10 +24,14 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
     && mkdir -p storage/framework/cache storage/framework/views storage/framework/sessions bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
+# Limites de PHP para o máximo contratual de 10.000 empresas por /competencias/abrir (uma transação por empresa,
+# ~35 ms cada no ambiente de teste => ~6 min no pior caso): tempo e memória (validação por curinga do Laravel).
+RUN printf 'max_execution_time=900\nmemory_limit=1024M\n' > "$PHP_INI_DIR/conf.d/zz-motor.ini"
+
 # A conexão vem só de MOTOR_DB (Requisito 1.2). APP_KEY fixa: o spike não cifra nada sensível.
 ENV APP_ENV=production \
     APP_DEBUG=false \
-    APP_KEY=base64:c3Bpa2UtcGhwLW1vdG9yLWRlLWZlY2hhbWVudG8tLS0tLS0= \
+    APP_KEY=base64:c3Bpa2UtcGhwLW1vdG9yLWZlY2hhbWVudG8tMzJieXg= \
     LOG_CHANNEL=stdout \
     SERVER_NAME=:8080
 

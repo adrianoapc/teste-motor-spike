@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
-use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fatos\PublicarFato;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\JsonCru;
@@ -18,58 +17,49 @@ final readonly class FatosController
 
     public function publicar(Request $request): JsonResponse
     {
-        // Validação pela representação associativa (não toca no payload).
+        // Passo 0 (§6/§8): o corpo é validado por inteiro, ANTES de qualquer gravação. JsonCru decodifica com
+        // objetos ({} vs []), sem float, recusando chave duplicada, substituto isolado e U+0000.
+        try {
+            $cru = JsonCru::decodificar($request->getContent());
+        } catch (\JsonException $e) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido: '.$e->getMessage());
+        }
+        if (! is_object($cru)) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'corpo deve ser um objeto JSON');
+        }
+        CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em'], 'FatoRequest');
+
+        // valor_centavos: só int64 nativo ou null (ausente = null): 1.0, 1e2, -0, "600", true, 2^63 => 422.
+        $valor = $cru->valor_centavos ?? null;
+        if ($valor !== null && ! is_int($valor)) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'valor_centavos deve ser inteiro int64 ou nulo');
+        }
+        // payload: objeto JSON (§6); default {} só se a chave está ausente.
+        $payload = property_exists($cru, 'payload') ? $cru->payload : new \stdClass;
+        $erroPayload = JsonCru::erroDoPayload($payload);
+        if ($erroPayload !== null) {
+            throw ErroDeNegocio::invalido('corpo_invalido', $erroPayload);
+        }
+
+        // Campos de texto (sem TrimStrings/ConvertEmptyStringsToNull: o valor validado é o gravado).
         $request->validate([
-            'titular_id' => ['required', 'string', 'min:1', 'max:64'],
-            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
-            'tipo' => ['required', 'string', 'min:1'],
+            'titular_id' => ['present', 'string', 'min:1', 'max:64'],
+            'competencia' => ['present', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
+            'tipo' => ['present', 'string', 'min:1'],
             'tributo' => ['sometimes', 'string'],
-            'valor_centavos' => ['sometimes', 'nullable', 'integer'],
-            'fonte' => ['required', 'string', 'min:1'],
+            'fonte' => ['present', 'string', 'min:1'],
             'origem_ref' => ['sometimes', 'nullable', 'string'],
-            'observado_em' => ['required', 'string', function (string $atributo, mixed $valor, \Closure $falhar): void {
-                if (! is_string($valor) || ! self::dataHoraValida($valor)) {
+            'observado_em' => ['present', 'string', function (string $atributo, mixed $v, \Closure $falhar): void {
+                if (! is_string($v) || ! self::dataHoraValida($v)) {
                     $falhar('observado_em deve ser data-hora RFC 3339');
                 }
             }],
         ]);
 
-        // Corpo CRU, decodificado com objetos, para preservar {} vs [] no payload (§6, design).
-        // JsonCru: números do payload preservados (sem coerção para float binário).
-        try {
-            $cru = JsonCru::decodificar($request->getContent());
-        } catch (\JsonException) {
-            throw ErroDeNegocio::invalido('corpo_invalido', 'JSON malformado');
-        }
-        if (! is_object($cru)) {
-            throw ErroDeNegocio::invalido('corpo_invalido', 'corpo deve ser um objeto JSON');
-        }
-
-        CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em'], 'FatoRequest');
-
-        // O middleware TrimStrings aparou a cópia validada; o valor gravado vem do corpo CRU, então valida o cru.
-        ParametrosDeRota::validar($this->texto($cru, 'titular_id'), $this->texto($cru, 'competencia'));
-        if (! self::dataHoraValida($this->texto($cru, 'observado_em'))) {
-            throw ErroDeNegocio::invalido('corpo_invalido', 'observado_em deve ser data-hora RFC 3339');
-        }
-
         $titularId = $this->texto($cru, 'titular_id');
         $competencia = $this->texto($cru, 'competencia');
         $tipo = $this->texto($cru, 'tipo');
         $tributo = isset($cru->tributo) && is_string($cru->tributo) ? $cru->tributo : '';
-        // Dinheiro é inteiro nativo (ou nulo): string numérica, float, booleano etc. => 422.
-        $valor = $cru->valor_centavos ?? null;
-        if ($valor !== null && ! is_int($valor)) {
-            throw ErroDeNegocio::invalido('valor_nao_inteiro', 'valor_centavos deve ser inteiro ou nulo');
-        }
-        // payload: objeto JSON; default {} só se a chave está ausente (null/lista/escalar => 422).
-        $payload = property_exists($cru, 'payload') ? $cru->payload : new \stdClass;
-        if (! is_object($payload)) {
-            throw ErroDeNegocio::invalido('payload_invalido', 'payload deve ser um objeto');
-        }
-        if (! JsonCru::somenteInteiros($payload)) {
-            throw ErroDeNegocio::invalido('corpo_invalido', 'números do payload devem ser inteiros int64 (sem fração, expoente, -0 ou fora da faixa)');
-        }
         $fonte = $this->texto($cru, 'fonte');
         $origemRef = isset($cru->origem_ref) && is_string($cru->origem_ref) ? $cru->origem_ref : null;
         $observadoEm = $this->texto($cru, 'observado_em');
@@ -91,7 +81,7 @@ final readonly class FatosController
 
         return checkdate((int) $m[2], (int) $m[3], (int) $m[1])
             && (int) $m[4] <= 23 && (int) $m[5] <= 59 && (int) $m[6] <= 59
-            && (int) ($m[7] ?? 0) <= 23 && (int) ($m[8] ?? 0) <= 59;
+            && (int) ($m[7] ?? 0) <= 15 && (int) ($m[8] ?? 0) <= 59;
     }
 
     private function texto(object $o, string $campo): string

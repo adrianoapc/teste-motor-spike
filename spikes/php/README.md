@@ -12,6 +12,13 @@ normativa: `docs/semantica-do-motor.md`. Contrato HTTP: `contrato/openapi.yaml`.
 - PostgreSQL 16 (esquema pronto em `db/migrations/`), SQL explícito.
 - PHPStan nível `max` (Larastan), Laravel Pint, Pest 3.
 
+## Limites de execução
+
+`/competencias/abrir` abre uma transação por empresa (~35 ms cada no ambiente de teste). O Dockerfile grava
+`conf.d/zz-motor.ini` com `max_execution_time=900` e `memory_limit=1024M`: medido com 2.500 empresas (87,6 s, 2.500
+criados, HTTP 200) e com 10.000 empresas só na validação (2,9 s, 422 na última). O pior caso contratual (10.000 criações,
+~6 min estimados) não foi rodado de ponta a ponta. FrankenPHP/Caddy não impõem timeout de escrita por padrão.
+
 ## Camadas (`app/`)
 
 | Camada | Pode depender de |

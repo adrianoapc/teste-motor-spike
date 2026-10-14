@@ -22,10 +22,6 @@ final readonly class CompetenciasController
         if (is_object($cru) && property_exists($cru, 'empresas') && ! is_array($cru->empresas)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'empresas deve ser uma lista');
         }
-        // TrimStrings apara a cópia validada: "202609\n" não pode virar válido por isso.
-        if (is_object($cru) && property_exists($cru, 'competencia') && (! is_string($cru->competencia) || preg_match('/^[0-9]{4}(0[1-9]|1[0-2])$/D', $cru->competencia) !== 1)) {
-            throw ErroDeNegocio::invalido('corpo_invalido', 'competencia deve ser AAAAMM');
-        }
         $bruto = $request->json()->all();
         CorpoEstrito::exigirChaves($bruto, ['competencia', 'ator', 'empresas'], 'AbrirCompetenciasRequest');
         if (is_array($bruto['empresas'] ?? null)) {
@@ -42,17 +38,17 @@ final readonly class CompetenciasController
 
         /** @var array<string, mixed> $dados */
         $dados = $request->validate([
-            'competencia' => ['required', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
-            'ator' => ['required', 'string', 'min:1'],
+            'competencia' => ['present', 'string', 'regex:/^[0-9]{4}(0[1-9]|1[0-2])$/D'],
+            'ator' => ['present', 'string', 'min:1'],
             'empresas' => ['required', 'array', 'min:1', 'max:10000'],
-            'empresas.*.titular_id' => ['required', 'string', 'min:1', 'max:64'],
+            'empresas.*.titular_id' => ['present', 'string', 'min:1', 'max:64'],
             'empresas.*.regime' => ['required', 'string', 'in:SN,LP'],
             'empresas.*.tem_folha' => ['required', self::booleanoNativo()],
             'empresas.*.tem_prolabore' => ['required', self::booleanoNativo()],
             'empresas.*.tem_taxa_municipal' => ['required', self::booleanoNativo()],
             'empresas.*.filial' => ['required', self::booleanoNativo()],
-            'empresas.*.carteira' => ['required', 'string', 'min:1'],
-            'empresas.*.municipio' => ['required', 'string', 'min:1'],
+            'empresas.*.carteira' => ['present', 'string', 'min:1'],
+            'empresas.*.municipio' => ['present', 'string', 'min:1'],
         ]);
 
         /** @var string $competencia */
