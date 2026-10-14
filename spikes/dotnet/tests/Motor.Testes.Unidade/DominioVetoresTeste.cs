@@ -141,7 +141,10 @@ public class DominioVetoresTeste
     public void OrdemDosEstados()
     {
         Assert.True(EstadoEntregavel.Validado.PeloMenos(EstadoEntregavel.Pronto));
-        Assert.True(EstadoEntregavel.Pago.PeloMenos(EstadoEntregavel.Pago));
+        // §4 (v3): 'pago' é aposentado, ordem nula, e nunca é >= a nada
+        Assert.False(EstadoEntregavel.Pago.PeloMenos(EstadoEntregavel.Pago));
+        Assert.False(EstadoEntregavel.Encerrado.PeloMenos(EstadoEntregavel.Pago));
+        Assert.Null(EstadoEntregavel.Pago.Ordem());
         Assert.False(EstadoEntregavel.Pronto.PeloMenos(EstadoEntregavel.Validado));
         // ordem nula nunca é >= a nada
         Assert.False(EstadoEntregavel.Divergente.PeloMenos(EstadoEntregavel.AguardandoInsumo));
