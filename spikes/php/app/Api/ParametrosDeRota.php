@@ -16,6 +16,10 @@ final class ParametrosDeRota
 
     public static function validar(string $titularId, string $competencia, ?string $tipo = null): void
     {
+        // U+0000 em parâmetro de caminho: 422 corpo_invalido (§6; o Postgres não aceita NUL em texto).
+        if (str_contains($titularId, "\0") || str_contains($competencia, "\0") || ($tipo !== null && str_contains($tipo, "\0"))) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'U+0000 não é aceito em parâmetro de caminho');
+        }
         $tamanho = mb_strlen($titularId);
         if ($tamanho < 1 || $tamanho > 64) {
             throw ErroDeNegocio::invalido('parametro_invalido', 'titular_id deve ter de 1 a 64 caracteres');

@@ -547,7 +547,7 @@ final class RevisaoCodexTest extends TestCase
         $docker = file_get_contents(base_path('Dockerfile'));
         $this->assertIsString($docker);
         $this->assertSame(1, preg_match('/APP_KEY=base64:([A-Za-z0-9+\/=]+)/', $docker, $m));
-        $this->assertSame(32, strlen((string) base64_decode($m[1] ?? "", true)));
+        $this->assertSame(32, strlen((string) base64_decode($m[1] ?? '', true)));
     }
 
     public function test_concluir_saidas_vazio_ou_item_invalido_da_422_antes_de_404(): void
@@ -557,5 +557,39 @@ final class RevisaoCodexTest extends TestCase
         $corpo = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":1,"payload":{}},{"tributo":"X","valor_centavos":1.5,"payload":{}}]}';
         $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
         $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"ator":"x","saidas":[{"payload":{"a":1,"a":2}}]}')->assertStatus(422);
+    }
+
+    public function test_u0000_em_campos_de_texto_e_parametros_de_caminho_da_422_corpo_invalido(): void
+    {
+        $nul = "\u{0}";
+        $json = static fn (array $a): string => json_encode($a, JSON_THROW_ON_ERROR);
+        $post = fn (string $url, string $corpo) => $this->call('POST', $url, [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo);
+        $empresa = ['titular_id' => 'TNUL', 'regime' => 'SN', 'tem_folha' => false, 'tem_prolabore' => false, 'tem_taxa_municipal' => false, 'filial' => false, 'carteira' => 'C-01', 'municipio' => '3549805'];
+
+        // /concluir: ator e tributo da saída.
+        $url = '/casos/T/'.self::COMP.'/entregaveis/E03/concluir';
+        $post($url, $json(['ator' => "a{$nul}b", 'saidas' => [['tributo' => 'DAS', 'payload' => new \stdClass]]]))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        $post($url, $json(['ator' => 'x', 'saidas' => [['tributo' => "D{$nul}", 'payload' => new \stdClass]]]))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+
+        // /competencias/abrir: ator, titular_id, carteira, municipio.
+        $abrir = fn (array $corpo) => $post('/competencias/abrir', $json($corpo));
+        $abrir(['competencia' => self::COMP, 'ator' => "x{$nul}", 'empresas' => [$empresa]])->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        foreach (['titular_id', 'carteira', 'municipio'] as $campo) {
+            $abrir(['competencia' => self::COMP, 'ator' => 'x', 'empresas' => [[$campo => "v{$nul}"] + $empresa]])->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        }
+        $this->assertSame(0, DB::table('fechamento.caso_competencia')->where('titular_id', 'like', 'v%')->count());
+
+        // /override: ator e motivo.
+        $ov = '/casos/T/'.self::COMP.'/entregaveis/E01/override';
+        $post($ov, $json(['ator' => "a{$nul}", 'cf' => 'CF-01', 'motivo' => 'motivo valido']))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        $post($ov, $json(['ator' => 'x', 'cf' => 'CF-01', 'motivo' => "motivo{$nul}valido"]))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+
+        // Parâmetros de caminho (%00).
+        $this->getJson('/casos/T%00/'.self::COMP)->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        $post('/casos/T%00/'.self::COMP.'/entregaveis/E01/concluir', $json(['ator' => 'x', 'saidas' => [['payload' => new \stdClass]]]))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+        $post('/casos/T%00/'.self::COMP.'/entregaveis/E01/override', $json(['ator' => 'x', 'cf' => 'CF-01', 'motivo' => 'motivo valido']))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
+
+        // U+0001..U+001F continuam permitidos.
+        $this->postJson('/fatos', ['titular_id' => "T\u{1}X", 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'])->assertOk();
     }
 }

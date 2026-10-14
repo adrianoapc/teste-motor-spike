@@ -7,6 +7,7 @@ namespace App\Api\Controllers;
 use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\AbrirCompetencias;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,12 @@ final readonly class CompetenciasController
     {
         // additionalProperties:false do contrato (AbrirCompetenciasRequest e Empresa).
         // `empresas` deve ser lista JSON: `$request->json()->all()` mistura objeto e lista, então inspeciona o JSON cru.
-        $cru = json_decode($request->getContent(), false);
+        try {
+            // JsonCru: JSON inválido, chave duplicada e U+0000 em qualquer texto => 422 (nunca 500 no Postgres).
+            $cru = JsonCru::decodificar($request->getContent());
+        } catch (\JsonException $e) {
+            throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido: '.$e->getMessage());
+        }
         if (is_object($cru) && property_exists($cru, 'empresas') && ! is_array($cru->empresas)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'empresas deve ser uma lista');
         }

@@ -29,12 +29,12 @@ final class VetoresFatosTest extends TestCase
         parent::tearDown();
     }
 
-    /** @return list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, canonico?: string, sha256?: string}> */
+    /** @return list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, campos_texto?: array<string, string>, canonico?: string, sha256?: string}> */
     private static function vetores(): array
     {
         $json = file_get_contents(__DIR__.'/../fixtures/vetores-hash.json');
         self::assertIsString($json);
-        /** @var array{fatos: list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, canonico?: string, sha256?: string}>} $d */
+        /** @var array{fatos: list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, campos_texto?: array<string, string>, canonico?: string, sha256?: string}>} $d */
         $d = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
 
         return $d['fatos'];
@@ -48,9 +48,19 @@ final class VetoresFatosTest extends TestCase
         }
     }
 
-    /** @param  array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>} $f */
+    /** @param  array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, campos_texto?: array<string, string>} $f */
     private static function corpo(array $f, string $titular): string
     {
+        if (isset($f['campos_texto'])) {
+            // Envelope válido com os campos de texto sobrescritos (já decodificados, U+0000 real).
+            $env = ['titular_id' => $titular, 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'];
+            foreach ($f['campos_texto'] as $campo => $texto) {
+                $env[$campo] = $texto;
+            }
+
+            return json_encode($env + ['payload' => new \stdClass], JSON_THROW_ON_ERROR);
+        }
+
         $c = '{"titular_id":"'.$titular.'","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z"';
         $omitidos = $f['campos_omitidos'] ?? [];
         if (isset($f['payload']) && ! in_array('payload', $omitidos, true)) {
@@ -84,7 +94,7 @@ final class VetoresFatosTest extends TestCase
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', $titular)->count());
 
         // Os de payload também valem para cada saída de /concluir (422 antes de qualquer consulta).
-        if (isset($f['payload'])) {
+        if (isset($f['payload']) && ! isset($f['campos_texto'])) {
             $saida = '{"ator":"x","saidas":[{"tributo":"DAS","valor_centavos":'.($f['valor_centavos_bruto'] ?? '1').',"payload":'.$f['payload'].'}]}';
             $this->call('POST', '/casos/T/'.self::COMP.'/entregaveis/E03/concluir', [], [], [], ['CONTENT_TYPE' => 'application/json'], $saida)
                 ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');

@@ -11,12 +11,12 @@ use App\Dominio\Fechamento\JsonCru;
  * (branch docs/payload-numeros-inteiros, commit 749776f): tests/fixtures/vetores-hash.json. Trocar pela leitura
  * direta de contrato/vetores-hash.json quando o PR #7 entrar na branch.
  */
-/** @return list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, canonico?: string, sha256?: string}> */
+/** @return list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, campos_texto?: array<string, string>, canonico?: string, sha256?: string}> */
 function vetoresDoHash(): array
 {
     $json = file_get_contents(__DIR__.'/../fixtures/vetores-hash.json');
     assert(is_string($json));
-    /** @var array{fatos: list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, canonico?: string, sha256?: string}>} $d */
+    /** @var array{fatos: list<array{nome: string, esperado: string, payload?: string, valor_centavos?: int|null, valor_centavos_bruto?: string, campos_omitidos?: list<string>, campos_texto?: array<string, string>, canonico?: string, sha256?: string}>} $d */
     $d = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
 
     return $d['fatos'];
@@ -37,11 +37,18 @@ it('hash e JSON canônico dos 22 vetores aceitos batem exatamente', function ():
     }
 });
 
-it('os 27 vetores rejeitados (21 de payload e 6 de valor_centavos) são recusados pelas camadas de validação', function (): void {
+it('os 32 vetores rejeitados (24 de payload, 6 de valor_centavos e 2 de campo de texto) são recusados pelas camadas de validação', function (): void {
     $rejeitados = array_values(array_filter(vetoresDoHash(), static fn (array $f): bool => $f['esperado'] === 'rejeitado'));
-    expect($rejeitados)->toHaveCount(27);
+    expect($rejeitados)->toHaveCount(32);
     $deValor = 0;
     foreach ($rejeitados as $f) {
+        if (isset($f['campos_texto'])) {
+            // Campo de texto com U+0000: o corpo serializado é recusado pelo decodificador.
+            $corpo = json_encode($f['campos_texto'], JSON_THROW_ON_ERROR);
+            expect(fn () => JsonCru::decodificar($corpo))->toThrow(JsonException::class);
+
+            continue;
+        }
         if (isset($f['valor_centavos_bruto'])) {
             $deValor++;
             $v = JsonCru::decodificar($f['valor_centavos_bruto']);
