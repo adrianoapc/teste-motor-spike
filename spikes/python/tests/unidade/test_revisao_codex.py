@@ -217,7 +217,7 @@ def test_divergencia_emite_conferencia_id_e_excecao_id() -> None:
         transicoes.append((para, por_id))
 
     uow.transicionar = transicionar  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert ("conferencia.divergente", {"conferencia_id": "conf-1"}) in uow.eventos
     assert ("excecao.aberta", {"excecao_id": "exc-CF-01"}) in uow.eventos
     assert transicoes == [("divergente", "conf-1")]
@@ -250,7 +250,7 @@ def test_excecao_de_fato_ausente_herda_classe_s_da_conferencia() -> None:
         )],
     )
     uow.transicionar = lambda *a, **k: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == ["CF-01"]
     assert uow.classes_excecao == ["S"]  # catálogo diz "D"; a conferência computou "S"
 
@@ -312,7 +312,7 @@ def test_conferencia_reaproveitada_com_override_nao_bloqueia_nem_abre_excecao() 
     transicoes: list[str] = []
     uow.transicionar = lambda ent, para, *a, **k: transicoes.append(para)  # type: ignore[attr-defined]
     uow.evento_publicado_do_tipo = lambda t: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == []
     assert transicoes == ["validado"]
 
@@ -365,7 +365,7 @@ def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
         )],
     )
     with pytest.raises(mf.ErroNegocio) as e:
-        mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
+        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert e.value.status == 422
 
 
@@ -456,3 +456,27 @@ def test_cf06_competencia_diferente_segue_divergencia_comum() -> None:
     uow.fatos_caso = [_fv("guia", "DAS", payload={"competencia_impressa": "202608"})]
     resultado, _, _, classe, _ = conferir(uow, uow.caso, _e11(), "CF-06")  # type: ignore[arg-type]
     assert (resultado, classe) == ("divergente", "D")
+
+
+def test_desfecho_automatico_da_conferencia_grava_sempre_o_ator_sistema() -> None:
+    """divergente e validado são a mesma ação automática: o mesmo ator (DUVIDAS D11)."""
+    atores: list[tuple[str, str]] = []
+
+    def rodar(conferencias: list[dict[str, object]]) -> None:
+        uow = _Fake()
+        uow.evento_publicado_do_tipo = lambda t: None  # type: ignore[attr-defined]
+        uow.transicionar = (  # type: ignore[attr-defined]
+            lambda ent, para, motivo, pt, pi, ator, rv: atores.append((para, ator))
+        )
+        regra = RegraEntregaveis(
+            versao_id="rv-antiga", estado_minimo_padrao="validado",
+            itens=[ItemEntregavel(
+                tipo="E11", executor="sistema", quando=[], depende_de=[], entradas=[],
+                saida=None, conferencias=conferencias,
+            )],
+        )
+        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+
+    rodar([{"cf": "CF-01"}])  # fato ausente: divergente B
+    rodar([])  # sem conferências: validado
+    assert atores == [("divergente", "sistema"), ("validado", "sistema")]

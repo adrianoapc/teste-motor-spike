@@ -54,6 +54,10 @@ python -m importlinter.cli lint   # contratos de camadas (também roda em tests/
 MOTOR_DB=postgresql://spike:spike@localhost:5432/spike_python pytest   # inclui tests/integracao
 ```
 
+Teste diferencial da reavaliação (recorte por sementes x percurso completo; **faz TRUNCATE** do
+banco de `MOTOR_DB`, use um banco descartável): `python scripts/diferencial_reavaliacao.py 50 120`.
+Detalhes em `DUVIDAS.md` (D11).
+
 ## Verificador (juiz comum)
 
 ```sh

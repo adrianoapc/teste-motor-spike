@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from psycopg.errors import LockNotAvailable
 
 from motor.api.erros import ErroDominio, tratar_erro_dominio, tratar_validacao
 from motor.api.modelos import (
@@ -68,6 +69,7 @@ async def _tratar_concorrencia(_req: Request, exc: Exception) -> JSONResponse:
 
 
 app.add_exception_handler(ConflitoConcorrencia, _tratar_concorrencia)
+app.add_exception_handler(LockNotAvailable, _tratar_concorrencia)  # lock_timeout (banco.py)
 
 
 @app.get("/health")

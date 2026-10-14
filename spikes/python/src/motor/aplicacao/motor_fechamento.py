@@ -37,6 +37,12 @@ def _invalido(codigo: str, msg: str) -> ErroNegocio:
     return ErroNegocio(422, codigo, msg)
 
 
+# Ator das transições automáticas (prontidão, processamento, conferências, liberação,
+# encerramento, invalidação). Só ações de pessoa gravam o ator informado (abertura, conclusão de
+# tarefa, override): ver DUVIDAS D11.
+ATOR_SISTEMA = "sistema"
+
+
 @dataclass
 class _Pendencias:
     """O que mudou nesta transação e pede reavaliação (§6 passo 2, §7.4).
@@ -96,7 +102,7 @@ def abrir_caso(
             uow.gravar_dependencia(criados[item.tipo].id, alvo.id, estado_minimo)
 
     uow.gravar_evento("competencia.aberta", caso.id, None, {"caso_id": caso.id})
-    avaliar_caso(uow, caso, regra, ator)
+    avaliar_caso(uow, caso, regra)
     return (titular_id, caso.id, True)
 
 
@@ -223,7 +229,7 @@ def concluir_tarefa(
     uow.transicionar(
         ent, E.PROCESSADO, "tarefa_concluida", "tarefa", tarefa_id, ator, regra.versao_id
     )
-    _conferir_entregavel(uow, caso, ent, regra, ator)
+    _conferir_entregavel(uow, caso, ent, regra)
     pend.entregaveis.add((caso.id, ent.tipo))  # mudou de estado fora da avaliação
 
     _reavaliar_titular(uow, caso.titular_id, pend)
@@ -302,7 +308,6 @@ def avaliar_caso(
     uow: UnidadeDeTrabalho,
     caso: Caso,
     regra: RegraEntregaveis,
-    ator: str,
     sementes: Collection[str] | None = None,
 ) -> None:
     """Percorre o caso em voltas, em ordem de tipo, um passo por entregável (§7.4).
@@ -327,7 +332,7 @@ def avaliar_caso(
                 if ent.tipo not in fila:
                     continue
                 fila.discard(ent.tipo)
-            if _passo(uow, caso, ent, item, regra, ctx, ator):
+            if _passo(uow, caso, ent, item, regra, ctx):
                 mudou = True
                 if fila is not None:
                     fila.add(ent.tipo)
@@ -342,7 +347,7 @@ def _reavaliar_titular(uow: UnidadeDeTrabalho, titular_id: str, pend: _Pendencia
         regra = _regra_do_caso(uow, caso)
         sementes = _sementes_do_caso(caso, regra, pend)
         if sementes:
-            avaliar_caso(uow, caso, regra, ator="sistema", sementes=sementes)
+            avaliar_caso(uow, caso, regra, sementes=sementes)
 
 
 def _sementes_do_caso(caso: Caso, regra: RegraEntregaveis, pend: _Pendencias) -> set[str]:
@@ -373,38 +378,37 @@ def _passo(
     item: ItemEntregavel,
     regra: RegraEntregaveis,
     ctx: Mapping[str, object],
-    ator: str,
 ) -> bool:
     estado = ent.estado
     rv = regra.versao_id
 
-    def tr(para: str, motivo: str, por_tipo: str | None, por_id: str | None, a: str) -> None:
-        uow.transicionar(ent, para, motivo, por_tipo, por_id, a, rv)
+    def tr(para: str, motivo: str, por_tipo: str | None, por_id: str | None) -> None:
+        uow.transicionar(ent, para, motivo, por_tipo, por_id, ATOR_SISTEMA, rv)
 
     if estado in (E.AGUARDANDO_INSUMO, E.INVALIDADO):
         if _dependencias_ok(uow, ent) and _entradas_presentes(uow, caso, item, ctx):
-            tr(E.PRONTO, "prontidao", "dependencia", None, "sistema")
+            tr(E.PRONTO, "prontidao", "dependencia", None)
             _ligar_entradas(uow, caso, ent, item, ctx)
             if item.executor == "humano":
                 uow.criar_tarefa(caso.id, ent.id, "executar_entregavel", caso.carteira)
             return True
         if estado == E.INVALIDADO:
-            tr(E.AGUARDANDO_INSUMO, "prontidao", "dependencia", None, "sistema")
+            tr(E.AGUARDANDO_INSUMO, "prontidao", "dependencia", None)
             return True
         return False
 
     if estado == E.PRONTO and item.executor == "sistema":
-        tr(E.PROCESSADO, "processamento_sistema", "comando", None, "sistema")
-        _conferir_entregavel(uow, caso, ent, regra, ator)
+        tr(E.PROCESSADO, "processamento_sistema", "comando", None)
+        _conferir_entregavel(uow, caso, ent, regra)
         return True
 
     if estado == E.VALIDADO:
         pos = item.pos_validacao
         if pos is not None and pos.get("liberacao") == "automatica":
-            tr(E.LIBERADO, "liberacao_automatica", "comando", None, "sistema")
+            tr(E.LIBERADO, "liberacao_automatica", "comando", None)
             return True
         if item.encerra_caso:
-            tr(E.ENCERRADO, "encerramento", "comando", None, "sistema")
+            tr(E.ENCERRADO, "encerramento", "comando", None)
             uow.encerrar_caso(caso.id)
             uow.gravar_evento("fechamento.concluido", caso.id, None, {"caso_id": caso.id})
             return True
@@ -413,7 +417,7 @@ def _passo(
     if estado == E.LIBERADO:
         pos = item.pos_validacao
         if pos is not None and _fato_pos(uow, caso, pos, "disponibilizado_quando"):
-            tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None, "sistema")
+            tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None)
             fato_id = _guia_vigente_e11(uow, caso)
             uow.gravar_evento(
                 "documento.disponibilizado",
@@ -562,7 +566,7 @@ def _invalidar_entregavel(
     if estado in _INVALIDAVEIS:
         era_divergente = estado == E.DIVERGENTE
         uow.transicionar(
-            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, "sistema",
+            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, ATOR_SISTEMA,
             caso.regra_entregaveis_versao_id,
         )
         invalidados.append((caso.id, ent.tipo))
@@ -665,7 +669,7 @@ def _fato_pos(
 
 
 def _conferir_entregavel(
-    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, regra: RegraEntregaveis, ator: str
+    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, regra: RegraEntregaveis
 ) -> None:
     """Roda as conferências do item (quando casa) e aplica o desfecho (§9.3)."""
     item = regra.por_tipo[ent.tipo]
@@ -702,10 +706,10 @@ def _conferir_entregavel(
     if alguma_b_divergente:
         uow.transicionar(
             ent, E.DIVERGENTE, "conferencia_divergente", "conferencia",
-            ultima_conferencia_id, ator, rv
+            ultima_conferencia_id, ATOR_SISTEMA, rv
         )
     else:
-        uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, "sistema", rv)
+        uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, ATOR_SISTEMA, rv)
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
