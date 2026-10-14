@@ -175,6 +175,7 @@ class UnidadeDeTrabalho(Protocol):
         diferenca: dict[str, object],
         severidade: str,
         classe: str,
+        semantica_calculo: int,
     ) -> str: ...
 
     # -- trabalho -------------------------------------------------------------

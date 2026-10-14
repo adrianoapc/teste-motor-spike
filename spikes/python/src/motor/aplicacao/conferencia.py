@@ -5,6 +5,7 @@ from motor.aplicacao.portas import UnidadeDeTrabalho
 from motor.aplicacao.registros import Caso, Entregavel, Fato
 from motor.dominio.competencia import Competencia
 from motor.dominio.conferencias import (
+    SEMANTICA_CALCULO,
     classificar_numerica,
     esperado_das_simples,
     esperado_prolabore,
@@ -221,7 +222,7 @@ def _gravar(
     garantir_int64(obtido, "obtido_centavos")
     fatos_usados = sorted(fatos_usados, key=lambda d: str(d["fato_id"]))
     classe_final = classe if classe is not None else tipo.classe_padrao
-    eh = entrada_hash(cf, fatos_usados, tolerancia_versao_id)
+    eh = entrada_hash(cf, fatos_usados, tolerancia_versao_id, SEMANTICA_CALCULO)
     existente = uow.conferencia_existente(cf, entregavel.id, eh)
     if existente is not None:
         # Reaproveitada (A→B→A): passa a ser a avaliação corrente do entregável.
@@ -241,5 +242,6 @@ def _gravar(
         diferenca=diferenca,
         severidade=severidade,
         classe=classe_final,
+        semantica_calculo=SEMANTICA_CALCULO,
     )
     return (resultado, severidade, conferencia_id, classe_final, False)

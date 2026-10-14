@@ -479,12 +479,14 @@ class UnidadeDeTrabalhoSQL:
         diferenca: dict[str, object],
         severidade: str,
         classe: str,
+        semantica_calculo: int,
     ) -> str:
         row = self._um(
             "INSERT INTO conferencias.conferencia "
             "(cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash, "
-            " resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, em) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, clock_timestamp()) "
+            " resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, "
+            " semantica_calculo, em) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, clock_timestamp()) "
             "ON CONFLICT (cf, entregavel_id, entrada_hash) DO NOTHING RETURNING id",
             (
                 cf,
@@ -499,6 +501,7 @@ class UnidadeDeTrabalhoSQL:
                 Jsonb(diferenca),
                 severidade,
                 classe,
+                semantica_calculo,
             ),
         )
         if row is None:

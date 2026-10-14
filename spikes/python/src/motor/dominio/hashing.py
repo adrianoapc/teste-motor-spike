@@ -35,12 +35,17 @@ def entrada_hash(
     cf: str,
     fatos_usados: Sequence[Mapping[str, object]],
     regra_versao_id: str,
+    semantica_calculo: int = 1,
 ) -> str:
     """Hash de idempotência da conferência (§9.2).
 
     sha256 de {"cf", "fatos_usados", "regra_versao_id"} canônico. `fatos_usados`
-    deve vir ordenado por fato_id pelo chamador.
+    deve vir ordenado por fato_id pelo chamador. `semantica_calculo` (§9.2) entra como última
+    chave canônica ("semantica_calculo":N) SOMENTE se > 1; com 1 o hash é o legado.
     """
-    return hash_canonico(
-        {"cf": cf, "fatos_usados": list(fatos_usados), "regra_versao_id": regra_versao_id}
-    )
+    corpo: dict[str, object] = {
+        "cf": cf, "fatos_usados": list(fatos_usados), "regra_versao_id": regra_versao_id,
+    }
+    if semantica_calculo > 1:
+        corpo["semantica_calculo"] = semantica_calculo
+    return hash_canonico(corpo)
