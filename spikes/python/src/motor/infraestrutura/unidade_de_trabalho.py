@@ -12,7 +12,7 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from motor.aplicacao.portas import ConflitoConcorrencia
+from motor.aplicacao.erros import ConflitoConcorrencia
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
@@ -527,14 +527,6 @@ class UnidadeDeTrabalhoSQL:
         assert row is not None
         return str(row["id"])
 
-    def tarefa_aberta_do_entregavel(self, entregavel_id: str) -> str | None:
-        row = self._um(
-            "SELECT id FROM trabalho.tarefa_humana "
-            "WHERE entregavel_id = %s AND estado = 'aberta' ORDER BY criada_em LIMIT 1",
-            (entregavel_id,),
-        )
-        return str(row["id"]) if row else None
-
     def concluir_tarefa_aberta(self, entregavel_id: str) -> str | None:
         row = self._um(
             "UPDATE trabalho.tarefa_humana "
@@ -641,14 +633,6 @@ class UnidadeDeTrabalhoSQL:
             (caso_id, depende_de_id),
         )
         return [self._entregavel(r) for r in rows]
-
-    def saiu_de_divergente_tem_excecao_cf(self, entregavel_id: str) -> bool:
-        row = self._um(
-            "SELECT 1 FROM trabalho.excecao "
-            "WHERE entregavel_id = %s AND estado = 'aberta' AND tipo LIKE 'CF-%%' LIMIT 1",
-            (entregavel_id,),
-        )
-        return row is not None
 
     # -- override (§8.1) ------------------------------------------------------
     def conferencia_vigente(self, cf: str, entregavel_id: str) -> dict[str, Any] | None:

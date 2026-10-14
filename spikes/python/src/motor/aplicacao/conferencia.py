@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from motor.aplicacao.portas import UnidadeDeTrabalho
-from motor.aplicacao.registros import Caso, Entregavel, Fato
+from motor.aplicacao.registros import Caso, Entregavel, Fato, TipoConferencia
 from motor.dominio.competencia import Competencia
 from motor.dominio.conferencias import (
     SEMANTICA_CALCULO,
@@ -20,10 +20,6 @@ def contexto_do_caso(caso: Caso) -> dict[str, object]:
     ctx: dict[str, object] = dict(caso.snapshot)
     ctx["mes_do_trimestre"] = Competencia(caso.competencia).mes_do_trimestre
     return ctx
-
-
-def _indexar_por_tributo(fatos: list[Fato], tipo: str) -> dict[str, Fato]:
-    return {f.tributo: f for f in fatos if f.tipo == tipo}
 
 
 def _fato(fatos: list[Fato], tipo: str, tributo: str = "") -> Fato | None:
@@ -75,7 +71,7 @@ def _usar(fatos_usados: list[dict[str, object]], f: Fato | None, chave: str) -> 
     return f
 
 
-def _tributo_da_guia(uow: UnidadeDeTrabalho, caso: Caso) -> str:
+def _tributo_da_guia(caso: Caso) -> str:
     """Tributo da guia de entrada do E11 resolvida para o caso (DAS no SN, IRPJ no LP)."""
     regime = caso.snapshot.get("regime")
     return "DAS" if regime == "SN" else "IRPJ"
@@ -117,13 +113,13 @@ def conferir(
             esperado = esperado_das_simples(_valor(fat), aliquota_bp)
             obtido = _valor(apur)
         elif cf == "CF-05":
-            t = _tributo_da_guia(uow, caso)
+            t = _tributo_da_guia(caso)
             apur = _usar(fatos_usados, _fato(fatos, "apurado", t), f"apurado[{t}]")
             guia = _usar(fatos_usados, _fato(fatos, "guia", t), f"guia[{t}]")
             esperado = _valor(apur)
             obtido = _valor(guia)
         elif cf == "CF-06":
-            t = _tributo_da_guia(uow, caso)
+            t = _tributo_da_guia(caso)
             guia = _usar(fatos_usados, _fato(fatos, "guia", t), f"guia[{t}]")
             impressa = guia.payload.get("competencia_impressa")
             if not isinstance(impressa, str):
@@ -204,7 +200,7 @@ def _gravar(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-    tipo: object,
+    tipo: TipoConferencia,
     tolerancia_versao_id: str,
     fatos_usados: list[dict[str, object]],
     resultado: str,
@@ -214,9 +210,6 @@ def _gravar(
     severidade: str,
     classe: str | None = None,
 ) -> tuple[str, str, str, str, bool]:
-    from motor.aplicacao.registros import TipoConferencia
-
-    assert isinstance(tipo, TipoConferencia)
     # esperado/obtido vão para colunas bigint: o cálculo em Python não estoura, o insert sim.
     garantir_int64(esperado, "esperado_centavos")
     garantir_int64(obtido, "obtido_centavos")

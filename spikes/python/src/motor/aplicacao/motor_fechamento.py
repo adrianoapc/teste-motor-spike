@@ -5,35 +5,20 @@ import re
 from collections.abc import Mapping, Sequence
 
 from motor.aplicacao.conferencia import conferir, contexto_do_caso
+from motor.aplicacao.erros import conflito, invalido, nao_encontrado
 from motor.aplicacao.portas import UnidadeDeTrabalho
-from motor.aplicacao.registros import Caso, Entregavel, ItemEntregavel, RegraEntregaveis
+from motor.aplicacao.registros import (
+    Caso,
+    Entregavel,
+    ItemEntregavel,
+    RegraEntregaveis,
+    SaidaTarefa,
+)
 from motor.dominio.competencia import Competencia
 from motor.dominio.condicao import casa
-from motor.dominio.dinheiro import ValorForaDoIntervalo, garantir_int64
 from motor.dominio.estados import EstadoEntregavel as E
 from motor.dominio.estados import pelo_menos
 from motor.dominio.hashing import hash_fato
-
-
-# -- erros de negócio (traduzidos para HTTP na camada api) --------------------
-class ErroNegocio(Exception):
-    def __init__(self, status: int, codigo: str, mensagem: str) -> None:
-        super().__init__(mensagem)
-        self.status = status
-        self.codigo = codigo
-        self.mensagem = mensagem
-
-
-def _nao_encontrado(msg: str) -> ErroNegocio:
-    return ErroNegocio(404, "nao_encontrado", msg)
-
-
-def _conflito(codigo: str, msg: str) -> ErroNegocio:
-    return ErroNegocio(409, codigo, msg)
-
-
-def _invalido(codigo: str, msg: str) -> ErroNegocio:
-    return ErroNegocio(422, codigo, msg)
 
 
 # =============================================================================
@@ -104,10 +89,6 @@ def publicar_fato(
     origem_ref: str | None = None,
 ) -> tuple[str, int, str]:
     """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}."""
-    try:
-        garantir_int64(valor_centavos, "valor_centavos")
-    except ValorForaDoIntervalo as e:
-        raise _invalido("valor_fora_do_intervalo", str(e)) from e
     h = hash_fato(payload, valor_centavos)
     # Ordem global: 1) titular, 2) chave do fato, 3) linhas de entregável (por tipo).
     # Reentrante: /concluir já travou o titular antes de chamar esta função.
@@ -166,35 +147,32 @@ def concluir_tarefa(
     competencia: str,
     tipo: str,
     ator: str,
-    saidas: Sequence[Mapping[str, object]],
+    saidas: Sequence[SaidaTarefa],
 ) -> Entregavel:
     uow.travar_titular(titular_id)  # nível 1 da ordem global; antes de qualquer linha
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
-        raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
+        raise nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
     ent = uow.buscar_entregavel(caso.id, tipo, para_atualizar=True)
     if ent is None:
-        raise _nao_encontrado(f"entregável inexistente: {tipo}")
+        raise nao_encontrado(f"entregável inexistente: {tipo}")
     if ent.estado != E.PRONTO or ent.executor == "sistema":
-        raise _conflito("entregavel_nao_pronto", f"{tipo} em {ent.estado}, executor {ent.executor}")
+        raise conflito("entregavel_nao_pronto", f"{tipo} em {ent.estado}, executor {ent.executor}")
 
     regra = _regra_do_caso(uow, caso)
     item = regra.por_tipo.get(tipo)
     if not saidas or item is None or item.saida is None:
-        raise _invalido("sem_saida", f"{tipo} sem saída na regra ou saídas vazias")
+        raise invalido("sem_saida", f"{tipo} sem saída na regra ou saídas vazias")
 
     saida_tipo = str(item.saida["tipo"])
     agora = uow.hora()
     for s in saidas:
-        trib = str(s.get("tributo") or "")
-        payload_s = s.get("payload")
-        payload_m: Mapping[str, object] = payload_s if isinstance(payload_s, Mapping) else {}
         publicar_fato(
-            uow, caso.titular_id, caso.competencia, saida_tipo, trib,
-            _valor_opcional(s.get("valor_centavos")), payload_m,
+            uow, caso.titular_id, caso.competencia, saida_tipo, s.tributo,
+            s.valor_centavos, s.payload,
             "tarefa", agora, reavaliar=False, excluir_entregavel_id=ent.id,
         )
-        fv = uow.fato_vigente(caso.titular_id, caso.competencia, saida_tipo, trib)
+        fv = uow.fato_vigente(caso.titular_id, caso.competencia, saida_tipo, s.tributo)
         if fv is not None:
             uow.ligar_fato(ent.id, fv.id, "saida")
 
@@ -227,16 +205,16 @@ def override_conferencia(
     """Libera um `divergente` B via override (§8.1). Validação 422 → 404 → 409."""
     # 1) corpo inválido → 422 (cf fora de CF-nn ou motivo curto).
     if not re.fullmatch(r"CF-[0-9]{2}", cf, re.ASCII) or len(motivo) < 5:
-        raise _invalido("corpo_invalido", f"cf/motivo inválidos: {cf!r}, motivo<5")
+        raise invalido("corpo_invalido", f"cf/motivo inválidos: {cf!r}, motivo<5")
 
     # 2) caso/entregável inexistente → 404.
     uow.travar_titular(titular_id)  # nível 1 da ordem global; antes de qualquer linha
     caso = uow.buscar_caso(titular_id, competencia)
     if caso is None:
-        raise _nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
+        raise nao_encontrado(f"caso inexistente: {titular_id}/{competencia}")
     ent = uow.buscar_entregavel(caso.id, tipo, para_atualizar=True)
     if ent is None:
-        raise _nao_encontrado(f"entregável inexistente: {tipo}")
+        raise nao_encontrado(f"entregável inexistente: {tipo}")
 
     # 3) estado/conferência inválidos para override → 409.
     conf = uow.conferencia_vigente(cf, ent.id)
@@ -247,7 +225,7 @@ def override_conferencia(
         or conf.get("severidade") != "B"
         or conf.get("override_autor") is not None
     ):
-        raise _conflito("override_invalido", f"{tipo}/{cf} não permite override")
+        raise conflito("override_invalido", f"{tipo}/{cf} não permite override")
 
     conf_id = str(conf["id"])
     regra = _regra_do_caso(uow, caso)
@@ -599,12 +577,9 @@ def _conferir_entregavel(
         if not casa(cf_quando_lista, ctx):
             continue
         cf = str(cfobj["cf"])
-        try:
-            resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
-                uow, caso, ent, cf
-            )
-        except ValorForaDoIntervalo as e:
-            raise _invalido("valor_fora_do_intervalo", str(e)) from e
+        resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
+            uow, caso, ent, cf
+        )
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
         # Conferência reaproveitada que já tem override (§8.1) continua sobrescrita.
         if resultado == "divergente" and severidade == "B" and not sobrescrita:
@@ -629,14 +604,3 @@ def _conferir_entregavel(
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
-
-
-def _valor_opcional(v: object) -> int | None:
-    if v is None:
-        return None
-    if isinstance(v, int) and not isinstance(v, bool):
-        try:
-            return garantir_int64(v, "valor_centavos")
-        except ValorForaDoIntervalo as e:
-            raise _invalido("valor_fora_do_intervalo", str(e)) from e
-    raise _invalido("valor_invalido", f"valor_centavos deve ser inteiro ou nulo: {v!r}")
