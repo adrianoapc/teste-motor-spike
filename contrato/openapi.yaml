@@ -181,7 +181,8 @@ components:
         Corpo inválido (erro = corpo_invalido): JSON malformado, campo ausente ou de tipo errado etc.
         Em POST /fatos e /concluir, também: número do payload (ou valor_centavos) que não seja inteiro
         int64, chave duplicada, substituto Unicode isolado, U+0000 em qualquer string ou chave (também em
-        campos de texto e parâmetros de caminho) ou profundidade acima de 64 (semântica §6).
+        campos de texto do corpo) ou profundidade acima de 64 (semântica §6).
+        U+0000 em parâmetro de caminho é rejeitado com este 422 ou com 400 do servidor web (ambos conformes).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
