@@ -244,7 +244,7 @@ Para conferência numérica, `diferenca = |esperado − obtido|` em centavos. Co
 | `ok_ate < diferenca ≤ alerta_ate_centavos` | `divergente` | `A` |
 | `diferenca > alerta_ate_centavos` | `divergente` | a do catálogo |
 
-Para CF-06 e CF-12: `ok` ou `divergente` com a severidade do catálogo.
+Para CF-06 e CF-12: `ok` ou `divergente` com a severidade do catálogo. No CF-12, `esperado_centavos` e `obtido_centavos` ficam nulos (como no CF-06) e `diferenca` = `{"centavos":0}`.
 
 Fato necessário à fórmula ausente → `resultado = 'divergente'`, `classe = 'S'`, `diferenca = {"erro": "fato ausente: <tipo>[<tributo>]"}`.
 

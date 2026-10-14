@@ -46,7 +46,7 @@ Sob escala (C6, 4.500 casos no banco), pior leitura: I1 0,015 · I2 0,039 · I3 
 
 ## Rede de proteção
 - Erros barrados pelo compilador/`TreatWarningsAsErrors` antes de teste: 6 no total (ver `REGISTRO-COMPILADOR.md`). Build final de cada entrega: **0 avisos, 0 erros**.
-- Testes automatizados: **27 unitários** (vetores de arredondamento, hash canônico, `entrada_hash`, competência/virada de ano, mês do trimestre, ordem de estados, condição `quando`, escape de CF-06) + **3 de arquitetura** (NetArchTest). Todos verdes.
+- Testes automatizados (atualizado em 2026-10-14): **192 de unidade+integração + 3 de arquitetura** (NetArchTest) = 195, todos verdes. (A versão anterior deste arquivo listava 27 unitários + 3 de arquitetura.)
 
 ## Imagem
 - Tamanho da imagem: **371 MB** (`mcr.microsoft.com/dotnet/aspnet:10.0` + app publicado).
@@ -63,3 +63,35 @@ Sob escala (C6, 4.500 casos no banco), pior leitura: I1 0,015 · I2 0,039 · I3 
 - Hash canônico montado à mão sobre `System.Text.Json` (chaves ordinais, sem espaços, UTF-8 sem escapar acentos).
 - v3 implementada: INV-14 (`documento.disponibilizado` com `fato_id` da guia), estado `pago` aposentado (fim no protocolo), §11 invalidação/cascata + `competencia_encerrada`, §8.1 `POST /override`, §10.3 acompanhamento. Ver `DUVIDAS.md` §8–§13.
 - Fora do escopo do spike (§14 da semântica): autenticação, RLS, conectores reais, fila assíncrona, reabertura de competência encerrada, resolução das exceções `substituicao`/`competencia_encerrada`, checagem de pagamento (Regularidade Fiscal).
+
+---
+
+# Medição pós-merge (2026-10-14)
+
+Origin/main `998cad0`. Os números acima ficam como histórico.
+
+## Ambiente
+SDK .NET 10.0; Docker Desktop, 10 CPUs, 7,75 GiB; Postgres próprio para esta spike. Máquina com carga média 2,75–4,1: **não totalmente quieta**.
+
+## Correção
+- `dotnet test`: **195/195** (192 unidade+integração, 3 arquitetura).
+- Verificador **10/10** em 3 execuções completas (77, 80 e 72 s), sem `AdminShutdown`. O erro da rodada 2 não reapareceu em 6 execuções contra Postgres dedicado; **a causa continua desconhecida** (dica fraca: Postgres sem outros bancos concorrentes).
+- Migração V007 aplicada; um INSERT real grava `semantica_calculo=2`.
+
+## C6, 3 execuções
+| Execução | Abertura de 4.500 casos | p95 das 300 publicações |
+|---|---|---|
+| 1 | 67,07 s | 0,075 s |
+| 2 | 73,49 s | 0,044 s |
+| 3 | 67,90 s | 0,035 s |
+
+0 erros; 336 checagens; I5 0,176-0,197 s.
+
+- A seção de escala acima registra 76,4 s e p95 0,064 s. A diferença (4-12% mais rápido) **NÃO é distinguível de ruído**: hardware e carga distintos, sem A/B controlado.
+- O spike pina 1 core (101-113% CPU, 70-80 MiB). **NÃO PROVADO (hipótese):** 1 core limita a abertura.
+
+## Limitação do teste de drift da fixture
+O teste só compara de fato se `contrato/` estiver visível a partir do diretório de saída dos testes (ele sobe a partir de `AppContext.BaseDirectory`). Se só `spikes/dotnet` for montado, ou dentro do build do Dockerfile (que copia só `src`), o teste **passa SEM comparar**.
+
+## Não medido
+Sem A/B controlado contra a medição anterior; sem teste de que 1 core é o limite; causa do `AdminShutdown` não identificada.
