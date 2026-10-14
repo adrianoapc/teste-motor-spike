@@ -34,56 +34,38 @@ final readonly class AbrirCompetencias
         private AvaliarCaso $avaliar,
     ) {}
 
-    /**
-     * @param  list<array<string, mixed>>  $empresas
-     * @return array{criados: list<array{titular_id: string, caso_id: string}>, existentes: list<array{titular_id: string, caso_id: string}>}
-     */
-    public function abrir(string $competenciaValor, string $ator, array $empresas): array
+    public function abrir(AbrirCompetenciasComando $comando): ResultadoAbertura
     {
-        $competencia = new Competencia($competenciaValor);
+        $competencia = new Competencia($comando->competencia);
         $criados = [];
         $existentes = [];
 
-        foreach ($empresas as $empresa) {
-            $titularId = is_string($empresa['titular_id'] ?? null) ? $empresa['titular_id'] : '';
-
-            /** @var array{tipo: string, caso_id: string, titular_id: string} $resultado */
-            $resultado = $this->uow->transacao(function () use ($competencia, $ator, $empresa, $titularId): array {
+        foreach ($comando->empresas as $empresa) {
+            /** @var array{criado: bool, caso: CasoDaEmpresa} $resultado */
+            $resultado = $this->uow->transacao(function () use ($competencia, $comando, $empresa): array {
                 // Lock nível 1 (titular): pedidos concorrentes da mesma chave esperam, relêem e reportam em `existentes`.
-                $this->casos->travarTitular($titularId);
-                $existente = $this->casos->porTitularCompetencia($titularId, $competencia);
+                $this->casos->travarTitular($empresa->titularId);
+                $existente = $this->casos->porTitularCompetencia($empresa->titularId, $competencia);
                 if ($existente !== null) {
-                    return ['tipo' => 'existente', 'caso_id' => $existente->id, 'titular_id' => $titularId];
+                    return ['criado' => false, 'caso' => new CasoDaEmpresa($empresa->titularId, $existente->id)];
                 }
 
-                $caso = $this->criarCaso($competencia, $empresa, $titularId);
-                $this->criarEntregaveis($caso, $ator);
+                $caso = $this->casos->criar($competencia, $empresa, $this->regras->entregaveisEmUso()->versaoId);
+                $this->criarEntregaveis($caso, $comando->ator);
                 $this->eventos->gravar('competencia.aberta', $caso->id, null, ['caso_id' => $caso->id]);
                 $this->avaliar->avaliar($caso);
 
-                return ['tipo' => 'criado', 'caso_id' => $caso->id, 'titular_id' => $titularId];
+                return ['criado' => true, 'caso' => new CasoDaEmpresa($empresa->titularId, $caso->id)];
             });
 
-            $linha = ['titular_id' => $resultado['titular_id'], 'caso_id' => $resultado['caso_id']];
-            if ($resultado['tipo'] === 'criado') {
-                $criados[] = $linha;
+            if ($resultado['criado']) {
+                $criados[] = $resultado['caso'];
             } else {
-                $existentes[] = $linha;
+                $existentes[] = $resultado['caso'];
             }
         }
 
-        return ['criados' => $criados, 'existentes' => $existentes];
-    }
-
-    /**
-     * @param  array<string, mixed>  $empresa
-     */
-    private function criarCaso(Competencia $competencia, array $empresa, string $titularId): Caso
-    {
-        $regra = $this->regras->entregaveisEmUso();
-        $carteira = is_string($empresa['carteira'] ?? null) ? $empresa['carteira'] : '';
-
-        return $this->casos->criar($titularId, $competencia, $empresa, $carteira, $regra->versaoId);
+        return new ResultadoAbertura($criados, $existentes);
     }
 
     private function criarEntregaveis(Caso $caso, string $ator): void

@@ -173,8 +173,8 @@ final readonly class AvaliarCaso
             // Abre exceção por CF bloqueante divergente (§9.3, §9.4 abertura única).
             foreach ($this->conferencias->divergentesBloqueantes($eProcessado->id) as $div) {
                 // Classe gravada na conferência (S quando faltou dado de fórmula), não a do catálogo.
-                $excId = $this->excecoes->abrirUnica($caso->id, $eProcessado->id, $div['cf'], $div['classe'], $caso->carteira);
-                $this->eventos->gravar('conferencia.divergente', $caso->id, $eProcessado->id, ['conferencia_id' => $div['id']]);
+                $excId = $this->excecoes->abrirUnica($caso->id, $eProcessado->id, $div->cf, $div->classe, $caso->carteira);
+                $this->eventos->gravar('conferencia.divergente', $caso->id, $eProcessado->id, ['conferencia_id' => $div->id]);
                 if ($excId !== null) {
                     $this->eventos->gravar('excecao.aberta', $caso->id, $eProcessado->id, ['excecao_id' => $excId]);
                 }
@@ -240,12 +240,11 @@ final readonly class AvaliarCaso
     {
         // Dependências ≥ estado_minimo.
         foreach ($this->dependencias->doEntregavel($e->id) as $dep) {
-            $alvo = $this->entregaveis->porId($dep['depende_de_id']);
+            $alvo = $this->entregaveis->porId($dep->dependeDeId);
             if ($alvo === null) {
                 return false;
             }
-            $minimo = EstadoEntregavel::from($dep['estado_minimo']);
-            if (! $alvo->estado->maiorOuIgual($minimo)) {
+            if (! $alvo->estado->maiorOuIgual($dep->estadoMinimo)) {
                 return false;
             }
         }

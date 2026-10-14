@@ -116,6 +116,36 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         return $afetadas === 1;
     }
 
+    public function registrarTransicao(
+        Entregavel $entregavel,
+        ?EstadoEntregavel $de,
+        EstadoEntregavel $para,
+        string $motivo,
+        ?string $causadoPorTipo,
+        ?string $causadoPorId,
+        string $ator,
+        string $regraVersaoId,
+    ): void {
+        $this->conexao->statement(
+            <<<'SQL'
+            INSERT INTO fechamento.entregavel_transicao
+                (entregavel_id, caso_id, de_estado, para_estado, motivo, causado_por_tipo, causado_por_id, ator, regra_versao_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            SQL,
+            [
+                $entregavel->id,
+                $entregavel->casoId,
+                $de?->value,
+                $para->value,
+                $motivo,
+                $causadoPorTipo,
+                $causadoPorId,
+                $ator,
+                $regraVersaoId,
+            ],
+        );
+    }
+
     public function ligarFato(string $entregavelId, string $fatoId, string $papel): void
     {
         $this->conexao->statement(

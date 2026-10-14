@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Infraestrutura\Persistencia;
 
+use App\Aplicacao\Portas\DependenciaGravada;
 use App\Aplicacao\Portas\RepositorioDependencia;
+use App\Dominio\Fechamento\EstadoEntregavel;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class RepositorioDependenciaDb implements RepositorioDependencia
@@ -23,7 +25,7 @@ final readonly class RepositorioDependenciaDb implements RepositorioDependencia
         );
     }
 
-    /** @return list<array{depende_de_id: string, estado_minimo: string}> */
+    /** @return list<DependenciaGravada> */
     public function doEntregavel(string $entregavelId): array
     {
         $linhas = $this->conexao->select(
@@ -35,7 +37,7 @@ final readonly class RepositorioDependenciaDb implements RepositorioDependencia
         foreach ($linhas as $l) {
             /** @var array{depende_de_id: string, estado_minimo: string} $row */
             $row = (array) $l;
-            $saida[] = ['depende_de_id' => $row['depende_de_id'], 'estado_minimo' => $row['estado_minimo']];
+            $saida[] = new DependenciaGravada($row['depende_de_id'], EstadoEntregavel::from($row['estado_minimo']));
         }
 
         return $saida;

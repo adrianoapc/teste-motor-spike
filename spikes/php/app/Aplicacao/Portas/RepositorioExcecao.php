@@ -13,6 +13,13 @@ interface RepositorioExcecao
      */
     public function abrirUnica(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): ?string;
 
+    /**
+     * Exceções abertas do caso, em ordem de abertura (aberta_em, id).
+     *
+     * @return list<ExcecaoAberta>
+     */
+    public function abertasDoCaso(string $casoId): array;
+
     /** Resolve exceções abertas de um entregável cujo tipo começa com 'CF-'. */
     public function resolverCfDoEntregavel(string $entregavelId, string $resolucao): void;
 

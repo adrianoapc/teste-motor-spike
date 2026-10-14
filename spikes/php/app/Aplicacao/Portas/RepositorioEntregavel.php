@@ -38,6 +38,22 @@ interface RepositorioEntregavel
      */
     public function salvarEstado(string $entregavelId, EstadoEntregavel $esperado, EstadoEntregavel $estado): bool;
 
+    /**
+     * Registra a linha de fechamento.entregavel_transicao (tabela só-inserção). `$de` é null na criação.
+     *
+     * @param  'fato'|'conferencia'|'tarefa'|'comando'|'dependencia'|null  $causadoPorTipo
+     */
+    public function registrarTransicao(
+        Entregavel $entregavel,
+        ?EstadoEntregavel $de,
+        EstadoEntregavel $para,
+        string $motivo,
+        ?string $causadoPorTipo,
+        ?string $causadoPorId,
+        string $ator,
+        string $regraVersaoId,
+    ): void;
+
     /** Liga um fato ao entregável (papel entrada/saida). Idempotente pela PK. */
     public function ligarFato(string $entregavelId, string $fatoId, string $papel): void;
 

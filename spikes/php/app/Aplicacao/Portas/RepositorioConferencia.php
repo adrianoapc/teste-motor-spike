@@ -30,10 +30,8 @@ interface RepositorioConferencia
 
     /**
      * Conferência vigente (maior em) de uma CF num entregável.
-     *
-     * @return array{id: string, resultado: string, severidade: string, tem_override: bool}|null
      */
-    public function vigente(string $entregavelId, string $cf): ?array;
+    public function vigente(string $entregavelId, string $cf): ?ConferenciaVigente;
 
     /** Grava override na conferência vigente da CF. */
     public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void;
@@ -41,7 +39,7 @@ interface RepositorioConferencia
     /**
      * Conferências vigentes do entregável que são divergentes B sem override.
      *
-     * @return list<array{id: string, cf: string, classe: string}>
+     * @return list<DivergenciaBloqueante>
      */
     public function divergentesBloqueantes(string $entregavelId): array;
 
