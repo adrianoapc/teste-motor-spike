@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infraestrutura\Persistencia;
 
+use App\Aplicacao\Portas\ConferenciaVigente;
+use App\Aplicacao\Portas\DivergenciaBloqueante;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Dominio\Conferencias\HashConferencia;
 use Illuminate\Database\ConnectionInterface;
@@ -50,8 +52,7 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
         );
     }
 
-    /** @return array{id: string, resultado: string, severidade: string, tem_override: bool}|null */
-    public function vigente(string $entregavelId, string $cf): ?array
+    public function vigente(string $entregavelId, string $cf): ?ConferenciaVigente
     {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
@@ -69,12 +70,7 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
         /** @var array{id: string, resultado: string, severidade: string, tem_override: bool} $row */
         $row = (array) $linha;
 
-        return [
-            'id' => $row['id'],
-            'resultado' => $row['resultado'],
-            'severidade' => $row['severidade'],
-            'tem_override' => (bool) $row['tem_override'],
-        ];
+        return new ConferenciaVigente($row['id'], $row['resultado'], $row['severidade'], (bool) $row['tem_override']);
     }
 
     public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void
@@ -88,10 +84,10 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
     /** @return list<string> */
     public function cfsDivergentesBloqueantes(string $entregavelId): array
     {
-        return array_map(static fn (array $d): string => $d['cf'], $this->divergentesBloqueantes($entregavelId));
+        return array_map(static fn (DivergenciaBloqueante $d): string => $d->cf, $this->divergentesBloqueantes($entregavelId));
     }
 
-    /** @return list<array{id: string, cf: string, classe: string}> */
+    /** @return list<DivergenciaBloqueante> */
     public function divergentesBloqueantes(string $entregavelId): array
     {
         // Para cada CF do entregável, a conferência vigente (maior em) que seja
@@ -114,7 +110,7 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
         foreach ($linhas as $l) {
             /** @var array{id: string, cf: string, classe: string} $row */
             $row = (array) $l;
-            $saida[] = ['id' => $row['id'], 'cf' => $row['cf'], 'classe' => $row['classe']];
+            $saida[] = new DivergenciaBloqueante($row['id'], $row['cf'], $row['classe']);
         }
 
         return $saida;

@@ -1,14 +1,20 @@
 """Regressões dos achados da revisão (PR #5): regra fixada, eventos, tributo, origem_ref."""
 from __future__ import annotations
 
+import asyncio
+import json
 from dataclasses import dataclass, field
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from motor.api.app import app
+from motor.api.erros import tratar_erro_negocio, tratar_valor_fora_do_intervalo
 from motor.api.modelos import FatoRequest
 from motor.aplicacao import motor_fechamento as mf
 from motor.aplicacao.conferencia import conferir
+from motor.aplicacao.erros import ConflitoConcorrencia, ErroNegocio
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
@@ -18,6 +24,7 @@ from motor.aplicacao.registros import (
     TipoConferencia,
     Tolerancia,
 )
+from motor.dominio.dinheiro import ValorForaDoIntervalo
 
 
 def _caso(regime: str = "SN") -> Caso:
@@ -353,9 +360,9 @@ def test_comandos_que_escrevem_travam_o_titular_antes_de_qualquer_outra_coisa() 
     ordem: list[str] = []
     uow.travar_titular = lambda t: ordem.append("titular")  # type: ignore[method-assign]
     uow.buscar_caso = lambda t, c: (ordem.append("caso"), None)[1]  # type: ignore[method-assign]
-    with pytest.raises(mf.ErroNegocio):
+    with pytest.raises(ErroNegocio):
         mf.concluir_tarefa(uow, "T1", "202609", "E1", "a", [])  # type: ignore[arg-type]
-    with pytest.raises(mf.ErroNegocio):
+    with pytest.raises(ErroNegocio):
         mf.override_conferencia(uow, "T1", "202609", "E1", "CF-01", "a", "motivo ok")  # type: ignore[arg-type]
     assert ordem == ["titular", "caso", "titular", "caso"]
 
@@ -393,20 +400,34 @@ def test_valor_centavos_fora_do_int64_da_422_nos_modelos(v: int) -> None:
     assert SaidaItem(valor_centavos=-(2**63)).valor_centavos == -(2**63)
 
 
-def test_publicar_fato_e_saida_de_concluir_fora_do_int64_dao_erro_de_negocio_422() -> None:
-    uow = _Fake()
-    with pytest.raises(mf.ErroNegocio) as e:
-        mf.publicar_fato(
-            uow, "T1", "202609", "guia", "DAS", 2**63, {}, "api",  # type: ignore[arg-type]
-            "2026-09-01T00:00:00+00:00",
-        )
-    assert e.value.status == 422
-    with pytest.raises(mf.ErroNegocio) as e2:
-        mf._valor_opcional(2**63)
-    assert e2.value.status == 422
+def test_publicar_fato_com_valor_fora_do_int64_e_barrado_na_borda_com_422() -> None:
+    corpo = {"titular_id": "T1", "competencia": "202609", "tipo": "guia", "tributo": "DAS",
+             "valor_centavos": 2**63, "payload": {}, "fonte": "api",
+             "observado_em": "2026-09-01T10:00:00Z"}
+    r = TestClient(app).post("/fatos", json=corpo)
+    assert r.status_code == 422
+    assert r.json()["erro"] == "corpo_invalido"
 
 
-def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
+def test_handler_unico_traduz_valor_fora_do_intervalo_em_422() -> None:
+    resp = asyncio.run(
+        tratar_valor_fora_do_intervalo(None, ValorForaDoIntervalo("x fora do intervalo int64"))  # type: ignore[arg-type]
+    )
+    assert resp.status_code == 422
+    assert json.loads(bytes(resp.body)) == {
+        "erro": "valor_fora_do_intervalo", "mensagem": "x fora do intervalo int64",
+    }
+
+
+def test_handler_unico_de_negocio_cobre_conflito_de_concorrencia() -> None:
+    resp = asyncio.run(
+        tratar_erro_negocio(None, ConflitoConcorrencia("E1 não está mais em pronto"))  # type: ignore[arg-type]
+    )
+    assert resp.status_code == 409
+    assert json.loads(bytes(resp.body))["erro"] == "conflito_concorrencia"
+
+
+def test_conferencia_com_resultado_fora_do_int64_levanta_valor_fora_do_intervalo() -> None:
     uow = _Fake(caso=_caso("SN"))
     uow.fatos_caso = [
         Fato(id="f1", titular_id="T1", competencia="202609", tipo="faturamento_mes",
@@ -425,9 +446,8 @@ def test_conferencia_com_resultado_fora_do_int64_vira_422() -> None:
             saida=None, conferencias=[{"cf": "CF-08"}],
         )],
     )
-    with pytest.raises(mf.ErroNegocio) as e:
+    with pytest.raises(ValorForaDoIntervalo):
         mf._conferir_entregavel(uow, uow.caso, _e11(), regra, "sistema")  # type: ignore[arg-type]
-    assert e.value.status == 422
 
 
 def _fv(tipo: str, tributo: str = "", valor: int | None = 100,
@@ -493,12 +513,6 @@ def test_valor_centavos_nao_inteiro_estrito_da_422(v: object) -> None:
         FatoRequest(**base, valor_centavos=v)  # type: ignore[arg-type]
     with pytest.raises(ValidationError):
         SaidaItem(valor_centavos=v)  # type: ignore[arg-type]
-
-
-def test_valor_opcional_rejeita_bool() -> None:
-    with pytest.raises(mf.ErroNegocio) as e:
-        mf._valor_opcional(True)
-    assert e.value.status == 422
 
 
 @pytest.mark.parametrize("payload", [{}, {"competencia_impressa": None},

@@ -4,7 +4,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from motor.aplicacao.portas import UnidadeDeTrabalho
-from motor.aplicacao.registros import Caso, Entregavel, Fato, RegraEntregaveis
+from motor.aplicacao.registros import (
+    Caso,
+    Entregavel,
+    Fato,
+    RegraEntregaveis,
+    TipoConferencia,
+)
 from motor.dominio.competencia import Competencia
 from motor.dominio.conferencias import (
     SEMANTICA_CALCULO,
@@ -23,10 +29,6 @@ def contexto_do_caso(caso: Caso) -> dict[str, object]:
     ctx: dict[str, object] = dict(caso.snapshot)
     ctx["mes_do_trimestre"] = Competencia(caso.competencia).mes_do_trimestre
     return ctx
-
-
-def _indexar_por_tributo(fatos: list[Fato], tipo: str) -> dict[str, Fato]:
-    return {f.tributo: f for f in fatos if f.tipo == tipo}
 
 
 def _fato(fatos: list[Fato], tipo: str, tributo: str = "") -> Fato | None:
@@ -223,7 +225,7 @@ def _gravar(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
-    tipo: object,
+    tipo: TipoConferencia,
     tolerancia_versao_id: str,
     fatos_usados: list[dict[str, object]],
     resultado: str,
@@ -233,9 +235,6 @@ def _gravar(
     severidade: str,
     classe: str | None = None,
 ) -> tuple[str, str, str, str, bool]:
-    from motor.aplicacao.registros import TipoConferencia
-
-    assert isinstance(tipo, TipoConferencia)
     # esperado/obtido vão para colunas bigint: o cálculo em Python não estoura, o insert sim.
     garantir_int64(esperado, "esperado_centavos")
     garantir_int64(obtido, "obtido_centavos")

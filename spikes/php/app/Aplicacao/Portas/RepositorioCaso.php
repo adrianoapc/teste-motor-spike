@@ -6,6 +6,7 @@ namespace App\Aplicacao\Portas;
 
 use App\Dominio\Fechamento\Caso;
 use App\Dominio\Fechamento\Competencia;
+use App\Dominio\Fechamento\Empresa;
 
 interface RepositorioCaso
 {
@@ -18,16 +19,7 @@ interface RepositorioCaso
      */
     public function travarTitular(string $titularId): void;
 
-    /**
-     * @param  array<string, mixed>  $snapshot
-     */
-    public function criar(
-        string $titularId,
-        Competencia $competencia,
-        array $snapshot,
-        string $carteira,
-        string $regraEntregaveisVersaoId,
-    ): Caso;
+    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId): Caso;
 
     public function encerrar(string $casoId): void;
 

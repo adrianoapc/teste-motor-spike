@@ -19,10 +19,6 @@ from motor.aplicacao.registros import (
 )
 
 
-class ConflitoConcorrencia(Exception):
-    """Outra transação alterou o entregável entre a leitura e a escrita (→ 409)."""
-
-
 class UnidadeDeTrabalho(Protocol):
     """Operações de leitura/escrita numa única transação. `hora()` vem do banco."""
 
@@ -186,16 +182,6 @@ class UnidadeDeTrabalho(Protocol):
         """Conclui a tarefa aberta do entregável; devolve o id ou None."""
         ...
 
-    def tarefa_aberta_do_entregavel(self, entregavel_id: str) -> str | None: ...
-    def excecao_aberta_existe(
-        self, caso_id: str, entregavel_id: str | None, tipo: str
-    ) -> bool:
-        """Abertura única (§9.4): há exceção aberta deste tipo para o alvo?
-
-        Quando `entregavel_id` é None a chave é (caso_id, tipo) — exceção sem
-        entregável, como `competencia_encerrada` (§11.3).
-        """
-        ...
 
     def abrir_excecao_unica(
         self, caso_id: str, entregavel_id: str | None, tipo: str, classe: str, dono: str
@@ -234,10 +220,6 @@ class UnidadeDeTrabalho(Protocol):
 
     def dependentes_de(self, caso_id: str, depende_de_id: str) -> list[Entregavel]:
         """Entregáveis do caso que dependem de `depende_de_id` (cascata §11.2)."""
-        ...
-
-    def saiu_de_divergente_tem_excecao_cf(self, entregavel_id: str) -> bool:
-        """Há conferência vigente divergente com exceção CF aberta? (resolução §11.2)."""
         ...
 
     # -- override (§8.1) ------------------------------------------------------

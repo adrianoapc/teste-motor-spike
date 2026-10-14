@@ -95,13 +95,19 @@ public static class Validacao
         return true;
     }
 
-    public static bool PayloadValido(JsonElement raiz, out JsonElement payload) => PayloadValido(raiz, out payload, out _);
-
     /// <summary>Verifica o conteúdo do payload (nível 1 = o próprio objeto). Caminho no formato .a[2].b.</summary>
     public static bool ConteudoPayloadValido(JsonElement payload, out string motivo, out string caminho)
         => Percorrer(payload, 1, out motivo, out caminho);
 
     public static bool ContemNul(string s) => s.Contains('\0');
+
+    /// <summary>Texto de uma string ou chave JSON; <c>null</c> se ela tem substituto UTF-16 isolado
+    /// (o <c>System.Text.Json</c> lança <see cref="InvalidOperationException"/> ao materializá-la).</summary>
+    private static string? TextoLegivel(Func<string> ler)
+    {
+        try { return ler(); }
+        catch (InvalidOperationException) { return null; }
+    }
 
     /// <summary>U+0000 não é armazenável em jsonb/text do PostgreSQL: nenhuma string ou chave do corpo
     /// (campos de texto do envelope inclusive) pode conter. Substituto isolado também é inválido.
@@ -112,15 +118,17 @@ public static class Validacao
         switch (e.ValueKind)
         {
             case JsonValueKind.String:
-                try { if (!ContemNul(e.GetString()!)) return true; }
-                catch (InvalidOperationException) { motivo = "string com substituto UTF-16 isolado"; return false; }
+                if (TextoLegivel(() => e.GetString()!) is not { } texto)
+                { motivo = "string com substituto UTF-16 isolado"; return false; }
+                if (!ContemNul(texto)) return true;
                 motivo = "texto com U+0000 não é aceito";
                 return false;
             case JsonValueKind.Object:
                 foreach (var prop in e.EnumerateObject())
                 {
-                    try { if (ContemNul(prop.Name)) { motivo = "chave com U+0000 não é aceita"; return false; } }
-                    catch (InvalidOperationException) { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (TextoLegivel(() => prop.Name) is not { } nome)
+                    { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (ContemNul(nome)) { motivo = "chave com U+0000 não é aceita"; return false; }
                     if (!CorpoSemNul(prop.Value, out motivo)) return false;
                 }
                 return true;
@@ -133,8 +141,6 @@ public static class Validacao
         }
     }
 
-    public static bool NumerosInteirosInt64(JsonElement e) => Percorrer(e, 1, out _, out _);
-
     private static bool Percorrer(JsonElement e, int nivel, out string motivo, out string caminho)
     {
         motivo = ""; caminho = "";
@@ -145,8 +151,9 @@ public static class Validacao
                 motivo = "número deve ser inteiro int64 (sem fração, expoente ou -0)";
                 return false;
             case JsonValueKind.String:
-                try { if (!ContemNul(e.GetString()!)) return true; }
-                catch (InvalidOperationException) { motivo = "string com substituto UTF-16 isolado"; return false; }
+                if (TextoLegivel(() => e.GetString()!) is not { } texto)
+                { motivo = "string com substituto UTF-16 isolado"; return false; }
+                if (!ContemNul(texto)) return true;
                 motivo = "string com U+0000 (jsonb não armazena)";
                 return false;
             case JsonValueKind.Object:
@@ -155,9 +162,8 @@ public static class Validacao
                 var vistas = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var prop in e.EnumerateObject())
                 {
-                    string nome;
-                    try { nome = prop.Name; }
-                    catch (InvalidOperationException) { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (TextoLegivel(() => prop.Name) is not { } nome)
+                    { motivo = "chave com substituto UTF-16 isolado"; return false; }
                     if (ContemNul(nome)) { motivo = "chave com U+0000 (jsonb não armazena)"; return false; }
                     if (!vistas.Add(nome)) { motivo = $"chave duplicada \"{nome}\""; caminho = "." + nome; return false; }
                     if (!Percorrer(prop.Value, nivel + 1, out motivo, out var sub)) { caminho = "." + nome + sub; return false; }

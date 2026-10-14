@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from motor.api.app import app
 from motor.api.modelos import Empresa, FatoRequest
 from motor.aplicacao import motor_fechamento as mf
+from motor.aplicacao.erros import ErroNegocio
 from motor.dominio.competencia import Competencia
 from motor.infraestrutura.log import configurar_log
 
@@ -28,7 +29,7 @@ _EMPRESA: dict[str, Any] = {
 
 @pytest.mark.parametrize("cf", ["CF-١٢", "CF-1", "cf-12", "CF-123", "CF-12\n"])
 def test_override_com_cf_fora_de_ascii_da_422_antes_de_consultar(cf: str) -> None:
-    with pytest.raises(mf.ErroNegocio) as e:
+    with pytest.raises(ErroNegocio) as e:
         mf.override_conferencia(None, "T1", "202609", "E1", cf, "ator", "motivo ok")  # type: ignore[arg-type]
     assert e.value.status == 422
 

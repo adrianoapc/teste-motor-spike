@@ -34,29 +34,17 @@ final readonly class PublicarFato
         private Acompanhar $acompanhar,
     ) {}
 
-    /**
-     * @return array{fato_id: string, versao: int, efeito: string}
-     */
-    public function publicar(
-        string $titularId,
-        string $competencia,
-        string $tipo,
-        string $tributo,
-        ?int $valorCentavos,
-        mixed $payload,
-        string $fonte,
-        ?string $origemRef,
-        string $observadoEm,
-    ): array {
-        return $this->uow->transacao(function () use ($titularId, $competencia, $tipo, $tributo, $valorCentavos, $payload, $fonte, $origemRef, $observadoEm): array {
+    public function publicar(PublicarFatoComando $comando): ResultadoFato
+    {
+        return $this->uow->transacao(function () use ($comando): ResultadoFato {
             // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
-            $this->casos->travarTitular($titularId);
-            $hash = HashFato::hash($payload, $valorCentavos);
-            $this->fatos->travarChave($titularId, $competencia, $tipo, $tributo);
-            $vigente = $this->fatos->vigente($titularId, $competencia, $tipo, $tributo);
+            $this->casos->travarTitular($comando->titularId);
+            $hash = HashFato::hash($comando->payload, $comando->valorCentavos);
+            $this->fatos->travarChave($comando->titularId, $comando->competencia, $comando->tipo, $comando->tributo);
+            $vigente = $this->fatos->vigente($comando->titularId, $comando->competencia, $comando->tipo, $comando->tributo);
 
             if ($vigente !== null && $vigente->hash === $hash) {
-                return ['fato_id' => $vigente->id, 'versao' => $vigente->versao, 'efeito' => 'sem_mudanca'];
+                return new ResultadoFato($vigente->id, $vigente->versao, 'sem_mudanca');
             }
 
             $versao = $vigente !== null ? $vigente->versao + 1 : 1;
@@ -64,12 +52,12 @@ final readonly class PublicarFato
             $efeito = $vigente !== null ? 'nova_versao' : 'novo';
 
             $fato = $this->fatos->inserir(
-                $titularId, $competencia, $tipo, $tributo, $versao,
-                $valorCentavos, $payload, $fonte, $origemRef, $hash,
-                $fatoAnteriorId, $observadoEm,
+                $comando->titularId, $comando->competencia, $comando->tipo, $comando->tributo, $versao,
+                $comando->valorCentavos, $comando->payload, $comando->fonte, $comando->origemRef, $hash,
+                $fatoAnteriorId, $comando->observadoEm,
             );
 
-            $caso = $this->casos->porTitularCompetencia($titularId, new Competencia($competencia));
+            $caso = $this->casos->porTitularCompetencia($comando->titularId, new Competencia($comando->competencia));
             $this->eventos->gravar('fato.publicado', $caso?->id, null, ['fato_id' => $fato->id]);
 
             // Estado do E11 do caso ANTES da reavaliação (§10.3).
@@ -81,17 +69,15 @@ final readonly class PublicarFato
             }
 
             // Reavaliação de todos os casos abertos do titular (§6.2 superconjunto seguro).
-            foreach ($this->casos->abertosDoTitular($titularId) as $casoAberto) {
-                $this->avaliar->avaliar($casoAberto);
-            }
+            $this->avaliar->avaliarAbertosDoTitular($comando->titularId);
 
             // Acompanhamento (§10.3): só se gravou e o E11 já estava disponibilizado.
             if ($caso !== null && $e11Antes === EstadoEntregavel::Disponibilizado) {
                 $guia = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, 'guia', Tributos::guia($caso));
-                $this->acompanhar->aplicar($caso, $tipo, $tributo, $efeito === 'nova_versao', $guia !== null ? $guia->id : $fato->id);
+                $this->acompanhar->aplicar($caso, $comando->tipo, $comando->tributo, $efeito === 'nova_versao', $guia !== null ? $guia->id : $fato->id);
             }
 
-            return ['fato_id' => $fato->id, 'versao' => $fato->versao, 'efeito' => $efeito];
+            return new ResultadoFato($fato->id, $fato->versao, $efeito);
         });
     }
 
@@ -100,8 +86,7 @@ final readonly class PublicarFato
         if ($caso === null) {
             return null;
         }
-        $e11 = $this->entregaveis->porCasoTipo($caso->id, 'E11');
 
-        return $e11?->estado;
+        return $this->entregaveis->porCasoTipo($caso->id, 'E11')?->estado;
     }
 }

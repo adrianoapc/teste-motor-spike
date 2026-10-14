@@ -13,6 +13,7 @@ use App\Dominio\Fechamento\Condicao;
 use App\Dominio\Fechamento\Dinheiro;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Regras\ItemEntregavel;
+use App\Dominio\Regras\RegraInvalida;
 use App\Dominio\Regras\Tolerancia;
 
 /**
@@ -35,10 +36,7 @@ final readonly class Conferidor
         Entregavel $entregavel,
         ItemEntregavel $item,
         FatosDoCaso $fatos,
-        Formulas $formulas,
-        Tolerancia $tolerancia,
-        string $tributoGuia,
-        string $tributoApuracao,
+        ParametrosDeConferencia $parametros,
     ): bool {
         $ctx = $caso->contexto();
 
@@ -48,33 +46,49 @@ final readonly class Conferidor
             }
 
             $cat = $this->catalogo->conferenciaTipo($cfRegra->cf);
-            $resultado = $this->calcular($cfRegra->cf, $formulas, $fatos, $tributoGuia, $tributoApuracao, $caso->competencia->valor);
+            $resultado = $this->calcular($cfRegra->cf, $parametros, $fatos, $caso, $item);
 
-            $this->gravar($caso, $entregavel, $cfRegra->cf, $cat, $resultado, $tolerancia);
+            $this->gravar($caso, $entregavel, $cfRegra->cf, $cat, $resultado, $parametros->tolerancia);
         }
 
         return $this->conferencias->cfsDivergentesBloqueantes($entregavel->id) !== [];
     }
 
-    private function calcular(
-        string $cf,
-        Formulas $formulas,
-        FatosDoCaso $fatos,
-        string $tributoGuia,
-        string $tributoApuracao,
-        string $competenciaCaso,
-    ): ResultadoFormula {
+    private function calcular(string $cf, ParametrosDeConferencia $p, FatosDoCaso $fatos, Caso $caso, ItemEntregavel $item): ResultadoFormula
+    {
+        $formulas = $p->formulas;
+        $tributoGuia = $p->tributoGuia;
+
         return match ($cf) {
             'CF-01' => $formulas->cf01($fatos),
             'CF-04' => $formulas->cf04($fatos),
             'CF-05' => $formulas->cf05($fatos, $tributoGuia),
-            'CF-06' => $formulas->cf06($fatos, $tributoGuia, $competenciaCaso),
-            'CF-07' => $formulas->cf07($fatos, $tributoApuracao),
+            'CF-06' => $formulas->cf06($fatos, $tributoGuia, $caso->competencia->valor),
+            'CF-07' => $formulas->cf07($fatos, $tributoGuia),
             'CF-08' => $formulas->cf08($fatos),
             'CF-09' => $formulas->cf09($fatos),
-            'CF-12' => $formulas->cf12($fatos, $tributoGuia === 'DAS' ? 'PGDAS-D' : 'DCTFWEB'),
+            'CF-12' => $formulas->cf12($fatos, $this->tributoDoRecibo($caso, $item)),
             default => ResultadoFormula::fatoAusente("cf desconhecida: {$cf}"),
         };
+    }
+
+    /**
+     * Tributo exigido pela CF-12 (§9.1): o da entrada `recibo_obrigacao` do item cujo `quando` casa com o
+     * contexto do caso, na regra fixada do caso (SN → PGDAS-D, LP → DCTFWEB: está na regra, não no código).
+     */
+    private function tributoDoRecibo(Caso $caso, ItemEntregavel $item): string
+    {
+        $ctx = $caso->contexto();
+        foreach ($item->entradas as $entrada) {
+            if ($entrada->tipo === 'recibo_obrigacao' && Condicao::casa($entrada->quando, $ctx)) {
+                return $entrada->tributo;
+            }
+        }
+
+        throw RegraInvalida::em(
+            'fechamento.entregaveis', $caso->regraEntregaveisVersaoId,
+            "item {$item->tipo} roda CF-12 mas não declara entrada recibo_obrigacao para este contexto",
+        );
     }
 
     private function gravar(

@@ -6,7 +6,10 @@ namespace App\Api\Controllers;
 
 use App\Api\CorpoEstrito;
 use App\Aplicacao\Fechamento\AbrirCompetencias;
+use App\Aplicacao\Fechamento\AbrirCompetenciasComando;
+use App\Aplicacao\Fechamento\CasoDaEmpresa;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Fechamento\Empresa;
 use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,9 +67,36 @@ final readonly class CompetenciasController
         /** @var list<array<string, mixed>> $empresas */
         $empresas = $dados['empresas'];
 
-        $resultado = $this->abrir->abrir($competencia, $ator, $empresas);
+        $resultado = $this->abrir->abrir(new AbrirCompetenciasComando(
+            $competencia,
+            $ator,
+            array_map(self::empresa(...), $empresas),
+        ));
 
-        return new JsonResponse($resultado);
+        return new JsonResponse([
+            'criados' => array_map(self::caso(...), $resultado->criados),
+            'existentes' => array_map(self::caso(...), $resultado->existentes),
+        ]);
+    }
+
+    /**
+     * Empresa já validada por `validate()` (tipos garantidos): só converte para o DTO de domínio.
+     *
+     * @param  array<string, mixed>  $e
+     */
+    private static function empresa(array $e): Empresa
+    {
+        /** @var array{titular_id: string, regime: 'SN'|'LP', tem_folha: bool, tem_prolabore: bool, tem_taxa_municipal: bool, filial: bool, carteira: string, municipio: string} $e */
+        return new Empresa(
+            $e['titular_id'], $e['regime'], $e['tem_folha'], $e['tem_prolabore'],
+            $e['tem_taxa_municipal'], $e['filial'], $e['carteira'], $e['municipio'],
+        );
+    }
+
+    /** @return array{titular_id: string, caso_id: string} */
+    private static function caso(CasoDaEmpresa $c): array
+    {
+        return ['titular_id' => $c->titularId, 'caso_id' => $c->casoId];
     }
 
     /** Booleano nativo do JSON: "1", "0", 1 e 0 (aceitos pela regra `boolean` do Laravel) não passam. */
