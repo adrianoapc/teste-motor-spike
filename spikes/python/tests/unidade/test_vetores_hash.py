@@ -23,7 +23,10 @@ _VETORES: list[dict[str, Any]] = json.loads(
 )["fatos"]
 _ACEITOS = [v for v in _VETORES if v["esperado"] == "aceito"]
 _REJEITADOS = [v for v in _VETORES if v["esperado"] == "rejeitado"]
-_REJ_PAYLOAD = [v for v in _REJEITADOS if "valor_centavos_bruto" not in v]
+_REJ_TEXTO = [v for v in _REJEITADOS if "campos_texto" in v]
+_REJ_PAYLOAD = [
+    v for v in _REJEITADOS if "valor_centavos_bruto" not in v and "campos_texto" not in v
+]
 _REJ_VALOR = [v for v in _REJEITADOS if "valor_centavos_bruto" in v]
 _CABECALHO = {"content-type": "application/json"}
 
@@ -40,8 +43,8 @@ def _envelope(partes: list[str]) -> str:
     return "{" + ",".join(base + partes) + "}"
 
 
-def test_vetor_tem_49_vetores_22_aceitos_27_rejeitados() -> None:
-    assert (len(_VETORES), len(_ACEITOS), len(_REJEITADOS)) == (49, 22, 27)
+def test_vetor_tem_54_vetores_22_aceitos_32_rejeitados() -> None:
+    assert (len(_VETORES), len(_ACEITOS), len(_REJEITADOS)) == (54, 22, 32)
 
 
 @pytest.mark.parametrize("v", _ACEITOS, ids=_ids(_ACEITOS))
@@ -104,6 +107,20 @@ def test_valor_centavos_bruto_invalido_da_422_em_fatos_e_concluir(v: dict[str, A
     corpo = '{"ator":"a","saidas":[{"valor_centavos":' + bruto + "}]}"
     r = TestClient(app).post(
         "/casos/T1/202609/entregaveis/E1/concluir", content=corpo, headers=_CABECALHO
+    )
+    assert r.status_code == 422
+    assert r.json()["erro"] == "corpo_invalido"
+
+
+@pytest.mark.parametrize("v", _REJ_TEXTO, ids=_ids(_REJ_TEXTO))
+def test_campos_texto_com_nul_sobrescrevem_o_envelope_e_dao_422(v: dict[str, Any]) -> None:
+    envelope: dict[str, Any] = {
+        "titular_id": "T1", "competencia": "202609", "tipo": "guia", "fonte": "api",
+        "observado_em": "2026-09-01T10:00:00Z", "payload": {},
+    }
+    envelope.update(v["campos_texto"])  # U+0000 real; json.dumps o serializa como \u0000
+    r = TestClient(app).post(
+        "/fatos", content=json.dumps(envelope), headers=_CABECALHO
     )
     assert r.status_code == 422
     assert r.json()["erro"] == "corpo_invalido"
