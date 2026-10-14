@@ -17,6 +17,8 @@ public class VetoresPayloadInteirosTeste
         using var corpo = JsonDocument.Parse(v.CorpoParcial(), Validacao.OpcoesParse);
         Assert.True(Validacao.PayloadValido(corpo.RootElement, out var payload, out var motivo), motivo);
         Assert.True(Validacao.ValorCentavosValido(corpo.RootElement, out var valor));
+        using var envelope = JsonDocument.Parse(v.CorpoFato(), Validacao.OpcoesParse);
+        Assert.True(Validacao.CorpoSemNul(envelope.RootElement, out var motivoNul), motivoNul);
         var canonico = "{\"payload\":" + HashCanonico.Canonico(payload)
             + ",\"valor_centavos\":" + (valor?.ToString() ?? "null") + "}";
         Assert.Equal(v.Canonico, canonico);
@@ -30,7 +32,9 @@ public class VetoresPayloadInteirosTeste
         using var corpo = JsonDocument.Parse(v.CorpoParcial(), Validacao.OpcoesParse);
         var payloadOk = Validacao.PayloadValido(corpo.RootElement, out _, out _);
         var valorOk = Validacao.ValorCentavosValido(corpo.RootElement, out _);
-        Assert.False(payloadOk && valorOk);
+        using var envelope = JsonDocument.Parse(v.CorpoFato(), Validacao.OpcoesParse);
+        var semNul = Validacao.CorpoSemNul(envelope.RootElement, out _);
+        Assert.False(payloadOk && valorOk && semNul);
     }
 
     [Fact]

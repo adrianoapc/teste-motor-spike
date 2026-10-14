@@ -101,6 +101,38 @@ public static class Validacao
     public static bool ConteudoPayloadValido(JsonElement payload, out string motivo, out string caminho)
         => Percorrer(payload, 1, out motivo, out caminho);
 
+    public static bool ContemNul(string s) => s.Contains('\0');
+
+    /// <summary>U+0000 não é armazenável em jsonb/text do PostgreSQL: nenhuma string ou chave do corpo
+    /// (campos de texto do envelope inclusive) pode conter. Substituto isolado também é inválido.
+    /// Rejeição => 422 corpo_invalido.</summary>
+    public static bool CorpoSemNul(JsonElement e, out string motivo)
+    {
+        motivo = "";
+        switch (e.ValueKind)
+        {
+            case JsonValueKind.String:
+                try { if (!ContemNul(e.GetString()!)) return true; }
+                catch (InvalidOperationException) { motivo = "string com substituto UTF-16 isolado"; return false; }
+                motivo = "texto com U+0000 não é aceito";
+                return false;
+            case JsonValueKind.Object:
+                foreach (var prop in e.EnumerateObject())
+                {
+                    try { if (ContemNul(prop.Name)) { motivo = "chave com U+0000 não é aceita"; return false; } }
+                    catch (InvalidOperationException) { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (!CorpoSemNul(prop.Value, out motivo)) return false;
+                }
+                return true;
+            case JsonValueKind.Array:
+                foreach (var item in e.EnumerateArray())
+                    if (!CorpoSemNul(item, out motivo)) return false;
+                return true;
+            default:
+                return true;
+        }
+    }
+
     public static bool NumerosInteirosInt64(JsonElement e) => Percorrer(e, 1, out _, out _);
 
     private static bool Percorrer(JsonElement e, int nivel, out string motivo, out string caminho)
@@ -113,8 +145,10 @@ public static class Validacao
                 motivo = "número deve ser inteiro int64 (sem fração, expoente ou -0)";
                 return false;
             case JsonValueKind.String:
-                try { _ = e.GetString(); return true; }
+                try { if (!ContemNul(e.GetString()!)) return true; }
                 catch (InvalidOperationException) { motivo = "string com substituto UTF-16 isolado"; return false; }
+                motivo = "string com U+0000 (jsonb não armazena)";
+                return false;
             case JsonValueKind.Object:
             {
                 if (nivel > ProfundidadeMaximaPayload) { motivo = $"profundidade acima de {ProfundidadeMaximaPayload}"; return false; }
@@ -124,6 +158,7 @@ public static class Validacao
                     string nome;
                     try { nome = prop.Name; }
                     catch (InvalidOperationException) { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (ContemNul(nome)) { motivo = "chave com U+0000 (jsonb não armazena)"; return false; }
                     if (!vistas.Add(nome)) { motivo = $"chave duplicada \"{nome}\""; caminho = "." + nome; return false; }
                     if (!Percorrer(prop.Value, nivel + 1, out motivo, out var sub)) { caminho = "." + nome + sub; return false; }
                 }

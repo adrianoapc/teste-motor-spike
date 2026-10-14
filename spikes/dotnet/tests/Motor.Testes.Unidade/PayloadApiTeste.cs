@@ -35,17 +35,35 @@ public class PayloadApiTeste : IClassFixture<PayloadApiTeste.Fabrica>
 
     private static StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
+    /// <summary>Rejeitados de payload/valor (sem campos_texto): valem também para saídas de /concluir.</summary>
+    public static IEnumerable<object[]> RejeitadosDeSaida() =>
+        VetoresHash.Todos.Where(v => !v.Aceito && v.CamposTexto is null).Select(v => new object[] { v });
+
+    public static IEnumerable<object[]> RejeitadosComCamposTexto() =>
+        VetoresHash.Todos.Where(v => !v.Aceito && v.CamposTexto is not null).Select(v => new object[] { v });
+
     private const string CabecalhoFato =
         "{\"titular_id\":\"T1\",\"competencia\":\"202609\",\"tipo\":\"x\",\"fonte\":\"t\",\"observado_em\":\"2026-09-01T00:00:00Z\"";
 
     [Theory, MemberData(nameof(Rejeitados))]
     public async Task Fatos_rejeita_422(Vetor v)
-        => await Espera422(await _http.PostAsync("/fatos", Json(CabecalhoFato + Extra(v) + "}")));
+        => await Espera422(await _http.PostAsync("/fatos", Json(v.CorpoFato())));
 
-    [Theory, MemberData(nameof(Rejeitados))]
+    [Theory, MemberData(nameof(RejeitadosDeSaida))]
     public async Task Concluir_rejeita_422_antes_de_consultar_o_caso(Vetor v)
         => await Espera422(await _http.PostAsync("/casos/T1/202609/entregaveis/DAS/concluir",
             Json("{\"ator\":\"a\",\"saidas\":[{\"tributo\":\"DAS\"" + Extra(v) + "}]}")));
+
+    [Fact]
+    public void Ha_vetores_com_campos_texto() => Assert.NotEmpty(RejeitadosComCamposTexto());
+
+    [Theory]
+    [InlineData("/casos/T1/202609/entregaveis/DAS/concluir", "{\"ator\":\"a\\u0000\",\"saidas\":[{}]}")]
+    [InlineData("/casos/T1/202609/entregaveis/DAS/concluir", "{\"ator\":\"a\",\"saidas\":[{\"tributo\":\"D\\u0000\"}]}")]
+    [InlineData("/casos/T1/202609/entregaveis/DAS/override", "{\"ator\":\"a\",\"cf\":\"CF-01\",\"motivo\":\"mot\\u0000ivo\"}")]
+    [InlineData("/competencias/abrir", "{\"competencia\":\"202609\",\"ator\":\"a\\u0000\",\"empresas\":[{}]}")]
+    public async Task Nul_em_texto_do_corpo_ou_do_caminho_e_422(string rota, string corpo)
+        => await Espera422(await _http.PostAsync(rota, Json(corpo)));
 
     [Fact]
     public async Task Concluir_saidas_vazio_e_422_antes_de_404()

@@ -53,6 +53,8 @@ app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =
         var raiz = doc.RootElement;
         if (raiz.ValueKind != JsonValueKind.Object)
             return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
+        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
+            return Erro(422, "corpo_invalido", motivoNul);
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
             return Erro(422, "corpo_invalido", "competência ausente ou inválida");
         if (!raiz.TryGetProperty("ator", out var ator) || ator.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(ator.GetString()))
@@ -91,6 +93,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
         var raiz = doc.RootElement;
         if (raiz.ValueKind != JsonValueKind.Object)
             return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
+        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
+            return Erro(422, "corpo_invalido", motivoNul);
         if (!Validacao.CampoTextoNaoVazio(raiz, "titular_id", out var titular))
             return Erro(422, "corpo_invalido", "titular_id ausente");
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
@@ -135,6 +139,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
 {
     if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
+    if (Validacao.ContemNul(competencia) || Validacao.ContemNul(titularId) || Validacao.ContemNul(tipo))
+        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
     JsonDocument doc;
     try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
@@ -143,6 +149,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
         var raiz = doc.RootElement;
         if (raiz.ValueKind != JsonValueKind.Object)
             return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
+        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
+            return Erro(422, "corpo_invalido", motivoNul);
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
         if (!raiz.TryGetProperty("saidas", out var saidas) || saidas.ValueKind != JsonValueKind.Array || saidas.GetArrayLength() == 0)
@@ -185,6 +193,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
 {
     if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
+    if (Validacao.ContemNul(competencia) || Validacao.ContemNul(titularId) || Validacao.ContemNul(tipo))
+        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
     JsonDocument doc;
     try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
@@ -193,6 +203,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
         var raiz = doc.RootElement;
         if (raiz.ValueKind != JsonValueKind.Object)
             return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
+        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
+            return Erro(422, "corpo_invalido", motivoNul);
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
         if (!Validacao.CampoTextoNaoVazio(raiz, "cf", out var cf) || !Regex.IsMatch(cf, @"\ACF-[0-9]{2}\z"))
@@ -221,6 +233,8 @@ app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string c
 {
     if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
+    if (Validacao.ContemNul(titularId))
+        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
     var caso = await fab.ConsultarCasoAsync(titularId, competencia);
     if (caso is null) return Erro(404, "nao_encontrado", "caso inexistente");
     return Results.Json(new
@@ -251,8 +265,6 @@ app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string c
 });
 
 app.Run();
-
-public partial class Program { }
 
 /// <summary>Marcador para WebApplicationFactory nos testes.</summary>
 public partial class Program { }

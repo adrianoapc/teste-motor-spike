@@ -189,3 +189,16 @@ rotas para todos os rejeitados. Content Link não usado porque o arquivo só exi
 
 Impacto em dados legados: fato já gravado com fração/expoente continua no banco, mas reenviar o mesmo payload
 agora dá 422 (não vira `sem_mudanca`) e o hash dele não é recalculado. Nada é migrado.
+
+### U+0000 (NUL) nos textos (§6, regra adicionada no PR #7)
+
+jsonb/text do PostgreSQL não armazenam U+0000. Rejeitado com 422 `corpo_invalido`: NUL (escapado `\u0000` ou
+não) em qualquer string ou chave do `payload` (percurso de `Percorrer`, junto com os demais critérios) e em
+qualquer string/chave do corpo das 4 rotas POST (`Validacao.CorpoSemNul`, aplicada logo após o corpo ser
+confirmado objeto: cobre `tipo`, `tributo`, `fonte`, `titular_id`, `ator`, `carteira`, `municipio`, `motivo`,
+`cf`, `origem_ref`, tributo das saídas etc.). U+0001..U+001F continuam permitidos. Parâmetros de caminho
+(`titularId`, `competencia`, `tipo`) também são checados (`ContemNul`), mas na prática o Kestrel (e o TestHost)
+recusam `%00` no caminho antes do handler: resposta real 400, não 422. A checagem no handler é defensiva e não
+é alcançável por HTTP; por isso não há teste de integração para ela (a decisão "400 vs 422" fica com o Kestrel).
+Vetores: fixture com 54 (22 aceitos, 32 rejeitados); o campo `campos_texto` sobrescreve o campo do envelope em
+`Vetor.CorpoFato()`.
