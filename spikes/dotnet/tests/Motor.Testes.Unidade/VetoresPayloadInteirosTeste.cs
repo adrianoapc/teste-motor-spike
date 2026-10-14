@@ -5,54 +5,62 @@ using Xunit;
 
 namespace Motor.Testes.Unidade;
 
-/// <summary>Vetores compartilhados (semântica §6) de Fixtures/vetores-hash.json, cópia de contrato/vetores-hash.json.</summary>
+/// <summary>Vetores compartilhados (semântica §6): todos os do arquivo Fixtures/vetores-hash.json.</summary>
 public class VetoresPayloadInteirosTeste
 {
-    private static JsonElement Vetores()
-    {
-        var caminho = Path.Combine(AppContext.BaseDirectory, "Fixtures", "vetores-hash.json");
-        return JsonDocument.Parse(File.ReadAllText(caminho)).RootElement.GetProperty("fatos");
-    }
-
-    private static IEnumerable<object[]> Casos(string esperado) =>
-        Vetores().EnumerateArray().Where(f => f.GetProperty("esperado").GetString() == esperado)
-            .Select(f => new object[] { f.GetProperty("nome").GetString()! });
-
-    public static IEnumerable<object[]> Aceitos() => Casos("aceito");
-    public static IEnumerable<object[]> Rejeitados() => Casos("rejeitado");
-
-    private static JsonElement Fato(string nome) =>
-        Vetores().EnumerateArray().Single(f => f.GetProperty("nome").GetString() == nome);
+    public static IEnumerable<object[]> Aceitos() => VetoresHash.Aceitos();
+    public static IEnumerable<object[]> Rejeitados() => VetoresHash.Rejeitados();
 
     [Theory, MemberData(nameof(Aceitos))]
-    public void Aceito_valida_e_gera_canonico_e_sha256(string nome)
+    public void Aceito_valida_e_gera_canonico_e_sha256(Vetor v)
     {
-        var f = Fato(nome);
-        using var doc = JsonDocument.Parse(f.GetProperty("payload").GetString()!);
-        Assert.True(Validacao.NumerosInteirosInt64(doc.RootElement));
-        var vc = f.GetProperty("valor_centavos");
-        long? valor = vc.ValueKind == JsonValueKind.Null ? null : vc.GetInt64();
-        var canonico = "{\"payload\":" + HashCanonico.Canonico(doc.RootElement)
+        using var corpo = JsonDocument.Parse(v.CorpoParcial(), Validacao.OpcoesParse);
+        Assert.True(Validacao.PayloadValido(corpo.RootElement, out var payload, out var motivo), motivo);
+        Assert.True(Validacao.ValorCentavosValido(corpo.RootElement, out var valor));
+        var canonico = "{\"payload\":" + HashCanonico.Canonico(payload)
             + ",\"valor_centavos\":" + (valor?.ToString() ?? "null") + "}";
-        Assert.Equal(f.GetProperty("canonico").GetString(), canonico);
-        Assert.Equal(f.GetProperty("sha256").GetString(), HashCanonico.Sha256Hex(canonico));
-        Assert.Equal(f.GetProperty("sha256").GetString(), HashCanonico.HashFato(doc.RootElement, valor));
+        Assert.Equal(v.Canonico, canonico);
+        Assert.Equal(v.Sha256, HashCanonico.Sha256Hex(canonico));
+        Assert.Equal(v.Sha256, HashCanonico.HashFato(payload, valor));
     }
 
     [Theory, MemberData(nameof(Rejeitados))]
-    public void Rejeitado_falha_na_validacao_do_payload_e_do_corpo(string nome)
+    public void Rejeitado_falha_na_validacao(Vetor v)
     {
-        var payload = Fato(nome).GetProperty("payload").GetString()!;
-        using var doc = JsonDocument.Parse(payload);
-        Assert.False(Validacao.NumerosInteirosInt64(doc.RootElement));
-        using var corpo = JsonDocument.Parse("{\"payload\":" + payload + "}");
-        Assert.False(Validacao.PayloadValido(corpo.RootElement, out _));
+        using var corpo = JsonDocument.Parse(v.CorpoParcial(), Validacao.OpcoesParse);
+        var payloadOk = Validacao.PayloadValido(corpo.RootElement, out _, out _);
+        var valorOk = Validacao.ValorCentavosValido(corpo.RootElement, out _);
+        Assert.False(payloadOk && valorOk);
     }
 
     [Fact]
-    public void Vetores_tem_12_aceitos_e_12_rejeitados()
+    public void Contagem_vem_do_arquivo_e_cobre_os_dois_lados()
     {
-        Assert.Equal(12, Aceitos().Count());
-        Assert.Equal(12, Rejeitados().Count());
+        Assert.Equal(VetoresHash.Todos.Count, Aceitos().Count() + Rejeitados().Count());
+        Assert.NotEmpty(Aceitos());
+        Assert.NotEmpty(Rejeitados());
+    }
+
+    /// <summary>Drift: a cópia da fixture deve ser idêntica a contrato/vetores-hash.json quando este existir
+    /// (ele só está presente a partir do merge do PR #7; sem o arquivo o teste não verifica nada).</summary>
+    [Fact]
+    public void Fixture_igual_ao_contrato_quando_existir()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var contrato = Path.Combine(dir.FullName, "contrato", "vetores-hash.json");
+            if (!File.Exists(contrato)) continue;
+            var copia = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, VetoresHash.Caminho));
+            Assert.Equal(File.ReadAllText(contrato).ReplaceLineEndings(), copia.ReplaceLineEndings());
+            return;
+        }
+    }
+
+    [Fact]
+    public void Ordem_code_point_poe_nao_BMP_depois_de_U_FF5E()
+    {
+        Assert.True(OrdemCodePoint.Instancia.Compare("～", "\U0001F600") < 0);
+        Assert.True(StringComparer.Ordinal.Compare("～", "\U0001F600") > 0); // por que o Ordinal não serve
+        Assert.True(OrdemCodePoint.Instancia.Compare("10", "9") < 0);
     }
 }

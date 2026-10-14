@@ -53,50 +53,93 @@ public static class Validacao
         if (!raiz.TryGetProperty("valor_centavos", out var v) || v.ValueKind == JsonValueKind.Null)
             return true; // ausente ou null explícito: ok
         if (v.ValueKind != JsonValueKind.Number) return false; // string/bool/objeto/array: inválido
-        if (!v.TryGetInt64(out var n)) return false; // fracionário ou fora da faixa int64: inválido
+        if (!Int64Estrito(v, out var n)) return false; // fracionário, expoente, -0 ou fora de int64: inválido
         valor = n;
         return true;
     }
 
+    /// <summary>Opções de parse dos corpos: MaxDepth acima do limite do payload (64 níveis, §6) para que a
+    /// profundidade seja medida e rejeitada por <see cref="PayloadValido"/> (422), não pelo parser.</summary>
+    public static readonly JsonDocumentOptions OpcoesParse = new() { MaxDepth = 200 };
+
+    public const int ProfundidadeMaximaPayload = 64;
+
+    /// <summary>Único critério de "inteiro int64" do contrato (valor_centavos e números do payload):
+    /// sem fração, sem expoente, dentro de int64 e sem "-0".</summary>
+    public static bool Int64Estrito(JsonElement numero, out long valor)
+    {
+        if (!numero.TryGetInt64(out valor)) return false;
+        return valor != 0 || numero.GetRawText() != "-0"; // só aloca no zero
+    }
+
     /// <summary>Lê payload conforme o contrato (objeto). Ausente => válido, usa {} (default do contrato).
-    /// Presente com qualquer tipo que não seja objeto (null explícito, array, número, string, bool)
-    /// => INVÁLIDO (422) — nunca substituído silenciosamente por {}, o que gravaria fato diferente.</summary>
-    public static bool PayloadValido(JsonElement raiz, out JsonElement payload)
+    /// Presente com qualquer tipo que não seja objeto => INVÁLIDO (422) — nunca substituído por {}.
+    /// Em §6: números só int64 estrito, sem chave duplicada, sem substituto isolado, profundidade até 64.
+    /// <paramref name="motivo"/> descreve a falha (com o caminho).</summary>
+    public static bool PayloadValido(JsonElement raiz, out JsonElement payload, out string motivo)
     {
         payload = default;
+        motivo = "";
         if (!raiz.TryGetProperty("payload", out var p))
         {
             payload = JsonDocument.Parse("{}").RootElement.Clone(); // ausente: default do contrato
             return true;
         }
-        if (p.ValueKind != JsonValueKind.Object) return false; // presente com tipo errado: inválido
-        if (!NumerosInteirosInt64(p)) return false; // semântica §6: só inteiros int64, em qualquer profundidade
+        if (p.ValueKind != JsonValueKind.Object) { motivo = "payload deve ser um objeto JSON"; return false; }
+        if (!ConteudoPayloadValido(p, out var falha, out var caminho))
+        {
+            motivo = $"payload{caminho}: {falha}";
+            return false;
+        }
         payload = p.Clone();
         return true;
     }
 
-    /// <summary>Semântica §6: todo número do payload, em qualquer profundidade, deve ser inteiro int64 —
-    /// só dígitos com '-' opcional, sem '.', sem expoente, sem "-0", dentro da faixa int64. Confere o texto
-    /// bruto (1.0 e 1e2 são inválidos mesmo valendo inteiros).</summary>
-    public static bool NumerosInteirosInt64(JsonElement e)
+    public static bool PayloadValido(JsonElement raiz, out JsonElement payload) => PayloadValido(raiz, out payload, out _);
+
+    /// <summary>Verifica o conteúdo do payload (nível 1 = o próprio objeto). Caminho no formato .a[2].b.</summary>
+    public static bool ConteudoPayloadValido(JsonElement payload, out string motivo, out string caminho)
+        => Percorrer(payload, 1, out motivo, out caminho);
+
+    public static bool NumerosInteirosInt64(JsonElement e) => Percorrer(e, 1, out _, out _);
+
+    private static bool Percorrer(JsonElement e, int nivel, out string motivo, out string caminho)
     {
+        motivo = ""; caminho = "";
         switch (e.ValueKind)
         {
             case JsonValueKind.Number:
-                var t = e.GetRawText();
-                if (t == "-0") return false;
-                foreach (var ch in t.AsSpan(t[0] == '-' ? 1 : 0))
-                    if (ch < '0' || ch > '9') return false;
-                return long.TryParse(t, System.Globalization.NumberStyles.AllowLeadingSign,
-                    System.Globalization.CultureInfo.InvariantCulture, out _);
+                if (Int64Estrito(e, out _)) return true;
+                motivo = "número deve ser inteiro int64 (sem fração, expoente ou -0)";
+                return false;
+            case JsonValueKind.String:
+                try { _ = e.GetString(); return true; }
+                catch (InvalidOperationException) { motivo = "string com substituto UTF-16 isolado"; return false; }
             case JsonValueKind.Object:
+            {
+                if (nivel > ProfundidadeMaximaPayload) { motivo = $"profundidade acima de {ProfundidadeMaximaPayload}"; return false; }
+                var vistas = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var prop in e.EnumerateObject())
-                    if (!NumerosInteirosInt64(prop.Value)) return false;
+                {
+                    string nome;
+                    try { nome = prop.Name; }
+                    catch (InvalidOperationException) { motivo = "chave com substituto UTF-16 isolado"; return false; }
+                    if (!vistas.Add(nome)) { motivo = $"chave duplicada \"{nome}\""; caminho = "." + nome; return false; }
+                    if (!Percorrer(prop.Value, nivel + 1, out motivo, out var sub)) { caminho = "." + nome + sub; return false; }
+                }
                 return true;
+            }
             case JsonValueKind.Array:
+            {
+                if (nivel > ProfundidadeMaximaPayload) { motivo = $"profundidade acima de {ProfundidadeMaximaPayload}"; return false; }
+                var i = 0;
                 foreach (var item in e.EnumerateArray())
-                    if (!NumerosInteirosInt64(item)) return false;
+                {
+                    if (!Percorrer(item, nivel + 1, out motivo, out var sub)) { caminho = $"[{i}]{sub}"; return false; }
+                    i++;
+                }
                 return true;
+            }
             default:
                 return true;
         }

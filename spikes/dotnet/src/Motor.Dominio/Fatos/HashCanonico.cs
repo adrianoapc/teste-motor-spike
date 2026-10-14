@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace Motor.Dominio.Fatos;
 
 /// <summary>JSON canônico e hash SHA-256 (§6, tech.md).
-/// Canônico = chaves de objeto ordenadas em ordem ORDINAL em todos os níveis,
+/// Canônico = chaves de objeto ordenadas por CODE POINT Unicode (= bytes UTF-8, não UTF-16) em todos os níveis,
 /// sem espaços, UTF-8 sem escapar não-ASCII, números inteiros sem ponto.</summary>
 public static class HashCanonico
 {
@@ -45,7 +45,7 @@ public static class HashCanonico
                 sb.Append('{');
                 var primeiro = true;
                 foreach (var prop in e.EnumerateObject()
-                             .OrderBy(p => p.Name, StringComparer.Ordinal))
+                             .OrderBy(p => p.Name, OrdemCodePoint.Instancia))
                 {
                     if (!primeiro) sb.Append(',');
                     primeiro = false;
@@ -120,4 +120,28 @@ public static class HashCanonico
         }
         sb.Append('"');
     }
+}
+
+/// <summary>Ordem por code point Unicode (equivale à ordem de bytes UTF-8). A ordem ordinal UTF-16 do .NET
+/// põe pares substitutos (U+10000+) antes de U+E000..U+FFFF; aqui eles vêm depois (§6).</summary>
+public sealed class OrdemCodePoint : IComparer<string>
+{
+    public static readonly OrdemCodePoint Instancia = new();
+
+    public int Compare(string? x, string? y)
+    {
+        if (ReferenceEquals(x, y)) return 0;
+        if (x is null) return -1;
+        if (y is null) return 1;
+        var n = Math.Min(x.Length, y.Length);
+        for (var i = 0; i < n; i++)
+        {
+            if (x[i] == y[i]) continue;
+            return Chave(x[i]).CompareTo(Chave(y[i]));
+        }
+        return x.Length.CompareTo(y.Length);
+    }
+
+    // Desloca os substitutos (D800..DFFF) para depois de E000..FFFF, preservando a ordem entre eles.
+    private static int Chave(char c) => c >= 0xE000 ? c - 0x800 : c >= 0xD800 ? c + 0x2000 : c;
 }

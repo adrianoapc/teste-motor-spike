@@ -46,7 +46,7 @@ app.MapGet("/admin/fila", async (IFabricaUnidade fab) =>
 app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =>
 {
     JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body); }
+    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
     using (doc)
     {
@@ -84,7 +84,7 @@ app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =
 app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
 {
     JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body); }
+    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
     using (doc)
     {
@@ -108,8 +108,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
         var tributo = tributoOpc ?? "";
         if (!Validacao.ValorCentavosValido(raiz, out var valor))
             return Erro(422, "corpo_invalido", "valor_centavos deve ser inteiro (int64) ou null");
-        if (!Validacao.PayloadValido(raiz, out var payload))
-            return Erro(422, "corpo_invalido", "payload deve ser um objeto JSON com números inteiros int64");
+        if (!Validacao.PayloadValido(raiz, out var payload, out var motivoPayload))
+            return Erro(422, "corpo_invalido", motivoPayload);
         if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef, aceitaNull: true))
             return Erro(422, "corpo_invalido", "origem_ref deve ser string");
 
@@ -136,7 +136,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
     if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
     JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body); }
+    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
     using (doc)
     {
@@ -158,8 +158,8 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
             var tributo = tributoOpc ?? "";
             if (!Validacao.ValorCentavosValido(s, out var valor))
                 return Erro(422, "corpo_invalido", "saida.valor_centavos deve ser inteiro (int64) ou null");
-            if (!Validacao.PayloadValido(s, out var payload))
-                return Erro(422, "corpo_invalido", "saida.payload deve ser um objeto JSON com números inteiros int64");
+            if (!Validacao.PayloadValido(s, out var payload, out var motivoPayload))
+                return Erro(422, "corpo_invalido", $"saida.{motivoPayload}");
             lista.Add(new MotorServico.SaidaDto(tributo, valor, payload));
         }
 
@@ -186,7 +186,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
     if (!Validacao.CompetenciaTextoValida(competencia))
         return Erro(422, "corpo_invalido", "competência inválida");
     JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body); }
+    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
     catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
     using (doc)
     {
@@ -252,4 +252,7 @@ app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string c
 
 app.Run();
 
+public partial class Program { }
+
+/// <summary>Marcador para WebApplicationFactory nos testes.</summary>
 public partial class Program { }
