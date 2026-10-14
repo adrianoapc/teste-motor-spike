@@ -244,13 +244,15 @@ Para conferência numérica, `diferenca = |esperado − obtido|` em centavos. Co
 | `ok_ate < diferenca ≤ alerta_ate_centavos` | `divergente` | `A` |
 | `diferenca > alerta_ate_centavos` | `divergente` | a do catálogo |
 
-Para CF-06 e CF-12: `ok` ou `divergente` com a severidade do catálogo.
+Para CF-06 e CF-12: `ok` ou `divergente` com a severidade do catálogo. No CF-12, `esperado_centavos` e `obtido_centavos` ficam nulos (como no CF-06) e `diferenca` = `{"centavos":0}`.
 
 Fato necessário à fórmula ausente → `resultado = 'divergente'`, `classe = 'S'`, `diferenca = {"erro": "fato ausente: <tipo>[<tributo>]"}`.
 
-Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `[{"fato_id", "versao"}]` ordenada por `fato_id`; `diferenca` (jsonb) = `{"centavos": n}` ou o objeto da CF-06; `entrada_hash` = SHA-256 do JSON canônico `{"cf", "fatos_usados", "regra_versao_id"}`.
+Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `[{"fato_id", "versao"}]` ordenada por `fato_id`; `diferenca` (jsonb) = `{"centavos": n}` ou o objeto da CF-06; `entrada_hash` = SHA-256 do JSON canônico `{"cf", "fatos_usados", "regra_versao_id"}` (mais `"semantica_calculo"` quando maior que 1, ver abaixo); `semantica_calculo` = a versão corrente da semântica do cálculo (inteiro).
 
 **Idempotência:** se já existe conferência com o mesmo (`cf`, `entregavel_id`, `entrada_hash`), **não grava outra**; reaproveita o resultado.
+
+**Semântica do cálculo (`semantica_calculo`):** a versão da semântica do cálculo faz parte da chave de idempotência da conferência. Ela é um inteiro que **sobe** sempre que uma regra de **cálculo** de conferência muda de forma que o mesmo conjunto de fatos possa dar resultado diferente, para que conferências antigas não sejam reaproveitadas. O valor atual é **2**. O JSON canônico do `entrada_hash` inclui `"semantica_calculo":N` (inteiro, última chave na ordem por code point: `cf`, `fatos_usados`, `regra_versao_id`, `semantica_calculo`) **somente se N > 1**; com N = 1 o JSON é exatamente o canônico original, de modo que linhas legadas continuam válidas. A conferência persiste `semantica_calculo` (coluna `conferencias.conferencia.semantica_calculo`, inteiro `NOT NULL DEFAULT 1`, `CHECK >= 1`, migration V007). Todos os spikes gravam o valor corrente (2) nas conferências novas; linhas antigas valem 1. Histórico: **2** = operando inválido ou ausente vira `divergente` classe `S`, CF-12 sem valores em centavos, int64 estrito. Vetores de teste compartilhados: `contrato/vetores-entrada-hash.json`.
 
 ### 9.3 · Desfecho
 

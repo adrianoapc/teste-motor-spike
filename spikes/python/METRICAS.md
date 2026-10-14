@@ -97,7 +97,7 @@ Medida pedida em `docs/regras-do-jogo.md` §3, critério 8.
 ## Rede de proteção (fase 2)
 - Erros barrados pelo mypy `--strict` antes de teste: **+3 ocorrências** (`arg-type` em
   `pl` de `gravar_evento`, §10.3) — ver `REGISTRO-COMPILADOR.md`.
-- Testes verdes na época (a contagem cresceu nas rodadas de revisão do PR #5), `mypy --strict src`
+- Testes verdes na época (a contagem cresceu nas rodadas de revisão do PR #5; em 2026-10-14: **pytest 289 passando**), `mypy --strict src`
   sem `# type: ignore` em `src/`, `ruff` limpo e contrato de camadas passando.
 
 ## Imagem (fase 2)
@@ -118,7 +118,7 @@ Cenário C6, **só esta spike no ar** (dotnet e php parados; todas compartilham 
 ## Escala — limites do Requisito 19 vs. medido
 | Métrica | Limite | Medido | Folga |
 |---|---|---|---|
-| Abertura de 4.500 casos (lotes de 500) até `/admin/fila` = `pendentes 0` | < 300 s | **49,2 s** | 6× |
+| Abertura de 4.500 casos (lotes de 500) até `/admin/fila` = `pendentes 0` | < 300 s | **49,2 s** (medição histórica de 12/10; **não reproduzível** no ambiente de 14/10, ver "Medição pós-merge" abaixo) | 6× (histórico; hoje ~1,5×) |
 | 300 publicações de guia, 20 requisições simultâneas, p95 | < 30 s | **0,139 s** | ~215× |
 | Erros HTTP no lote de fatos | 0 | **0** | — |
 
@@ -137,3 +137,33 @@ no ar) e o pool do spike ficou com conexões mortas — `/health` passou a devol
 restart do contêiner. Fora do escopo da medição (o run válido foi com só esta spike no ar e o
 banco íntegro), mas aponta um endurecimento barato: `ConnectionPool(check=...)` para o pool
 descartar conexão morta sozinho.
+
+---
+
+# Medição pós-merge (2026-10-14)
+
+Origin/main `998cad0`, depois do merge do PR #5. Os valores da fase 3 acima (inclusive 49,2 s) ficam como histórico.
+
+## Ambiente
+Docker Desktop, 10 CPUs, 7,75 GiB; Python 3.13.16 (`python:3.13-slim`). Máquina com carga média 2,75–4,1: **não estava totalmente quieta**.
+
+## Correção
+- Verificador **10/10**; pytest **289 passando**; `mypy --strict` e `ruff` limpos.
+
+## C6, 3 execuções isoladas
+| Execução | Abertura de 4.500 casos | p95 das 300 publicações |
+|---|---|---|
+| 1 | 204,29 s | 0,191 s |
+| 2 | 197,68 s | 0,186 s |
+| 3 | 199,33 s | 0,199 s |
+
+0 erros HTTP; 336 checagens. Limite de 300 s: **passa, com folga de ~1,5x** (não mais 6x).
+
+## O 49,2 s NÃO é reproduzível neste ambiente
+O valor de 49,2 s registrado na fase 3 não se reproduziu: as três execuções ficaram em ~198-204 s (cerca de 4x mais lento).
+
+- **PROVADO:** o lock do titular não explica a diferença. Com ele desligado (cópia temporária, só diagnóstico) as 3 execuções deram 195,27 / 200,72 / 198,36 s.
+- **PROVADO:** não é CPU. Spike 0,17%, Postgres 2,4%, demais contêineres ociosos; o tempo é de espera.
+- **NÃO PROVADO (hipótese):** ~45 ms por caso é compatível com fsync de commit no volume do Docker Desktop ou com o salto `host.docker.internal`. Também pode ser aumento do trabalho por caso nas rodadas de revisão (`abrir_excecao_unica`, `travar_*`, `clock_timestamp`).
+- **Não medido:** o código pré-revisão não foi rodado no mesmo ambiente, então não há A/B que separe ambiente de código.
+- Violação única histórica: 328,5 s em 12/10 na branch do PR, nunca diagnosticada.

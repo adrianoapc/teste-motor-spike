@@ -16,8 +16,7 @@ normativa: `docs/semantica-do-motor.md`. Contrato HTTP: `contrato/openapi.yaml`.
 
 `/competencias/abrir` abre uma transação por empresa (~35 ms cada no ambiente de teste). O Dockerfile grava
 `conf.d/zz-motor.ini` com `max_execution_time=900` e `memory_limit=1024M`: medido com 2.500 empresas (87,6 s, 2.500
-criados, HTTP 200) e com 10.000 empresas só na validação (2,9 s, 422 na última). O pior caso contratual (10.000 criações,
-~6 min estimados) não foi rodado de ponta a ponta. FrankenPHP/Caddy não impõem timeout de escrita por padrão.
+criados, HTTP 200), com 10.000 empresas só na validação (2,9 s, 422 na última) e, em 2026-10-14, com o pior caso contratual de ponta a ponta: 10.000 empresas válidas em uma requisição, HTTP 200 em 245,1 s, sem estourar `max_execution_time` nem `memory_limit` (ver `METRICAS.md`). O Caddyfile não define nenhum timeout (confirmado com `frankenphp adapt`): está provado que uma requisição viveu 245 s sem corte; não está provado que não haja corte acima de 245 s (isso se apoia nos padrões documentados do Caddy).
 
 ## Camadas (`app/`)
 

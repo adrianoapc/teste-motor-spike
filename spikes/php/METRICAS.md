@@ -102,3 +102,34 @@ Modelo em `docs/regras-do-jogo.md` §4. Fase 1 (cenários C1 e C7).
 - O ponto mais lento é a abertura (82.9 s / 4.500 = ~18 ms por caso), dominada pela
   transação por empresa com criação de ~9 entregáveis e a prontidão inicial. Está bem
   abaixo do limite, então não houve o que otimizar.
+
+---
+
+# Medição pós-merge (2026-10-14)
+
+Origin/main `998cad0`. Os números acima ficam como histórico.
+
+## Ambiente
+PHP 8.4.26, FrankenPHP v1.13.1, Caddy v2.11.7; Docker Desktop, 10 CPUs, 7,75 GiB; Postgres próprio para esta spike. Máquina com carga média 2,75–4,1: **não totalmente quieta**.
+
+## Correção
+- Pest **65 passando** (778 asserções), com 123 warnings: **todos** `file_get_contents(/app/.env)` (a imagem não tem `.env`; ruído inofensivo, conferidos 123/123).
+- PHPStan sem erros.
+- Laravel Pint **falhava** em `bootstrap/app.php`. **Pendência em andamento** (não resolvida neste PR): será corrigida em outro PR, `fix/php-cf12-pint`.
+- Verificador **10/10**.
+
+## C6
+Abertura de 4.500 casos: **86,03 s**; p95 das 300 publicações **0,102 s**; 0 erros.
+
+## Pior caso contratual
+`POST /competencias/abrir` com 10.000 empresas válidas em **uma** requisição: HTTP 200 em **245,1 s**, 10.000 criados, 100.007 entregáveis, ~24,5 ms/empresa. Sem estourar `max_execution_time=900` nem `memory_limit=1024M`. Pico do contêiner 202,7 MiB e 104% CPU; pico do Postgres 151,7 MiB.
+
+## Timeouts do Caddy
+- **PROVADO:** o Caddyfile não define nenhum timeout (nem read/write/idle na configuração efetiva, confirmado com `frankenphp adapt`), e uma requisição viveu 245 s sem corte.
+- **NÃO PROVADO:** que não haja corte acima de 245 s. Isso se apoia apenas nos padrões documentados do Caddy.
+
+## JSON
+`JSON_UNESCAPED_LINE_TERMINATORS` é necessário e suficiente para os vetores U+2028/U+2029 (`JsonCru.php:123`).
+
+## Não medido
+Requisições acima de 245 s; ausência de corte do Caddy além desse tempo; Pint corrigido (pendente).
