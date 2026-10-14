@@ -21,10 +21,28 @@ public sealed class Conferir
         _prolaboreBp = prolaboreBp;
     }
 
+    /// <summary>Confere o entregável em 'processado' e aplica o desfecho (§9.3): 'validado' (e o evento do
+    /// tipo) ou 'divergente'. Relê o entregável antes e depois, pois a versão muda a cada transição.</summary>
+    public async Task ConferirEDesfecharAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
+    {
+        var atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? e;
+        var ok = await ExecutarAsync(caso, atual, item, ctx);
+        atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? atual;
+        if (ok)
+        {
+            await Transicoes.TransicionarAsync(_r, caso, atual, EstadoEntregavel.Validado, "conferencias_ok");
+            await Transicoes.PublicarEventoDoTipoAsync(_r, caso, atual);
+        }
+        else
+        {
+            await Transicoes.TransicionarAsync(_r, caso, atual, EstadoEntregavel.Divergente, "conferencia_divergente",
+                causadoPorTipo: "conferencia");
+        }
+    }
+
     /// <summary>Roda as conferências do item cujo quando casa; devolve true se o entregável
-    /// deve ir para 'validado', false se foi para 'divergente' (alguma B divergente).</summary>
-    public async Task<bool> ExecutarAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx,
-        DateTimeOffset agora)
+    /// deve ir para 'validado', false se alguma B divergiu.</summary>
+    private async Task<bool> ExecutarAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
     {
         var fatos = await _r.Fatos.VigentesDoCasoAsync(caso.TitularId, caso.Competencia);
         var algumaBloqueanteDivergente = false;
@@ -36,7 +54,7 @@ public sealed class Conferir
             if (!Condicao.Casa(quando, ctx))
                 continue;
 
-            var tipoCat = await _r.Catalogo.ConferenciaTipoAsync(cf)
+            var tipoCat = await _r.Conferencias.TipoCatalogoAsync(cf)
                 ?? throw new InvalidOperationException($"catálogo sem {cf}");
 
             var calc = CalculadoraConferencias.Calcular(cf, caso, item, fatos, _prolaboreBp);
@@ -56,7 +74,7 @@ public sealed class Conferir
                 diferenca = Json($"{{\"erro\":\"fato ausente: {calc.FatoAusente}\"}}");
                 // classe S quando fato ausente
                 await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                    severidade, "S", tipoCat, agora);
+                    severidade, "S");
                 if (severidade == "B") algumaBloqueanteDivergente = true;
                 continue;
             }
@@ -70,7 +88,7 @@ public sealed class Conferir
                 obtido = null;
                 diferenca = JsonSerializer.SerializeToElement(new { erro = $"operando inválido: {calc.OperandoInvalido}" });
                 await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                    severidade, "S", tipoCat, agora);
+                    severidade, "S");
                 if (severidade == "B") algumaBloqueanteDivergente = true;
                 continue;
             }
@@ -101,7 +119,7 @@ public sealed class Conferir
             }
 
             await GravarEDesfechoAsync(caso, e, cf, calc, resultado, esperado, obtido, diferenca,
-                severidade, tipoCat.ClassePadrao, tipoCat, agora);
+                severidade, tipoCat.ClassePadrao);
 
             if (resultado == ResultadoConferencia.Divergente && severidade == "B")
                 algumaBloqueanteDivergente = true;
@@ -112,7 +130,7 @@ public sealed class Conferir
 
     private async Task GravarEDesfechoAsync(Caso caso, Entregavel e, string cf, CalculoConferencia calc,
         ResultadoConferencia resultado, long? esperado, long? obtido, JsonElement diferenca,
-        string severidade, string classe, ConferenciaTipoCatalogo tipoCat, DateTimeOffset agora)
+        string severidade, string classe)
     {
         var entradaHash = EntradaHash.Calcular(cf, calc.FatosUsados, _tolVersaoId, EntradaHash.SemanticaCalculo);
         var (confId, efetivo) = await _r.Conferencias.InserirOuReaproveitarAsync(new NovaConferencia(

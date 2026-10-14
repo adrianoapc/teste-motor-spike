@@ -19,7 +19,7 @@ public sealed class AvaliarCaso
         _conferir = conferir;
     }
 
-    public async Task ExecutarAsync(Caso caso, DateTimeOffset agora)
+    public async Task ExecutarAsync(Caso caso)
     {
         var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
 
@@ -39,34 +39,34 @@ public sealed class AvaliarCaso
                     if (await EntradasDepsSatisfeitasAsync(caso, e, item, ctx))
                     {
                         await LigarEntradasAsync(caso, e, item, ctx);
-                        await Transicionar(caso, e, EstadoEntregavel.Pronto, "prontidao", "comando", null, "sistema", agora);
+                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Pronto, "prontidao");
                         if (item.Executor == "humano")
                             await _r.Tarefas.CriarAsync(caso.Id, e.Id, "executar_entregavel", caso.Carteira);
                         mudou = true;
                     }
                     else if (e.Estado == EstadoEntregavel.Invalidado)
                     {
-                        await Transicionar(caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao", "comando", null, "sistema", agora);
+                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao");
                         mudou = true;
                     }
                 }
                 else if (e.Estado == EstadoEntregavel.Pronto && item.Executor == "sistema")
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Processado, "processamento_sistema", "comando", null, "sistema", agora);
-                    await ConferirEDesfecharAsync(caso, e, item, ctx, agora);
+                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Processado, "processamento_sistema");
+                    await _conferir.ConferirEDesfecharAsync(caso, e, item, ctx);
                     mudou = true;
                 }
                 else if (e.Estado == EstadoEntregavel.Validado && item.EncerraCaso)
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Encerrado, "encerramento", "comando", null, "sistema", agora);
-                    await _r.Casos.EncerrarAsync(caso.Id, agora);
+                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Encerrado, "encerramento");
+                    await _r.Casos.EncerrarAsync(caso.Id);
                     await _r.Eventos.GravarComIdAsync("fechamento.concluido", caso.Id, null, "caso_id", caso.Id);
                     mudou = true;
                     break; // caso encerrado; nada mais a avaliar
                 }
                 else if (e.Estado == EstadoEntregavel.Validado && TemLiberacaoAutomatica(item))
                 {
-                    await Transicionar(caso, e, EstadoEntregavel.Liberado, "liberacao_automatica", "comando", null, "sistema", agora);
+                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Liberado, "liberacao_automatica");
                     mudou = true;
                 }
                 else if (e.Estado == EstadoEntregavel.Liberado && item.PosValidacao is not null)
@@ -76,7 +76,7 @@ public sealed class AvaliarCaso
                     if (await FatoPosExisteAsync(caso, item, "disponibilizado_quando"))
                     {
                         var guia = await GuiaDeEntradaAsync(caso);
-                        await Transicionar(caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato", null, "sistema", agora);
+                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato");
                         if (guia is not null)
                             await _r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e.Id,
                                 "entregavel_id", e.Id, "fato_id", guia.Id);
@@ -87,30 +87,6 @@ public sealed class AvaliarCaso
                 }
             }
         } while (mudou);
-    }
-
-    private async Task ConferirEDesfecharAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx, DateTimeOffset agora)
-    {
-        // recarrega o entregável no estado processado (version mudou)
-        var atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? e;
-        var ok = await _conferir.ExecutarAsync(caso, atual, item, ctx, agora);
-        atual = await _r.Entregaveis.PorChaveAsync(caso.Id, e.Tipo) ?? atual;
-        if (ok)
-        {
-            await Transicionar(caso, atual, EstadoEntregavel.Validado, "conferencias_ok", "comando", null, "sistema", agora);
-            await PublicarEventoDoTipoAsync(caso, atual);
-        }
-        else
-        {
-            await Transicionar(caso, atual, EstadoEntregavel.Divergente, "conferencia_divergente", "conferencia", null, "sistema", agora);
-        }
-    }
-
-    private async Task PublicarEventoDoTipoAsync(Caso caso, Entregavel e)
-    {
-        var cat = await _r.Catalogo.EntregavelTipoAsync(e.Tipo);
-        if (cat?.EventoPublicado is { } nome)
-            await _r.Eventos.GravarComIdAsync(nome, caso.Id, e.Id, "entregavel_id", e.Id);
     }
 
     private static bool TemLiberacaoAutomatica(ItemEntregavel item)
@@ -186,12 +162,5 @@ public sealed class AvaliarCaso
                 ? cr.GetInt32() : 0;
             yield return new EntradaResolvida(caso.Competencia.Somar(rel), tipo, tributo);
         }
-    }
-
-    private async Task Transicionar(Caso caso, Entregavel e, EstadoEntregavel para, string motivo,
-        string? causadoPorTipo, string? causadoPorId, string ator, DateTimeOffset agora)
-    {
-        await _r.Entregaveis.TransicionarAsync(e, new NovaTransicao(
-            e.Id, caso.Id, e.Estado, para, motivo, causadoPorTipo, causadoPorId, ator, caso.RegraVersaoId), agora);
     }
 }

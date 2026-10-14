@@ -16,8 +16,8 @@ public sealed class MotorServico
 
     // ---- AbrirCompetencias (§5) ----
     public sealed record EmpresaDto(string TitularId, JsonElement Snapshot, string Carteira);
-    public sealed record AberturaResultado(List<(string TitularId, Guid CasoId)> Criados,
-        List<(string TitularId, Guid CasoId)> Existentes);
+    public sealed record CasoRef(string TitularId, Guid CasoId);
+    public sealed record AberturaResultado(List<CasoRef> Criados, List<CasoRef> Existentes);
 
     public async Task<AberturaResultado> AbrirCompetenciasAsync(Competencia competencia, IReadOnlyList<EmpresaDto> empresas)
     {
@@ -30,11 +30,11 @@ public sealed class MotorServico
             // competência): a reavaliação lê fatos de outras competências via competencia_relativa,
             // então sem esta trava um publisher e um opener concorrentes não enxergam o estado
             // não-comitado um do outro e o entregável fica preso em aguardando_insumo (§6).
-            await r.Casos.TravarCasoAsync(emp.TitularId, competencia);
+            await r.Casos.TravarCasoAsync(emp.TitularId);
             var existente = await r.Casos.PorChaveAsync(emp.TitularId, competencia);
             if (existente is not null)
             {
-                res.Existentes.Add((emp.TitularId, existente.Id));
+                res.Existentes.Add(new CasoRef(emp.TitularId, existente.Id));
                 await uow.ConfirmarAsync();
                 continue;
             }
@@ -42,15 +42,13 @@ public sealed class MotorServico
             var regraInfo = await r.Regras.VersaoEmUsoAsync("fechamento.entregaveis")
                 ?? throw new InvalidOperationException("regra fechamento.entregaveis sem versão em uso");
             var regra = new RegraEntregaveis(regraInfo.Id, regraInfo.Conteudo);
-            var agora = await uow.AgoraAsync();
-
             var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira, regra.VersaoId);
             if (caso is null)
             {
                 // abertura concorrente venceu entre o SELECT e o INSERT: relê e reporta como existente.
                 var jaExiste = await r.Casos.PorChaveAsync(emp.TitularId, competencia)
                     ?? throw new InvalidOperationException("conflito de abertura sem caso correspondente");
-                res.Existentes.Add((emp.TitularId, jaExiste.Id));
+                res.Existentes.Add(new CasoRef(emp.TitularId, jaExiste.Id));
                 await uow.ConfirmarAsync();
                 continue;
             }
@@ -61,12 +59,12 @@ public sealed class MotorServico
             foreach (var item in regra.Itens)
             {
                 if (!Condicao.Casa(item.Quando, ctx)) continue;
-                var cat = await r.Catalogo.EntregavelTipoAsync(item.Tipo)
+                var cat = await r.Entregaveis.TipoCatalogoAsync(item.Tipo)
                     ?? throw new InvalidOperationException($"catálogo sem {item.Tipo}");
                 var ent = await r.Entregaveis.CriarAsync(caso.Id, item.Tipo, item.Executor, cat.Area);
                 await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
                     ent.Id, caso.Id, null, EstadoEntregavel.AguardandoInsumo, "abrir_competencia",
-                    "comando", null, "sistema", regra.VersaoId), agora);
+                    "comando", null, "sistema", regra.VersaoId));
                 criados.Add((item, ent));
             }
 
@@ -93,9 +91,9 @@ public sealed class MotorServico
             // 4. avaliar prontidão de todos
             var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
             var avaliar = new AvaliarCaso(r, regra, new Conferir(r, tol, tolVid, prolaboreBp));
-            await avaliar.ExecutarAsync(caso, agora);
+            await avaliar.ExecutarAsync(caso);
 
-            res.Criados.Add((emp.TitularId, caso.Id));
+            res.Criados.Add(new CasoRef(emp.TitularId, caso.Id));
             await uow.ConfirmarAsync();
         }
         return res;
@@ -121,7 +119,7 @@ public sealed class MotorServico
         // de outras competências (competencia_relativa), então publicar e abrir em paralelo não podem
         // deixar o entregável preso em aguardando_insumo (§6). Advisory locks são reentrantes na mesma
         // transação, então o caminho de conclusão (que já tomou o lock) é seguro.
-        await r.Casos.TravarCasoAsync(cmd.TitularId, cmd.Competencia);
+        await r.Casos.TravarCasoAsync(cmd.TitularId);
         // Serializa publicações concorrentes da MESMA chave: sem isto, dois publishers leem o mesmo
         // vigente, calculam a mesma versão e um perde no índice único — virando 500 em vez de nova_versao.
         await r.Fatos.TravarChaveAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
@@ -174,8 +172,7 @@ public sealed class MotorServico
                 ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
             var regra = new RegraEntregaveis(caso.RegraVersaoId, conteudo);
             var avaliar = new AvaliarCaso(r, regra, new Conferir(r, tol, tolVid, prolaboreBp));
-            // estado_desde é gravado pelo banco (clock_timestamp); passamos um instante só por assinatura.
-            await avaliar.ExecutarAsync(caso, DateTimeOffset.UtcNow);
+            await avaliar.ExecutarAsync(caso);
         }
     }
 
@@ -195,7 +192,7 @@ public sealed class MotorServico
         // Trava o caso (mesma chave da abertura/publicação) e reivindica a LINHA do entregável antes de
         // validar estado: duas conclusões concorrentes do mesmo entregável pronto não podem ambas ler
         // 'pronto' e uma cair em 500 no UPDATE otimista — a perdedora reencontra estado != pronto e vira 409 (§8).
-        await r.Casos.TravarCasoAsync(titularId, competencia);
+        await r.Casos.TravarCasoAsync(titularId);
         var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
         if (ent is null) return Falha(ConcluirErro.NaoEncontrado, "entregável inexistente");
         if (ent.Estado != EstadoEntregavel.Pronto || ent.Executor == "sistema")
@@ -223,35 +220,17 @@ public sealed class MotorServico
 
         // 5. concluir tarefa aberta
         var tarefaId = await r.Tarefas.AbertaDoEntregavelAsync(ent.Id);
-        if (tarefaId is { } tid) await r.Tarefas.ConcluirAsync(tid, agora);
+        if (tarefaId is { } tid) await r.Tarefas.ConcluirAsync(tid);
 
         // 6. pronto -> processado (tarefa_concluida)
-        await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
-            ent.Id, caso.Id, ent.Estado, EstadoEntregavel.Processado, "tarefa_concluida",
-            "tarefa", tarefaId?.ToString(), ator, caso.RegraVersaoId), agora);
+        await Transicoes.TransicionarAsync(r, caso, ent, EstadoEntregavel.Processado, "tarefa_concluida",
+            "tarefa", tarefaId?.ToString(), ator);
 
         // 7. conferir + desfecho
         var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
         var conferir = new Conferir(r, tol, tolVid, prolaboreBp);
         var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
-        var processado = await r.Entregaveis.PorChaveAsync(caso.Id, tipo) ?? ent;
-        var ok = await conferir.ExecutarAsync(caso, processado, item!, ctx, agora);
-        processado = await r.Entregaveis.PorChaveAsync(caso.Id, tipo) ?? processado;
-        if (ok)
-        {
-            await r.Entregaveis.TransicionarAsync(processado, new NovaTransicao(
-                processado.Id, caso.Id, processado.Estado, EstadoEntregavel.Validado, "conferencias_ok",
-                "comando", null, "sistema", caso.RegraVersaoId), agora);
-            var cat = await r.Catalogo.EntregavelTipoAsync(tipo);
-            if (cat?.EventoPublicado is { } nome)
-                await r.Eventos.GravarComIdAsync(nome, caso.Id, processado.Id, "entregavel_id", processado.Id);
-        }
-        else
-        {
-            await r.Entregaveis.TransicionarAsync(processado, new NovaTransicao(
-                processado.Id, caso.Id, processado.Estado, EstadoEntregavel.Divergente, "conferencia_divergente",
-                "conferencia", null, "sistema", caso.RegraVersaoId), agora);
-        }
+        await conferir.ConferirEDesfecharAsync(caso, ent, item!, ctx);
 
         // reavaliar casos abertos do titular (propagação e pós-validação)
         await ReavaliarAbertosAsync(r, caso.TitularId);
@@ -312,7 +291,6 @@ public sealed class MotorServico
     /// <summary>Aplica a tabela de §11.2 a um entregável de caso aberto. Devolve true se foi para invalidado.</summary>
     private async Task<bool> AplicarInvalidacaoEstadoAsync(IRepositorios r, Caso caso, Entregavel e, Guid fatoNovoId)
     {
-        var agora = DateTimeOffset.UtcNow;
         switch (e.Estado)
         {
             case EstadoEntregavel.Pronto:
@@ -321,9 +299,8 @@ public sealed class MotorServico
             case EstadoEntregavel.Validado:
             case EstadoEntregavel.Liberado:
                 var saiuDeDivergente = e.Estado == EstadoEntregavel.Divergente;
-                await r.Entregaveis.TransicionarAsync(e, new NovaTransicao(
-                    e.Id, caso.Id, e.Estado, EstadoEntregavel.Invalidado, "fato_alterado",
-                    "fato", fatoNovoId.ToString(), "sistema", caso.RegraVersaoId), agora);
+                await Transicoes.TransicionarAsync(r, caso, e, EstadoEntregavel.Invalidado, "fato_alterado",
+                    "fato", fatoNovoId.ToString());
                 await r.Eventos.GravarComIdAsync("entregavel.invalidado", caso.Id, e.Id, "entregavel_id", e.Id);
                 await r.Tarefas.CancelarAbertasAsync(e.Id);
                 if (saiuDeDivergente)
@@ -428,6 +405,24 @@ public sealed class MotorServico
         return regime == "SN" ? "DAS" : "IRPJ";
     }
 
+    // ---- Consulta do caso (GET /casos), montada pelos repositórios de cada módulo ----
+    public async Task<CasoConsulta?> ConsultarCasoAsync(string titularId, Competencia competencia)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return null;
+
+        var entregaveis = await r.Entregaveis.DoCasoAsync(caso.Id);
+        var tipoPorId = entregaveis.ToDictionary(e => e.Id, e => e.Tipo);
+        var tarefas = await r.Tarefas.AbertasDoCasoAsync(caso.Id);
+        var excecoes = await r.Excecoes.AbertasDoCasoAsync(caso.Id);
+        return new CasoConsulta(caso.Id, caso.TitularId, caso.Competencia.ToString(), caso.Estado,
+            entregaveis.Select(e => new EntregavelConsulta(e.Id, e.Tipo, e.Estado.Nome(), e.Executor)).ToList(),
+            tarefas.Select(t => new TarefaConsulta(t.TarefaId, tipoPorId[t.EntregavelId])).ToList(),
+            excecoes);
+    }
+
     // ---- RegistrarOverride (§8.1) ----
     public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido }
     public sealed record OverrideResultado(OverrideErro Erro, Entregavel? Entregavel, string? Mensagem);
@@ -440,7 +435,7 @@ public sealed class MotorServico
 
         var caso = await r.Casos.PorChaveAsync(titularId, competencia);
         if (caso is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "caso inexistente");
-        await r.Casos.TravarCasoAsync(titularId, competencia);
+        await r.Casos.TravarCasoAsync(titularId);
         var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
         if (ent is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "entregável inexistente");
 
@@ -450,8 +445,6 @@ public sealed class MotorServico
         var conf = await r.Conferencias.VigenteDaCfAsync(ent.Id, cf);
         if (conf is null || conf.Resultado != "divergente" || conf.Severidade != "B" || conf.TemOverride)
             return new OverrideResultado(OverrideErro.Conflito, null, "conferência não elegível a override");
-
-        var agora = await uow.AgoraAsync();
 
         // 1. grava override na conferência vigente
         await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo);
@@ -463,12 +456,9 @@ public sealed class MotorServico
         // 4. se nenhuma outra CF divergente B sem override: divergente -> validado + evento do tipo
         if (!await r.Conferencias.TemOutraDivergenteBSemOverrideAsync(ent.Id, conf.Id))
         {
-            await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
-                ent.Id, caso.Id, ent.Estado, EstadoEntregavel.Validado, "override",
-                "conferencia", conf.Id.ToString(), ator, caso.RegraVersaoId), agora);
-            var cat = await r.Catalogo.EntregavelTipoAsync(tipo);
-            if (cat?.EventoPublicado is { } nome)
-                await r.Eventos.GravarComIdAsync(nome, caso.Id, ent.Id, "entregavel_id", ent.Id);
+            await Transicoes.TransicionarAsync(r, caso, ent, EstadoEntregavel.Validado, "override",
+                "conferencia", conf.Id.ToString(), ator);
+            await Transicoes.PublicarEventoDoTipoAsync(r, caso, ent);
         }
 
         // 5. reavalia casos abertos do titular (propagação)
