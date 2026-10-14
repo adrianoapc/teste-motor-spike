@@ -118,7 +118,7 @@ Cenário C6, **só esta spike no ar** (dotnet e php parados; todas compartilham 
 ## Escala — limites do Requisito 19 vs. medido
 | Métrica | Limite | Medido | Folga |
 |---|---|---|---|
-| Abertura de 4.500 casos (lotes de 500) até `/admin/fila` = `pendentes 0` | < 300 s | **49,2 s** (medição histórica de 12/10; **não reproduzível** no ambiente de 14/10, ver "Medição pós-merge" abaixo) | 6× (histórico; hoje ~1,5×) |
+| Abertura de 4.500 casos (lotes de 500) até `/admin/fila` = `pendentes 0` | < 300 s | **49,2 s** (medição histórica de 12/10, outra sessão/ambiente; o mesmo código mediu 17,6 s a 328 s em outras sessões, ver "Medição pós-merge" abaixo) | folga não comparável entre sessões |
 | 300 publicações de guia, 20 requisições simultâneas, p95 | < 30 s | **0,139 s** | ~215× |
 | Erros HTTP no lote de fatos | 0 | **0** | — |
 
@@ -148,22 +148,46 @@ Origin/main `998cad0`, depois do merge do PR #5. Os valores da fase 3 acima (inc
 Docker Desktop, 10 CPUs, 7,75 GiB; Python 3.13.16 (`python:3.13-slim`). Máquina com carga média 2,75–4,1: **não estava totalmente quieta**.
 
 ## Correção
-- Verificador **10/10**; pytest **289 passando**; `mypy --strict` e `ruff` limpos.
+- Verificador **10/10**; pytest **289 passando** em `998cad0` (hoje 331, ver abaixo); `mypy --strict` e `ruff` limpos.
 
-## C6, 3 execuções isoladas
-| Execução | Abertura de 4.500 casos | p95 das 300 publicações |
+
+## Tempo de parede do C6: ordem de grandeza, não comparação
+O tempo de parede do C6 só é comparável **dentro da mesma sessão e do mesmo ambiente** (mesma máquina, mesma carga, mesmo modo de montagem do Docker). Não é comparável entre agentes, sessões ou linguagens, e as medições abaixo **não permitem concluir que um spike é mais lento que outro**. Protocolo para a próxima rodada: seção "Protocolo recomendado para o comparativo" do README raiz.
+
+## C6, medições conhecidas do Python (mesmo código, ambientes diferentes)
+| Medição | Abertura de 4.500 casos | Contexto |
 |---|---|---|
-| 1 | 204,29 s | 0,191 s |
-| 2 | 197,68 s | 0,186 s |
-| 3 | 199,33 s | 0,199 s |
+| 12/10, fase 3 (registro histórico acima) | 49,2 s | sessão/ambiente da fase 3 |
+| 12/10, branch do PR | 328,5 s | nunca diagnosticada |
+| outras sessões/ambientes | 39,6 s e 17,6 s | bind mount do Docker/Mac vs código embutido na imagem, carga da máquina e containers concorrentes variaram |
+| 14/10, execução 1 | 204,29 s (p95 0,191 s) | Docker Desktop, carga média 2,75–4,1 |
+| 14/10, execução 2 | 197,68 s (p95 0,186 s) | idem |
+| 14/10, execução 3 | 199,33 s (p95 0,199 s) | idem |
 
-0 erros HTTP; 336 checagens. Limite de 300 s: **passa, com folga de ~1,5x** (não mais 6x).
+0 erros HTTP; 336 checagens nas execuções de 14/10; todas passaram no limite de 300 s dessa sessão. **Causa da variação não determinada; as medições variaram de 17,6 s a 328 s com o mesmo código.**
 
-## O 49,2 s NÃO é reproduzível neste ambiente
-O valor de 49,2 s registrado na fase 3 não se reproduziu: as três execuções ficaram em ~198-204 s (cerca de 4x mais lento).
+Diagnósticos de 14/10 (o que se sabe e o que não):
+- **PROVADO:** o lock do titular não explica a diferença (desligado em cópia temporária, só diagnóstico: 195,27 / 200,72 / 198,36 s).
+- **PROVADO:** nessa sessão o tempo era de espera, não de CPU (spike 0,17%, Postgres 2,4%).
+- **Não determinado:** a origem da espera. Hipóteses levantadas antes (fsync no volume do Docker Desktop, salto `host.docker.internal`, trabalho por caso das rodadas de revisão) **não foram provadas e não devem ser lidas como causa**. O código pré-revisão não foi rodado no mesmo ambiente.
 
-- **PROVADO:** o lock do titular não explica a diferença. Com ele desligado (cópia temporária, só diagnóstico) as 3 execuções deram 195,27 / 200,72 / 198,36 s.
-- **PROVADO:** não é CPU. Spike 0,17%, Postgres 2,4%, demais contêineres ociosos; o tempo é de espera.
-- **NÃO PROVADO (hipótese):** ~45 ms por caso é compatível com fsync de commit no volume do Docker Desktop ou com o salto `host.docker.internal`. Também pode ser aumento do trabalho por caso nas rodadas de revisão (`abrir_excecao_unica`, `travar_*`, `clock_timestamp`).
-- **Não medido:** o código pré-revisão não foi rodado no mesmo ambiente, então não há A/B que separe ambiente de código.
-- Violação única histórica: 328,5 s em 12/10 na branch do PR, nunca diagnosticada.
+## SQLs por operação (antes e depois da refatoração de manutenção)
+Métrica confiável: contagem de SQLs por operação com `log_statement=all`, **incluindo `BEGIN`/`COMMIT`**. **Os cenários de medição diferem entre os spikes; por isso as tabelas dos três spikes NÃO são comparáveis linha a linha.**
+
+Python, cenário: titular com 3 casos abertos.
+
+| Operação | Antes | Depois |
+|---|---|---|
+| Abrir 1 caso | 96 | 83 |
+| Fato relevante | 69 | 14 |
+| Fato irrelevante | 69 | 10 |
+| Fato que leva o E01 a validado | 124 | 37 |
+| Fato novo relevante | n/d | 14 |
+| Nova versão | n/d | 15 |
+| Fato repetido (sem_mudança) | n/d | 4 |
+| Fato de competência sem caso | n/d | 9 |
+
+Linhas em `src`: 2.841 -> 2.948 (+107).
+
+## Contagem de testes atual (main)
+pytest **331** (o número de 289 acima era de 14/10, em `998cad0`).
