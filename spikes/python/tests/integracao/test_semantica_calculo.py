@@ -16,10 +16,13 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from motor.aplicacao.conferencia import conferir
-from motor.aplicacao.registros import Caso, Entregavel
+from motor.aplicacao.registros import Caso, Entregavel, RegraEntregaveis
 from motor.dominio.conferencias import SEMANTICA_CALCULO
 from motor.dominio.hashing import entrada_hash, hash_fato
 from motor.infraestrutura.unidade_de_trabalho import UnidadeDeTrabalhoSQL
+
+# CF-01 não lê a regra: basta uma regra vazia.
+_REGRA = RegraEntregaveis(versao_id="r", estado_minimo_padrao="validado", itens=[])
 
 pytestmark = pytest.mark.skipif(not os.environ.get("MOTOR_DB"), reason="sem MOTOR_DB")
 
@@ -67,7 +70,7 @@ def _linhas(uow: UnidadeDeTrabalhoSQL, ent: Entregavel) -> list[dict[str, Any]]:
 
 def test_conferencia_nova_grava_semantica_calculo_atual(uow: UnidadeDeTrabalhoSQL) -> None:
     caso, ent, usados = _cenario(uow)
-    resultado, _, conf_id, _, _ = conferir(uow, caso, ent, "CF-01")
+    resultado, _, conf_id, _, _ = conferir(uow, caso, ent, "CF-01", _REGRA)
     assert resultado == "ok"
     linhas = _linhas(uow, ent)
     assert [(str(r["id"]), r["semantica_calculo"]) for r in linhas] == [
@@ -78,7 +81,7 @@ def test_conferencia_nova_grava_semantica_calculo_atual(uow: UnidadeDeTrabalhoSQ
         "CF-01", usados, tol.versao_id, SEMANTICA_CALCULO
     )
     # Reexecutar é idempotente: mesma linha, nada novo.
-    _, _, conf_id2, _, _ = conferir(uow, caso, ent, "CF-01")
+    _, _, conf_id2, _, _ = conferir(uow, caso, ent, "CF-01", _REGRA)
     assert conf_id2 == conf_id
     assert len(_linhas(uow, ent)) == 1
 
@@ -96,7 +99,7 @@ def test_conferencia_legada_semantica_1_nao_e_reaproveitada(uow: UnidadeDeTrabal
          entrada_hash("CF-01", usados, tol.versao_id)),  # hash legado: sem a chave
     )
     assert legado is not None
-    _, _, conf_id, _, _ = conferir(uow, caso, ent, "CF-01")
+    _, _, conf_id, _, _ = conferir(uow, caso, ent, "CF-01", _REGRA)
     assert conf_id != str(legado["id"])  # não reaproveitou a legada
     linhas = _linhas(uow, ent)
     assert [r["semantica_calculo"] for r in linhas] == [1, SEMANTICA_CALCULO]

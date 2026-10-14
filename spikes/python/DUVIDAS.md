@@ -77,3 +77,37 @@ com conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O `
 psycopg aceita `check=ConnectionPool.check_connection`, que descartaria a conexão morta sozinho;
 é um endurecimento barato se o motor precisar sobreviver a quedas do banco em produção. No
 spike, o run válido foi feito com o banco íntegro e só esta spike contendo o Postgres.
+
+## D10 — Manutenção 2: regras lidas da regra pinada e prontidão pura
+
+Sem mudança de comportamento observável (verificador 10/10, sequência de transições e eventos
+idêntica à da `main` nos cenários C1-C10).
+
+- **Prontidão como função de domínio (requisito 11.3).** `motor.dominio.prontidao` decide
+  "está pronto?" (`esta_pronto`: dependências no estado mínimo E toda entrada resolvida
+  presente, §7.2) e resolve as entradas da regra em chaves de fato (`entradas_resolvidas`, §7.1,
+  com `quando` e `competencia_relativa`). Testada sem banco em `tests/unidade/test_prontidao.py`.
+  A aplicação (`_pronto`) só carrega os dados: o estado das dependências vem de UMA consulta com
+  JOIN (antes: 1 + N) e a presença das entradas entra como gerador, então o banco só é lido
+  se as dependências cumprem e para na primeira entrada ausente (mesma ordem de curto-circuito
+  de antes).
+- **Tributos e tipos lidos da regra pinada do caso (§2), sem repetir o conhecimento.**
+  O tributo da guia (DAS/IRPJ) vem das `entradas` do item de entrega; o do recibo do CF-12
+  (PGDAS-D/DCTFWEB) das `entradas` do item conferido (E10); o tipo do fato de protocolo
+  (`documento_disponibilizado`) vem de `pos_validacao.disponibilizado_quando`; os tipos de falha,
+  confirmação e pendência já vinham de `acompanhamento`. O "E11" fixo some: o item de entrega é
+  o que declara `pos_validacao`/`acompanhamento` (`RegraEntregaveis.item_de_entrega`).
+  Os tipos de fato das fórmulas (`guia`, `apurado`, `recibo_obrigacao`) continuam no código:
+  são a definição da conferência (§9.1), não uma regra de negócio mutável.
+- **Lacuna da regra (CF-07).** A regra v2 não declara `apurado` nas entradas do E04, embora a
+  fórmula do §9.1 use `apurado[DAS]` (SN) / `apurado[IRPJ]` (LP). Decisão: o tributo do `apurado`
+  é o da guia do item de entrega (é a mesma tabela regime -> tributo do §9.1). Se a regra
+  pinada não declara a entrada exigida (guia, recibo), a conferência vira insumo ausente
+  (`divergente`, classe `S`), nunca exceção.
+- **Cache da regra por `versao_id` dentro da transação** (promessa do D7). A regra pinada é
+  imutável; `UnidadeDeTrabalhoSQL.regra_entregaveis_da_versao` lê e monta uma vez por
+  transação. Foi preciso aqui (e não só no PR de reavaliação) porque agora `publicar_fato`
+  consulta a regra do caso para achar o item de entrega: sem cache seriam +1 leitura por fato.
+- **Assinaturas que mudaram:** `conferir(..., regra)` e `_acompanhamento_pos_protocolo(..., regra,
+  ...)` recebem a regra do caso; `dependencias_do_entregavel` virou `dependencias_com_estado`
+  (devolve `(estado_atual, estado_minimo)`).

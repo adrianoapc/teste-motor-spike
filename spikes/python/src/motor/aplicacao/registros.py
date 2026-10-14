@@ -67,6 +67,15 @@ class RegraEntregaveis:
         if not self.por_tipo:
             self.por_tipo = {it.tipo: it for it in self.itens}
 
+    @property
+    def item_de_entrega(self) -> ItemEntregavel | None:
+        """O item que o §10 chama de entrega ao cliente: o que declara `pos_validacao` ou
+        `acompanhamento` na regra (no spike, o E11). Evita fixar o tipo no código."""
+        for it in self.itens:
+            if it.pos_validacao is not None or it.acompanhamento is not None:
+                return it
+        return None
+
 
 @dataclass(slots=True)
 class Tolerancia:

@@ -1,8 +1,10 @@
 """Contexto do caso (§3) e cálculo das conferências (§9), sobre a unidade de trabalho."""
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 from motor.aplicacao.portas import UnidadeDeTrabalho
-from motor.aplicacao.registros import Caso, Entregavel, Fato
+from motor.aplicacao.registros import Caso, Entregavel, Fato, RegraEntregaveis
 from motor.dominio.competencia import Competencia
 from motor.dominio.conferencias import (
     SEMANTICA_CALCULO,
@@ -13,6 +15,7 @@ from motor.dominio.conferencias import (
 )
 from motor.dominio.dinheiro import garantir_int64
 from motor.dominio.hashing import entrada_hash
+from motor.dominio.prontidao import tributo_da_entrada
 
 
 def contexto_do_caso(caso: Caso) -> dict[str, object]:
@@ -75,10 +78,17 @@ def _usar(fatos_usados: list[dict[str, object]], f: Fato | None, chave: str) -> 
     return f
 
 
-def _tributo_da_guia(uow: UnidadeDeTrabalho, caso: Caso) -> str:
-    """Tributo da guia de entrada do E11 resolvida para o caso (DAS no SN, IRPJ no LP)."""
-    regime = caso.snapshot.get("regime")
-    return "DAS" if regime == "SN" else "IRPJ"
+def _tributo_exigido(
+    entradas: Sequence[Mapping[str, object]], ctx: Mapping[str, object], fato_tipo: str
+) -> str:
+    """Tributo que a regra pinada exige para o fato `fato_tipo` (ex.: guia DAS no SN, IRPJ no LP).
+
+    A regra declara o tributo nas `entradas` do item; o código não repete o conhecimento.
+    Regra sem a entrada = insumo ausente (conferência divergente classe S)."""
+    tributo = tributo_da_entrada(entradas, ctx, fato_tipo)
+    if tributo is None:
+        raise _FatoAusente(f"{fato_tipo}[]: tributo não declarado nas entradas da regra")
+    return tributo
 
 
 def conferir(
@@ -86,8 +96,12 @@ def conferir(
     caso: Caso,
     entregavel: Entregavel,
     cf: str,
+    regra: RegraEntregaveis,
 ) -> tuple[str, str, str, str, bool]:
     """Calcula, classifica e grava uma conferência (idempotente).
+
+    `regra` é a regra pinada do caso: dela vêm os tributos exigidos (§9.1), lidos das `entradas`
+    do item conferido (guia no E11, recibo no E10) e do item de entrega (apurado do CF-07).
 
     Devolve (resultado, severidade, conferencia_id, classe, sobrescrita) com a severidade
     COMPUTADA (A/B/I/S), não a do catálogo: divergência A não bloqueia nem abre exceção (§9.2).
@@ -102,6 +116,9 @@ def conferir(
     diferenca: dict[str, object] = {}
     resultado = "ok"
     severidade = tipo.severidade
+    ctx = contexto_do_caso(caso)
+    item = regra.por_tipo.get(entregavel.tipo)
+    entradas = item.entradas if item is not None else []
 
     try:
         if cf == "CF-01":
@@ -117,13 +134,13 @@ def conferir(
             esperado = esperado_das_simples(_valor(fat), aliquota_bp)
             obtido = _valor(apur)
         elif cf == "CF-05":
-            t = _tributo_da_guia(uow, caso)
+            t = _tributo_exigido(entradas, ctx, "guia")
             apur = _usar(fatos_usados, _fato(fatos, "apurado", t), f"apurado[{t}]")
             guia = _usar(fatos_usados, _fato(fatos, "guia", t), f"guia[{t}]")
             esperado = _valor(apur)
             obtido = _valor(guia)
         elif cf == "CF-06":
-            t = _tributo_da_guia(uow, caso)
+            t = _tributo_exigido(entradas, ctx, "guia")
             guia = _usar(fatos_usados, _fato(fatos, "guia", t), f"guia[{t}]")
             impressa = guia.payload.get("competencia_impressa")
             if not isinstance(impressa, str):
@@ -136,8 +153,10 @@ def conferir(
                 resultado, None, None, diferenca, severidade,
             )
         elif cf == "CF-07":
-            regime = caso.snapshot.get("regime")
-            trib = "DAS" if regime == "SN" else "IRPJ"
+            # §9.1: apurado[DAS] (SN) ou apurado[IRPJ] (LP) = tributo da guia de entrada do
+            # item de entrega; a regra não declara `apurado` nas entradas do E04.
+            entrega = regra.item_de_entrega
+            trib = _tributo_exigido(entrega.entradas if entrega else [], ctx, "guia")
             apur = _usar(fatos_usados, _fato(fatos, "apurado", trib), f"apurado[{trib}]")
             divisao = _usar(fatos_usados, _fato(fatos, "divisao_socios"), "divisao_socios[]")
             parcelas = _parcelas(divisao)
@@ -164,7 +183,7 @@ def conferir(
                 esperado, obtido = fgts_esp, _valor(guia_fgts)
         elif cf == "CF-12":
             # ok se existe recibo_obrigacao com o tributo exigido pela entrada.
-            trib_recibo = "PGDAS-D" if caso.snapshot.get("regime") == "SN" else "DCTFWEB"
+            trib_recibo = _tributo_exigido(entradas, ctx, "recibo_obrigacao")
             recibo = _fato(fatos, "recibo_obrigacao", trib_recibo)
             _usar(fatos_usados, recibo, f"recibo_obrigacao[{trib_recibo}]")
             resultado = "ok"

@@ -112,10 +112,10 @@ class UnidadeDeTrabalho(Protocol):
     def gravar_dependencia(
         self, entregavel_id: str, depende_de_id: str, estado_minimo: str
     ) -> None: ...
-    def dependencias_do_entregavel(
+    def dependencias_com_estado(
         self, entregavel_id: str
     ) -> list[tuple[str, str]]:
-        """[(depende_de_id, estado_minimo)]."""
+        """[(estado atual da dependência, estado_minimo)], lidos no momento da chamada."""
         ...
 
     def estado_do_entregavel_por_id(self, entregavel_id: str) -> str: ...
