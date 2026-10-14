@@ -8,12 +8,15 @@ interface RepositorioTarefa
 {
     public function abrir(string $casoId, string $entregavelId, string $tipo, string $responsavel): string;
 
+    /** Id da tarefa aberta do entregável, ou null. */
+    public function abertaDoEntregavel(string $entregavelId): ?string;
+
     /**
-     * Tarefa aberta do entregável, ou null.
+     * Tarefas abertas do caso (ordem de criação).
      *
-     * @return array{id: string}|null
+     * @return list<TarefaAberta>
      */
-    public function abertaDoEntregavel(string $entregavelId): ?array;
+    public function abertasDoCaso(string $casoId): array;
 
     public function concluir(string $tarefaId): void;
 

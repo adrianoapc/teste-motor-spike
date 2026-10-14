@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Motor.Dominio.Conferencias;
+using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
 using Motor.Dominio.Regras;
 

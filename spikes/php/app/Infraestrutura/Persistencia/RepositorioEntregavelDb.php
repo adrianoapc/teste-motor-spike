@@ -8,6 +8,7 @@ use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use Illuminate\Database\ConnectionInterface;
+use RuntimeException;
 
 final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
 {
@@ -100,6 +101,11 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         return $linha === null ? null : $this->mapear($linha);
     }
 
+    public function obter(string $entregavelId): Entregavel
+    {
+        return $this->porId($entregavelId) ?? throw new RuntimeException("entregável inexistente: {$entregavelId}");
+    }
+
     public function salvarEstado(string $entregavelId, EstadoEntregavel $esperado, EstadoEntregavel $estado): bool
     {
         // estado_desde = instante da transição; version incrementado (§4.1).
@@ -114,6 +120,36 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         );
 
         return $afetadas === 1;
+    }
+
+    public function registrarTransicao(
+        Entregavel $entregavel,
+        ?EstadoEntregavel $de,
+        EstadoEntregavel $para,
+        string $motivo,
+        ?string $causadoPorTipo,
+        ?string $causadoPorId,
+        string $ator,
+        string $regraVersaoId,
+    ): void {
+        $this->conexao->statement(
+            <<<'SQL'
+            INSERT INTO fechamento.entregavel_transicao
+                (entregavel_id, caso_id, de_estado, para_estado, motivo, causado_por_tipo, causado_por_id, ator, regra_versao_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            SQL,
+            [
+                $entregavel->id,
+                $entregavel->casoId,
+                $de?->value,
+                $para->value,
+                $motivo,
+                $causadoPorTipo,
+                $causadoPorId,
+                $ator,
+                $regraVersaoId,
+            ],
+        );
     }
 
     public function ligarFato(string $entregavelId, string $fatoId, string $papel): void

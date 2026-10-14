@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
 using Motor.Dominio.Regras;
 
@@ -11,6 +11,12 @@ public sealed class AvaliarCaso
     private readonly IRepositorios _r;
     private readonly RegraEntregaveis _regra;
     private readonly Conferir _conferir;
+
+    // Estado atual de cada entregável do caso, mantido em sincronia com as transições feitas aqui:
+    // a checagem de dependência lê o estado "no momento", já com as mudanças da mesma volta (§7.4),
+    // sem reconsultar o banco a cada dependência.
+    private Dictionary<Guid, EstadoEntregavel> _estados = new();
+    private ILookup<Guid, Dependencia>? _dependencias;
 
     public AvaliarCaso(IRepositorios repos, RegraEntregaveis regra, Conferir conferir)
     {
@@ -28,6 +34,7 @@ public sealed class AvaliarCaso
         {
             mudou = false;
             var entregaveis = await _r.Entregaveis.DoCasoComTravaAsync(caso.Id);
+            _estados = entregaveis.ToDictionary(x => x.Id, x => x.Estado);
             // ordenados por tipo (E01, E02, ...) pelo repositório
             foreach (var e in entregaveis)
             {
@@ -36,47 +43,48 @@ public sealed class AvaliarCaso
 
                 if (e.Estado is EstadoEntregavel.AguardandoInsumo or EstadoEntregavel.Invalidado)
                 {
-                    if (await EntradasDepsSatisfeitasAsync(caso, e, item, ctx))
+                    if (await EntradasLidasSePronto(caso, e, item, ctx) is { } entradas)
                     {
-                        await LigarEntradasAsync(caso, e, item, ctx);
-                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Pronto, "prontidao");
+                        foreach (var fato in entradas)
+                            await _r.Entregaveis.LigarFatoAsync(e.Id, fato.Id, "entrada");
+                        await Transicionar(caso, e, EstadoEntregavel.Pronto, "prontidao");
                         if (item.Executor == "humano")
                             await _r.Tarefas.CriarAsync(caso.Id, e.Id, "executar_entregavel", caso.Carteira);
                         mudou = true;
                     }
                     else if (e.Estado == EstadoEntregavel.Invalidado)
                     {
-                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao");
+                        await Transicionar(caso, e, EstadoEntregavel.AguardandoInsumo, "prontidao");
                         mudou = true;
                     }
                 }
                 else if (e.Estado == EstadoEntregavel.Pronto && item.Executor == "sistema")
                 {
-                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Processado, "processamento_sistema");
-                    await _conferir.ConferirEDesfecharAsync(caso, e, item, ctx);
+                    await Transicionar(caso, e, EstadoEntregavel.Processado, "processamento_sistema");
+                    _estados[e.Id] = await _conferir.ConferirEDesfecharAsync(caso, e, item, ctx);
                     mudou = true;
                 }
                 else if (e.Estado == EstadoEntregavel.Validado && item.EncerraCaso)
                 {
-                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Encerrado, "encerramento");
+                    await Transicionar(caso, e, EstadoEntregavel.Encerrado, "encerramento");
                     await _r.Casos.EncerrarAsync(caso.Id);
                     await _r.Eventos.GravarComIdAsync("fechamento.concluido", caso.Id, null, "caso_id", caso.Id);
                     mudou = true;
                     break; // caso encerrado; nada mais a avaliar
                 }
-                else if (e.Estado == EstadoEntregavel.Validado && TemLiberacaoAutomatica(item))
+                else if (e.Estado == EstadoEntregavel.Validado && item.PosValidacao is { LiberacaoAutomatica: true })
                 {
-                    await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Liberado, "liberacao_automatica");
+                    await Transicionar(caso, e, EstadoEntregavel.Liberado, "liberacao_automatica");
                     mudou = true;
                 }
-                else if (e.Estado == EstadoEntregavel.Liberado && item.PosValidacao is not null)
+                else if (e.Estado == EstadoEntregavel.Liberado && item.PosValidacao is { } pos)
                 {
                     // Protocolo (§10.1): disponibiliza quando chega o fato disponibilizado_quando com o
                     // tributo da guia de entrada do E11. O evento leva o fato_id da GUIA vigente (INV-14).
-                    if (await FatoPosExisteAsync(caso, item, "disponibilizado_quando"))
+                    if (await ProtocoloDisponivelAsync(caso, pos, ctx))
                     {
-                        var guia = await GuiaDeEntradaAsync(caso);
-                        await Transicoes.TransicionarAsync(_r, caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato");
+                        var guia = await GuiaDeEntradaAsync(caso, ctx);
+                        await Transicionar(caso, e, EstadoEntregavel.Disponibilizado, "documento_disponibilizado", "fato");
                         if (guia is not null)
                             await _r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e.Id,
                                 "entregavel_id", e.Id, "fato_id", guia.Id);
@@ -89,78 +97,47 @@ public sealed class AvaliarCaso
         } while (mudou);
     }
 
-    private static bool TemLiberacaoAutomatica(ItemEntregavel item)
+    /// <summary>Existe o fato <c>disponibilizado_quando</c> (tipo da regra) com o tributo da guia de entrada?</summary>
+    private async Task<bool> ProtocoloDisponivelAsync(Caso caso, PosValidacaoRegra pos, Contexto ctx)
     {
-        if (item.PosValidacao is not { } pv) return false;
-        return pv.TryGetProperty("liberacao", out var l) && l.ValueKind == JsonValueKind.String
-            && l.GetString() == "automatica";
+        if (pos.DisponibilizadoQuandoTipo is not { } tipo) return false;
+        if (_regra.TributoDaGuia(ctx, caso.Competencia) is not { } tributo) return false;
+        return await _r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, tipo, tributo) is not null;
     }
 
-    private async Task<bool> FatoPosExisteAsync(Caso caso, ItemEntregavel item, string chaveQuando)
-    {
-        if (item.PosValidacao is not { } pv) return false;
-        if (!pv.TryGetProperty(chaveQuando, out var cfg) || cfg.ValueKind != JsonValueKind.Object) return false;
-        var tipo = cfg.GetProperty("tipo").GetString()!;
-        var tributo = TributoDaGuia(caso);
-        var f = await _r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, tipo, tributo);
-        return f is not null;
-    }
-
-    private static string TributoDaGuia(Caso caso)
-    {
-        var regime = caso.Snapshot.TryGetProperty("regime", out var r) && r.ValueKind == JsonValueKind.String
-            ? r.GetString()! : "SN";
-        return regime == "SN" ? "DAS" : "IRPJ";
-    }
-
-    /// <summary>Fato vigente da guia de entrada do E11 (tributo por regime). É o fato_id que o
+    /// <summary>Fato vigente da guia de entrada do E11 (tributo lido da regra). É o fato_id que o
     /// evento documento.disponibilizado carrega (§10.1, INV-14) e que o acompanhamento usa.</summary>
-    private async Task<FatoVigente?> GuiaDeEntradaAsync(Caso caso)
-        => await _r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, "guia", TributoDaGuia(caso));
+    private async Task<FatoVigente?> GuiaDeEntradaAsync(Caso caso, Contexto ctx)
+        => _regra.TributoDaGuia(ctx, caso.Competencia) is { } tributo
+            ? await _r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, RegraEntregaveis.TipoGuia, tributo)
+            : null;
 
-    private async Task<bool> EntradasDepsSatisfeitasAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
+    /// <summary>Aplica a regra de prontidão (§7.2, pura em <see cref="Prontidao"/>): devolve os fatos de
+    /// entrada a ligar se o entregável pode ficar pronto, ou null. Só consulta fatos se as dependências já valem.</summary>
+    private async Task<IReadOnlyList<FatoVigente>?> EntradasLidasSePronto(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
     {
-        // 1. dependências ≥ estado_minimo
-        var deps = await _r.Entregaveis.DependenciasDoAsync(e.Id);
-        foreach (var dep in deps)
-        {
-            var alvo = (await _r.Entregaveis.DoCasoComTravaAsync(caso.Id)).FirstOrDefault(x => x.Id == dep.DependeDeId);
-            if (alvo is null) return false;
-            if (!alvo.Estado.PeloMenos(dep.EstadoMinimo)) return false;
-        }
-        // 2. toda entrada resolvida presente
-        foreach (var entrada in EntradasResolvidas(caso, item, ctx))
+        _dependencias ??= (await _r.Entregaveis.DependenciasDoCasoAsync(caso.Id)).ToLookup(d => d.EntregavelId);
+        var dependencias = _dependencias[e.Id]
+            .Select(d => new DependenciaLida(_estados.TryGetValue(d.DependeDeId, out var s) ? s : null, d.EstadoMinimo))
+            .ToList();
+        if (!Prontidao.DependenciasSatisfeitas(dependencias)) return null;
+
+        var fatos = new List<FatoVigente>();
+        var presentes = new List<bool>();
+        foreach (var entrada in item.EntradasResolvidas(ctx, caso.Competencia))
         {
             var f = await _r.Fatos.VigenteAsync(caso.TitularId, entrada.Competencia, entrada.Tipo, entrada.Tributo);
-            if (f is null) return false;
+            presentes.Add(f is not null);
+            if (f is null) break;
+            fatos.Add(f);
         }
-        return true;
+        return Prontidao.Satisfeita(dependencias, presentes) ? fatos : null;
     }
 
-    private async Task LigarEntradasAsync(Caso caso, Entregavel e, ItemEntregavel item, Contexto ctx)
+    /// <summary>Transição única (Transicoes) mantendo em sincronia o estado em memória da volta.</summary>
+    private async Task Transicionar(Caso caso, Entregavel e, EstadoEntregavel para, string motivo, string? causadoPorTipo = "comando")
     {
-        foreach (var entrada in EntradasResolvidas(caso, item, ctx))
-        {
-            var f = await _r.Fatos.VigenteAsync(caso.TitularId, entrada.Competencia, entrada.Tipo, entrada.Tributo);
-            if (f is not null)
-                await _r.Entregaveis.LigarFatoAsync(e.Id, f.Id, "entrada");
-        }
-    }
-
-    private sealed record EntradaResolvida(Competencia Competencia, string Tipo, string Tributo);
-
-    private static IEnumerable<EntradaResolvida> EntradasResolvidas(Caso caso, ItemEntregavel item, Contexto ctx)
-    {
-        foreach (var entrada in item.Entradas)
-        {
-            var quando = entrada.TryGetProperty("quando", out var q) ? q : (JsonElement?)null;
-            if (!Condicao.Casa(quando, ctx)) continue;
-            var tipo = entrada.GetProperty("tipo").GetString()!;
-            var tributo = entrada.TryGetProperty("tributo", out var t) && t.ValueKind == JsonValueKind.String
-                ? t.GetString()! : "";
-            var rel = entrada.TryGetProperty("competencia_relativa", out var cr) && cr.ValueKind == JsonValueKind.Number
-                ? cr.GetInt32() : 0;
-            yield return new EntradaResolvida(caso.Competencia.Somar(rel), tipo, tributo);
-        }
+        await Transicoes.TransicionarAsync(_r, caso, e, para, motivo, causadoPorTipo);
+        _estados[e.Id] = para;
     }
 }

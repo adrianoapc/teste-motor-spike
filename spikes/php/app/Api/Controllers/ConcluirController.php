@@ -7,6 +7,8 @@ namespace App\Api\Controllers;
 use App\Api\CorpoEstrito;
 use App\Api\ParametrosDeRota;
 use App\Aplicacao\Fechamento\ConcluirTarefa;
+use App\Aplicacao\Fechamento\ConcluirTarefaComando;
+use App\Aplicacao\Fechamento\SaidaDaTarefa;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\JsonCru;
 use Illuminate\Http\JsonResponse;
@@ -58,15 +60,15 @@ final readonly class ConcluirController
             if (! is_string($tributo)) {
                 throw ErroDeNegocio::invalido('corpo_invalido', 'tributo deve ser texto');
             }
-            $saidas[] = [
-                'tributo' => $tributo,
-                'valor_centavos' => $valor,
-                'payload' => $payload,
-            ];
+            $saidas[] = new SaidaDaTarefa($tributo, $valor, $payload);
         }
 
-        $resultado = $this->concluir->concluir($titularId, $competencia, $tipo, $ator, $saidas);
+        $resultado = $this->concluir->concluir(new ConcluirTarefaComando($titularId, $competencia, $tipo, $ator, $saidas));
 
-        return new JsonResponse($resultado);
+        return new JsonResponse([
+            'entregavel_id' => $resultado->entregavelId,
+            'tipo' => $resultado->tipo,
+            'estado' => $resultado->estado,
+        ]);
     }
 }

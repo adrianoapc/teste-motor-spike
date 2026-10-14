@@ -11,18 +11,58 @@ use App\Dominio\Regras\Tolerancia;
 use Illuminate\Database\ConnectionInterface;
 use RuntimeException;
 
-final readonly class RepositorioRegrasDb implements RepositorioRegras
+/**
+ * Uma versão de regra (`regras.regra_versao.id`) é imutável: lida uma vez por requisição. A versão "em uso"
+ * de cada chave também é lida uma vez por requisição, para a requisição inteira enxergar a mesma regra. Esta
+ * instância é `scoped` (nunca vive entre requisições): nada de estado entre requisições (tech.md).
+ */
+final class RepositorioRegrasDb implements RepositorioRegras
 {
-    public function __construct(private ConnectionInterface $conexao) {}
+    /** @var array<string, RegraEntregaveis> por id da versão */
+    private array $entregaveisPorId = [];
+
+    /** @var array<string, array{id: string, versao: int, conteudo: array<string, mixed>}> por chave */
+    private array $emUsoPorChave = [];
+
+    private ?Tolerancia $tolerancia = null;
+
+    private ?Parametros $parametros = null;
+
+    public function __construct(private readonly ConnectionInterface $conexao) {}
 
     public function entregaveisEmUso(): RegraEntregaveis
     {
         $r = $this->emUso('fechamento.entregaveis');
 
-        return RegraEntregaveis::de($r['id'], $r['versao'], $r['conteudo']);
+        return $this->entregaveisPorId[$r['id']] ??= RegraEntregaveis::de($r['id'], $r['versao'], $r['conteudo']);
     }
 
     public function entregaveisPorId(string $versaoId): RegraEntregaveis
+    {
+        return $this->entregaveisPorId[$versaoId] ??= $this->lerEntregaveisPorId($versaoId);
+    }
+
+    public function toleranciaEmUso(): Tolerancia
+    {
+        if ($this->tolerancia === null) {
+            $r = $this->emUso('fiscal.tolerancia');
+            $this->tolerancia = Tolerancia::de($r['id'], $r['conteudo']);
+        }
+
+        return $this->tolerancia;
+    }
+
+    public function parametrosEmUso(): Parametros
+    {
+        if ($this->parametros === null) {
+            $r = $this->emUso('fiscal.parametros');
+            $this->parametros = Parametros::de($r['id'], $r['conteudo']);
+        }
+
+        return $this->parametros;
+    }
+
+    private function lerEntregaveisPorId(string $versaoId): RegraEntregaveis
     {
         $linha = $this->conexao->selectOne(
             'SELECT id::text, versao, conteudo FROM regras.regra_versao WHERE id = ?',
@@ -36,32 +76,26 @@ final readonly class RepositorioRegrasDb implements RepositorioRegras
         return RegraEntregaveis::de($r['id'], $r['versao'], $r['conteudo']);
     }
 
-    public function toleranciaEmUso(): Tolerancia
-    {
-        $r = $this->emUso('fiscal.tolerancia');
-
-        return Tolerancia::de($r['id'], $r['conteudo']);
-    }
-
-    public function parametrosEmUso(): Parametros
-    {
-        $r = $this->emUso('fiscal.parametros');
-
-        return Parametros::de($r['id'], $r['conteudo']);
-    }
-
     /**
-     * Versão em uso (status provisoria ou ativa) de uma chave (§2). Nunca fixa versao=1.
+     * Versão em uso (status provisoria ou ativa) de uma chave (§2). Nunca fixa versao=1. O índice único
+     * `regra_versao_uma_em_uso` garante no máximo uma; ORDER BY/LIMIT tornam a escolha determinística
+     * (a maior versão) mesmo que um dia o índice mude.
      *
      * @return array{id: string, versao: int, conteudo: array<string, mixed>}
      */
     private function emUso(string $chave): array
     {
+        if (isset($this->emUsoPorChave[$chave])) {
+            return $this->emUsoPorChave[$chave];
+        }
+
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             SELECT id::text, versao, conteudo
             FROM regras.regra_versao
             WHERE regra_chave = ? AND status IN ('provisoria','ativa')
+            ORDER BY versao DESC
+            LIMIT 1
             SQL,
             [$chave],
         );
@@ -69,7 +103,7 @@ final readonly class RepositorioRegrasDb implements RepositorioRegras
             throw new RuntimeException("regra sem versão em uso: {$chave}");
         }
 
-        return $this->normalizar($linha);
+        return $this->emUsoPorChave[$chave] = $this->normalizar($linha);
     }
 
     /**

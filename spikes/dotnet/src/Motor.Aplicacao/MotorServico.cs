@@ -74,14 +74,9 @@ public sealed class MotorServico
             {
                 foreach (var dep in item.Dependencias)
                 {
-                    var depQuando = dep.TryGetProperty("quando", out var dq) ? dq : (JsonElement?)null;
-                    if (!Condicao.Casa(depQuando, ctx)) continue;
-                    var alvoTipo = dep.GetProperty("tipo").GetString()!;
-                    if (!porTipo.TryGetValue(alvoTipo, out var alvo)) continue; // alvo inexistente: ignora
-                    var estadoMin = dep.TryGetProperty("estado_minimo", out var em) && em.ValueKind == JsonValueKind.String
-                        ? Estados.Analisar(em.GetString()!)
-                        : regra.EstadoMinimoPadrao;
-                    await r.Entregaveis.GravarDependenciaAsync(ent.Id, alvo.Id, estadoMin);
+                    if (!Condicao.Casa(dep.Quando, ctx)) continue;
+                    if (!porTipo.TryGetValue(dep.Tipo, out var alvo)) continue; // alvo inexistente: ignora
+                    await r.Entregaveis.GravarDependenciaAsync(ent.Id, alvo.Id, dep.EstadoMinimo ?? regra.EstadoMinimoPadrao);
                 }
             }
 
@@ -89,8 +84,8 @@ public sealed class MotorServico
             await r.Eventos.GravarComIdAsync("competencia.aberta", caso.Id, null, "caso_id", caso.Id);
 
             // 4. avaliar prontidão de todos
-            var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
-            var avaliar = new AvaliarCaso(r, regra, new Conferir(r, tol, tolVid, prolaboreBp));
+            var fiscal = await FiscalEmUso.CarregarAsync(r.Regras);
+            var avaliar = new AvaliarCaso(r, regra, new Conferir(r, fiscal, regra));
             await avaliar.ExecutarAsync(caso);
 
             res.Criados.Add(new CasoRef(emp.TitularId, caso.Id));
@@ -140,9 +135,12 @@ public sealed class MotorServico
         var caso = await r.Casos.PorChaveAsync(cmd.TitularId, cmd.Competencia);
         await r.Eventos.GravarComIdAsync("fato.publicado", caso?.Id, null, "fato_id", id);
 
-        // Estado do E11 do caso ANTES da reavaliação desta publicação — decide protocolo vs reenvio (§10.3).
-        var e11Antes = caso is null ? null
-            : (await r.Entregaveis.PorChaveAsync(caso.Id, "E11"))?.Estado;
+        // Item de entrega ao cliente (E11) da regra PINADA no caso, e o estado dele ANTES da reavaliação
+        // desta publicação — decide protocolo vs reenvio (§10.3).
+        var regraDoCaso = caso is null ? null : await RegraDoCasoAsync(r, caso);
+        var protocolo = caso is null || regraDoCaso?.ItemDeProtocolo is not { } itemProtocolo ? null
+            : await r.Entregaveis.PorChaveAsync(caso.Id, itemProtocolo.Tipo);
+        var protocoloAntes = protocolo?.Estado;
 
         // 2. invalidação (§11): só quando nova_versao e a versão anterior estava ligada a entregáveis.
         if (efeito == EfeitoFato.NovaVersao && vigente is not null)
@@ -153,8 +151,8 @@ public sealed class MotorServico
             await ReavaliarAbertosAsync(r, cmd.TitularId);
 
         // 4. acompanhamento depois do protocolo (§10.3): depois de invalidação e reavaliação.
-        if (caso is not null)
-            await AcompanhamentoAsync(r, caso, cmd, id, e11Antes);
+        if (caso is not null && regraDoCaso is not null && protocolo is not null)
+            await AcompanhamentoAsync(r, caso, regraDoCaso, protocolo, cmd, protocoloAntes);
 
         return new ResultadoFato(id, versao, efeito);
     }
@@ -163,15 +161,13 @@ public sealed class MotorServico
     {
         var abertos = await r.Casos.AbertosDoTitularAsync(titularId);
         if (abertos.Count == 0) return;
-        var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
+        var fiscal = await FiscalEmUso.CarregarAsync(r.Regras);
         foreach (var caso in abertos)
         {
             // Carrega a versão de regra FIXADA no caso (não a em uso): reavaliar um caso antigo
             // sob uma versão nova mudaria prontidão/saídas/itens contra a regra à qual ele se vinculou (§13).
-            var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
-                ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
-            var regra = new RegraEntregaveis(caso.RegraVersaoId, conteudo);
-            var avaliar = new AvaliarCaso(r, regra, new Conferir(r, tol, tolVid, prolaboreBp));
+            var regra = await RegraDoCasoAsync(r, caso);
+            var avaliar = new AvaliarCaso(r, regra, new Conferir(r, fiscal, regra));
             await avaliar.ExecutarAsync(caso);
         }
     }
@@ -198,16 +194,12 @@ public sealed class MotorServico
         if (ent.Estado != EstadoEntregavel.Pronto || ent.Executor == "sistema")
             return Falha(ConcluirErro.Conflito, "entregável não está pronto ou é de sistema");
 
-        var conteudoRegra = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
-            ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
-        var regra = new RegraEntregaveis(caso.RegraVersaoId, conteudoRegra);
+        var regra = await RegraDoCasoAsync(r, caso);
         var item = regra.Item(tipo);
-        var saidaRegra = item?.Saida;
-        if (saidas.Count == 0 || saidaRegra is null)
+        if (saidas.Count == 0 || item?.SaidaTipo is not { } tipoSaida)
             return Falha(ConcluirErro.Invalido, "sem saídas ou entregável sem saída na regra");
 
         var agora = await uow.AgoraAsync();
-        var tipoSaida = saidaRegra.Value.GetProperty("tipo").GetString()!;
 
         // 4. cada saída vira fato (fonte=tarefa), ligada com papel 'saida'
         foreach (var s in saidas)
@@ -227,8 +219,7 @@ public sealed class MotorServico
             "tarefa", tarefaId?.ToString(), ator);
 
         // 7. conferir + desfecho
-        var (tol, tolVid, prolaboreBp) = await CarregarFiscalAsync(r);
-        var conferir = new Conferir(r, tol, tolVid, prolaboreBp);
+        var conferir = new Conferir(r, await FiscalEmUso.CarregarAsync(r.Regras), regra);
         var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
         await conferir.ConferirEDesfecharAsync(caso, ent, item!, ctx);
 
@@ -322,87 +313,54 @@ public sealed class MotorServico
     }
 
     // ---- Acompanhamento depois do protocolo (§10.3) ----
-    private async Task AcompanhamentoAsync(IRepositorios r, Caso caso, PublicarFatoCmd cmd, Guid fatoNovoId,
-        EstadoEntregavel? e11Antes)
+    private async Task AcompanhamentoAsync(IRepositorios r, Caso caso, RegraEntregaveis regra, Entregavel protocolo,
+        PublicarFatoCmd cmd, EstadoEntregavel? estadoAntes)
     {
-        // Só vale para o E11 e seu tributo de guia (DAS no SN, IRPJ no LP).
-        var e11 = await r.Entregaveis.PorChaveAsync(caso.Id, "E11");
-        if (e11 is null) return;
-        var tributoGuia = TributoDaGuia(caso);
-        if (cmd.Tributo != tributoGuia) return;
+        // Só vale para o item de protocolo e o tributo da guia de entrada dele (lido da regra pinada).
+        var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
+        if (regra.TributoDaGuia(ctx, caso.Competencia) is not { } tributoGuia || cmd.Tributo != tributoGuia) return;
+        if (regra.ItemDeProtocolo is not { Acompanhamento: { } acomp } item) return;
 
-        var regra = cmd.Tipo;
-        var acomp = await AcompanhamentoRegraAsync(r, caso);
-        if (acomp is null) return;
-
-        // Reenvio: documento_disponibilizado em NOVA versão com o E11 JÁ em disponibilizado antes
+        // Reenvio: disponibilizado_quando em NOVA versão com o item JÁ em disponibilizado antes
         // desta publicação (§10.3). O protocolo (§10.1), que leva liberado->disponibilizado, não é reenvio.
-        if (regra == acomp.Value.DisponibilizadoTipo && e11Antes == EstadoEntregavel.Disponibilizado)
+        if (cmd.Tipo == item.PosValidacao?.DisponibilizadoQuandoTipo && estadoAntes == EstadoEntregavel.Disponibilizado)
         {
-            var guia = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, "guia", tributoGuia);
+            var guia = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, RegraEntregaveis.TipoGuia, tributoGuia);
             if (guia is not null)
-                await r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, e11.Id,
-                    "entregavel_id", e11.Id, "fato_id", guia.Id);
+                await r.Eventos.GravarComDoisIdsAsync("documento.disponibilizado", caso.Id, protocolo.Id,
+                    "entregavel_id", protocolo.Id, "fato_id", guia.Id);
             else
-                await r.Eventos.GravarComIdAsync("documento.disponibilizado", caso.Id, e11.Id, "entregavel_id", e11.Id);
-            await r.Excecoes.ResolverPorTiposAsync(e11.Id, new[] { "entrega_falhou" }, "reenviado");
+                await r.Eventos.GravarComIdAsync("documento.disponibilizado", caso.Id, protocolo.Id, "entregavel_id", protocolo.Id);
+            await r.Excecoes.ResolverPorTiposAsync(protocolo.Id, new[] { "entrega_falhou" }, "reenviado");
             return;
         }
 
-        // Os demais fatos de acompanhamento só valem quando o E11 já está em disponibilizado.
-        if (e11Antes != EstadoEntregavel.Disponibilizado) return;
+        // Os demais fatos de acompanhamento só valem quando o item já está em disponibilizado.
+        if (estadoAntes != EstadoEntregavel.Disponibilizado) return;
 
-        if (regra == acomp.Value.FalhaTipo)
+        if (cmd.Tipo == acomp.FalhaTipo)
         {
-            var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, e11.Id, "entrega_falhou", "O", caso.Carteira);
+            var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, protocolo.Id, "entrega_falhou", "O", caso.Carteira);
             if (exId is { } eid)
-                await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e11.Id, "excecao_id", eid);
+                await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, protocolo.Id, "excecao_id", eid);
         }
-        else if (regra == acomp.Value.ConfirmacaoTipo)
+        else if (cmd.Tipo == acomp.ConfirmacaoTipo)
         {
-            await r.Eventos.GravarComIdAsync("recebimento.confirmado", caso.Id, e11.Id, "entregavel_id", e11.Id);
-            await r.Excecoes.ResolverPorTiposAsync(e11.Id,
+            await r.Eventos.GravarComIdAsync("recebimento.confirmado", caso.Id, protocolo.Id, "entregavel_id", protocolo.Id);
+            await r.Excecoes.ResolverPorTiposAsync(protocolo.Id,
                 new[] { "entrega_falhou", "recebimento_pendente" }, "recebido");
         }
-        else if (regra == acomp.Value.PendenciaTipo)
+        else if (cmd.Tipo == acomp.PendenciaTipo && acomp.ConfirmacaoTipo is { } confirmacaoTipo)
         {
-            // Só se NÃO existe fato vigente entrega_confirmada com a mesma chave.
-            var confirmada = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia,
-                acomp.Value.ConfirmacaoTipo, tributoGuia);
+            // Só se NÃO existe fato vigente de confirmação com a mesma chave.
+            var confirmada = await r.Fatos.VigenteAsync(caso.TitularId, caso.Competencia, confirmacaoTipo, tributoGuia);
             if (confirmada is null)
             {
-                var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, e11.Id, "recebimento_pendente", "O", caso.Carteira);
+                var exId = await r.Excecoes.AbrirUnicaAsync(caso.Id, protocolo.Id, "recebimento_pendente", "O", caso.Carteira);
                 if (exId is { } eid)
-                    await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e11.Id, "excecao_id", eid);
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, protocolo.Id, "excecao_id", eid);
             }
         }
-    }
-
-    private readonly record struct AcompRegra(string DisponibilizadoTipo, string FalhaTipo, string ConfirmacaoTipo, string PendenciaTipo);
-
-    private async Task<AcompRegra?> AcompanhamentoRegraAsync(IRepositorios r, Caso caso)
-    {
-        var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId);
-        if (conteudo is not { } c) return null;
-        var regra = new RegraEntregaveis(caso.RegraVersaoId, c);
-        var e11 = regra.Item("E11");
-        if (e11?.PosValidacao is not { } pv) return null;
-        var dispTipo = pv.TryGetProperty("disponibilizado_quando", out var dq) && dq.ValueKind == JsonValueKind.Object
-            && dq.TryGetProperty("tipo", out var dqt) ? dqt.GetString()! : "documento_disponibilizado";
-        if (!e11.Bruto.TryGetProperty("acompanhamento", out var ac) || ac.ValueKind != JsonValueKind.Object)
-            return null;
-        string Tipo(string chave, string padrao) =>
-            ac.TryGetProperty(chave, out var o) && o.ValueKind == JsonValueKind.Object
-            && o.TryGetProperty("tipo", out var t) ? t.GetString()! : padrao;
-        return new AcompRegra(dispTipo, Tipo("falha", "entrega_falhou"),
-            Tipo("confirmacao", "entrega_confirmada"), Tipo("pendencia", "recebimento_pendente"));
-    }
-
-    private static string TributoDaGuia(Caso caso)
-    {
-        var regime = caso.Snapshot.TryGetProperty("regime", out var r) && r.ValueKind == JsonValueKind.String
-            ? r.GetString()! : "SN";
-        return regime == "SN" ? "DAS" : "IRPJ";
     }
 
     // ---- Consulta do caso (GET /casos), montada pelos repositórios de cada módulo ----
@@ -469,20 +427,10 @@ public sealed class MotorServico
         return new OverrideResultado(OverrideErro.None, final, null);
     }
 
-    private static async Task<(Tolerancia tol, Guid versaoId, int prolaboreBp)> CarregarFiscalAsync(IRepositorios r)
+    private static async Task<RegraEntregaveis> RegraDoCasoAsync(IRepositorios r, Caso caso)
     {
-        var tolInfo = await r.Regras.VersaoEmUsoAsync("fiscal.tolerancia")
-            ?? throw new InvalidOperationException("fiscal.tolerancia sem versão em uso");
-        var padrao = tolInfo.Conteudo.GetProperty("padrao");
-        var tol = new Tolerancia(
-            padrao.GetProperty("ok_ate_centavos").GetInt64(),
-            padrao.GetProperty("alerta_ate_centavos").GetInt64());
-
-        var prolaboreBp = 0;
-        var parInfo = await r.Regras.VersaoEmUsoAsync("fiscal.parametros");
-        if (parInfo is { } p && p.Conteudo.TryGetProperty("prolabore_percentual_bp", out var bp))
-            prolaboreBp = bp.GetInt32();
-
-        return (tol, tolInfo.Id, prolaboreBp);
+        var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
+            ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
+        return new RegraEntregaveis(caso.RegraVersaoId, conteudo);
     }
 }

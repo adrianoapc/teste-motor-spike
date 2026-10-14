@@ -21,10 +21,12 @@ Implementa o contrato comum (`contrato/openapi.yaml`) e a semântica normativa
 ```
 src/Motor.Dominio/        value objects e lógica pura: Competencia, Centavos/arred,
                           EstadoEntregavel, Condicao (quando), HashCanonico,
-                          EntradaHash, Classificacao, RegraEntregaveis. Sem I/O.
+                          EntradaHash, Classificacao, RegraEntregaveis (regra tipada),
+                          Prontidao (§7.2), CalculadoraConferencias (§9.1),
+                          ParametrosFiscais. Sem I/O.
 src/Motor.Aplicacao/      casos de uso (AbrirCompetencias, PublicarFato,
                           ConcluirTarefa, ConsultarCaso), AvaliarCaso (ponto fixo), Conferir,
-                          CalculadoraConferencias, Transicoes; portas por módulo em Portas/
+                          FiscalEmUso, Transicoes; portas por módulo em Portas/
                           (Fechamento, Fatos, Conferencias, Trabalho, Eventos, Regras).
 src/Motor.Infraestrutura/ unidade de trabalho (transação) e um repositório Npgsql/Dapper por
                           módulo, em pasta própria (Fechamento/, Fatos/, Conferencias/, Trabalho/,

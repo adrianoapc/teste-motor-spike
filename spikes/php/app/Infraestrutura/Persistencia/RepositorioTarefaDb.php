@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infraestrutura\Persistencia;
 
 use App\Aplicacao\Portas\RepositorioTarefa;
+use App\Aplicacao\Portas\TarefaAberta;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class RepositorioTarefaDb implements RepositorioTarefa
@@ -28,8 +29,7 @@ final readonly class RepositorioTarefaDb implements RepositorioTarefa
         return $row['id'];
     }
 
-    /** @return array{id: string}|null */
-    public function abertaDoEntregavel(string $entregavelId): ?array
+    public function abertaDoEntregavel(string $entregavelId): ?string
     {
         $linha = $this->conexao->selectOne(
             "SELECT id::text FROM trabalho.tarefa_humana WHERE entregavel_id = ? AND estado = 'aberta' ORDER BY criada_em DESC, id DESC LIMIT 1",
@@ -41,7 +41,24 @@ final readonly class RepositorioTarefaDb implements RepositorioTarefa
         /** @var array{id: string} $row */
         $row = (array) $linha;
 
-        return ['id' => $row['id']];
+        return $row['id'];
+    }
+
+    /** @return list<TarefaAberta> */
+    public function abertasDoCaso(string $casoId): array
+    {
+        $linhas = $this->conexao->select(
+            "SELECT id::text AS tarefa_id, entregavel_id::text AS entregavel_id FROM trabalho.tarefa_humana WHERE caso_id = ? AND estado = 'aberta' ORDER BY criada_em, id",
+            [$casoId],
+        );
+        $saida = [];
+        foreach ($linhas as $l) {
+            /** @var array{tarefa_id: string, entregavel_id: string} $row */
+            $row = (array) $l;
+            $saida[] = new TarefaAberta($row['tarefa_id'], $row['entregavel_id']);
+        }
+
+        return $saida;
     }
 
     public function concluir(string $tarefaId): void

@@ -74,12 +74,14 @@ internal sealed class EntregavelRepo : RepoBase, IEntregavelRepo
             new { e = entregavelId, d = dependeDeId, m = estadoMinimo.Nome() }, Tx);
     }
 
-    public async Task<IReadOnlyList<Dependencia>> DependenciasDoAsync(Guid entregavelId)
+    public async Task<IReadOnlyList<Dependencia>> DependenciasDoCasoAsync(Guid casoId)
     {
         var rows = await Conn.QueryAsync<(Guid e, Guid d, string m)>(
-            @"SELECT entregavel_id AS e, depende_de_id AS d, estado_minimo AS m
-              FROM fechamento.entregavel_dependencia WHERE entregavel_id = @e",
-            new { e = entregavelId }, Tx);
+            @"SELECT d.entregavel_id AS e, d.depende_de_id AS d, d.estado_minimo AS m
+              FROM fechamento.entregavel_dependencia d
+              JOIN fechamento.entregavel x ON x.id = d.entregavel_id
+              WHERE x.caso_id = @c",
+            new { c = casoId }, Tx);
         return rows.Select(x => new Dependencia(x.e, x.d, Estados.Analisar(x.m))).ToList();
     }
 

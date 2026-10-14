@@ -2,6 +2,7 @@ using System.Text.Json;
 using Dapper;
 using Motor.Aplicacao;
 using Motor.Dominio.Conferencias;
+using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
 using Npgsql;
 using NpgsqlTypes;

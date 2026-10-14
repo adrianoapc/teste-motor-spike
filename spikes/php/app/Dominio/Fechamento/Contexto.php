@@ -35,9 +35,4 @@ final readonly class Contexto
     {
         return $this->campos[$campo] ?? null;
     }
-
-    public function temCampo(string $campo): bool
-    {
-        return array_key_exists($campo, $this->campos);
-    }
 }
