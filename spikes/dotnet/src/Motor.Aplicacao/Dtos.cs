@@ -27,18 +27,6 @@ public sealed record Entregavel(
 /// <summary>Dependência materializada de um entregável.</summary>
 public sealed record Dependencia(Guid EntregavelId, Guid DependeDeId, EstadoEntregavel EstadoMinimo);
 
-/// <summary>Fato vigente de uma chave.</summary>
-public sealed record FatoVigente(
-    Guid Id,
-    string TitularId,
-    Competencia Competencia,
-    string Tipo,
-    string Tributo,
-    int Versao,
-    long? ValorCentavos,
-    JsonElement Payload,
-    string Hash);
-
 /// <summary>Dados para gravar uma transição (§4.1).</summary>
 public sealed record NovaTransicao(
     Guid EntregavelId,
