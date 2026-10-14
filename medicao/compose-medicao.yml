@@ -1,0 +1,36 @@
+name: vfmedicao
+services:
+  postgres:
+    image: postgres:16
+    environment: {POSTGRES_USER: spike, POSTGRES_PASSWORD: spike, POSTGRES_DB: postgres}
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["./main/db/init:/docker-entrypoint-initdb.d:ro"]
+    healthcheck: {test: ["CMD-SHELL","pg_isready -U spike -d postgres"], interval: 2s, timeout: 3s, retries: 30}
+  migrar:
+    image: postgres:16
+    depends_on: {postgres: {condition: service_healthy}}
+    environment: {PGHOST: postgres, PGUSER: spike, PGPASSWORD: spike}
+    volumes: ["./main/db:/db:ro"]
+    entrypoint: ["/bin/sh","-c","/db/scripts/migrar.sh spike_dotnet && /db/scripts/migrar.sh spike_python && /db/scripts/migrar.sh spike_php"]
+    restart: "no"
+  spike-dotnet:
+    profiles: [dotnet]
+    build: ./main/spikes/dotnet
+    image: vfm-dotnet:def1a5a
+    depends_on: {migrar: {condition: service_completed_successfully}}
+    environment: {MOTOR_DB: "Host=postgres;Port=5432;Database=spike_dotnet;Username=spike;Password=spike"}
+    ports: ["127.0.0.1:58081:8080"]
+  spike-python:
+    profiles: [python]
+    build: ./main/spikes/python
+    image: vfm-python:def1a5a
+    depends_on: {migrar: {condition: service_completed_successfully}}
+    environment: {MOTOR_DB: "postgresql://spike:spike@postgres:5432/spike_python"}
+    ports: ["127.0.0.1:58082:8080"]
+  spike-php:
+    profiles: [php]
+    build: ./main/spikes/php
+    image: vfm-php:def1a5a
+    depends_on: {migrar: {condition: service_completed_successfully}}
+    environment: {MOTOR_DB: "pgsql://spike:spike@postgres:5432/spike_php"}
+    ports: ["127.0.0.1:58083:8080"]
