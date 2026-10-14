@@ -6,6 +6,7 @@ namespace App\Infraestrutura\Persistencia;
 
 use App\Aplicacao\Portas\Relogio;
 use Illuminate\Database\ConnectionInterface;
+use RuntimeException;
 
 final readonly class RelogioDb implements Relogio
 {
@@ -14,9 +15,13 @@ final readonly class RelogioDb implements Relogio
     public function agora(): string
     {
         $linha = $this->conexao->selectOne('SELECT now() AS agora');
-        /** @var array{agora?: string} $row */
+        /** @var array{agora?: mixed} $row */
         $row = $linha === null ? [] : (array) $linha;
+        $agora = $row['agora'] ?? null;
+        if (! is_string($agora) || $agora === '') {
+            throw new RuntimeException('o banco não devolveu now()');
+        }
 
-        return is_string($row['agora'] ?? null) ? $row['agora'] : '';
+        return $agora;
     }
 }

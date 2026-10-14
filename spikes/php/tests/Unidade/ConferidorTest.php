@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Conferidor (§9) sem banco: classificação por tolerância, fato ausente, comparação de texto e idempotência.
 
 use App\Dominio\Fechamento\Caso;
+use App\Dominio\Regras\RegraInvalida;
 use Tests\Unidade\Fakes\Mundo;
 
 /**
@@ -133,6 +134,47 @@ it('CF-06 com a competência impressa diferente da do caso diverge e guarda espe
     expect($divergiu)->toBeTrue()
         ->and($cf06[0]['resultado'])->toBe('divergente')
         ->and($cf06[0]['diferenca'])->toBe(['esperada' => '202601', 'impressa' => '202512']);
+});
+
+it('CF-12 exige o recibo do tributo declarado na entrada do E10 da regra do caso: SN PGDAS-D, LP DCTFWEB', function (string $regime, string $tributoGuia, string $tributoDoRecibo): void {
+    $m = new Mundo;
+    $caso = $m->abrirCaso(regime: $regime);
+    $m->fatos->inserir('T1', Mundo::COMP, 'recibo_obrigacao', $tributoDoRecibo, 1, null, new stdClass, 'teste', null, 'hr', null, '');
+
+    expect($m->conferir($caso, 'E10', $tributoGuia))->toBeFalse()
+        ->and($m->conferencias->linhas[0])->toMatchArray(['cf' => 'CF-12', 'resultado' => 'ok']);
+})->with([
+    'Simples' => ['SN', 'DAS', 'PGDAS-D'],
+    'Lucro Presumido' => ['LP', 'IRPJ', 'DCTFWEB'],
+]);
+
+it('CF-12 não repete conhecimento de domínio: o tributo vem da regra, seja qual for', function (): void {
+    $regra = Mundo::regraPadrao();
+    foreach ($regra['entregaveis'] as $i => $item) {
+        if ($item['tipo'] === 'E10') {
+            $regra['entregaveis'][$i]['entradas'] = [['tipo' => 'recibo_obrigacao', 'tributo' => 'ECF']];
+        }
+    }
+    $m = new Mundo($regra);
+    $caso = $m->abrirCaso();
+    $m->fatos->inserir('T1', Mundo::COMP, 'recibo_obrigacao', 'PGDAS-D', 1, null, new stdClass, 'teste', null, 'h1', null, '');
+
+    // Só há recibo de PGDAS-D, mas a regra exige ECF: divergente, dado ausente.
+    expect($m->conferir($caso, 'E10'))->toBeTrue()
+        ->and($m->conferencias->linhas[0]['diferenca'])->toBe(['erro' => 'fato ausente: recibo_obrigacao[ECF]']);
+});
+
+it('E10 sem entrada de recibo aplicável ao contexto é regra inválida, não um padrão silencioso', function (): void {
+    $regra = Mundo::regraPadrao();
+    foreach ($regra['entregaveis'] as $i => $item) {
+        if ($item['tipo'] === 'E10') {
+            $regra['entregaveis'][$i]['entradas'] = [['tipo' => 'recibo_obrigacao', 'tributo' => 'DCTFWEB', 'quando' => [['regime' => 'LP']]]];
+        }
+    }
+    $m = new Mundo($regra);
+    $caso = $m->abrirCaso(regime: 'SN');
+
+    expect(fn () => $m->conferir($caso, 'E10'))->toThrow(RegraInvalida::class, 'CF-12');
 });
 
 it('CF-12 sem recibo é divergente de classe S (dado ausente)', function (): void {
