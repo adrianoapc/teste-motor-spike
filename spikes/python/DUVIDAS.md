@@ -222,3 +222,18 @@ continua registrada em `tarefa_concluida` do mesmo entregável.
   tarefas, eventos) e pela avaliação completa do §5 passo 6; não foi tocada.
 - **Locks.** A ordem global (titular, chave, linhas) e o `SELECT ... FOR UPDATE` de todo o caso a
   cada volta ficaram: o recorte reduz quantos casos são travados, não a política de trava.
+
+## D14 — O teste de arquitetura não verificava nada (corrigido)
+
+Todas as afirmações anteriores de que o import-linter verifica as camadas (README, CROSS-REVIEW,
+METRICAS/D-anteriores, `scripts/checar.sh`) estavam sem lastro: `python -m importlinter.cli lint`
+não executa o comando (o módulo não tem `__main__`), sai com 0 e não imprime nada; o teste só
+conferia o exit code. Além disso, o `lint-imports` real recusava a config: contratos `forbidden`
+com módulos externos (`fastapi`, `psycopg`...) exigem `include_external_packages = True`.
+
+Agora: `.importlinter` tem `include_external_packages = True`; `tests/unidade/test_arquitetura.py`
+roda o `lint-imports` do mesmo ambiente e exige exit 0, os 3 nomes de contrato com `KEPT` e
+`Contracts: 3 kept, 0 broken.`; `scripts/checar.sh` usa `lint-imports`. Provado com violações em
+cópia temporária: `import psycopg` e `import fastapi` em `dominio`, `import motor.api` em
+`aplicacao` e `import psycopg` em `aplicacao` quebram os contratos e fazem teste e comando
+falharem (exit 1); sem violação, tudo volta a passar.

@@ -16,5 +16,5 @@ pip install --quiet --disable-pip-version-check -e ".[dev]" >/dev/null 2>&1
 echo "=== pytest ===";       python -m pytest -q
 echo "=== mypy ===";         python -m mypy
 echo "=== ruff ===";         python -m ruff check
-echo "=== import-linter ==="; python -m importlinter.cli lint
+echo "=== import-linter ==="; lint-imports
 '

@@ -15,7 +15,7 @@ src/motor/
 ```
 
 Dependências permitidas: `api → infraestrutura/aplicacao`, `infraestrutura → aplicacao/dominio`,
-`aplicacao → dominio`, `dominio → nada do projeto`. Verificado por `.importlinter` e por teste.
+`aplicacao → dominio`, `dominio → nada do projeto`. Verificado de verdade por `lint-imports` (config `.importlinter`, 3 contratos) e por `tests/unidade/test_arquitetura.py`, que roda o comando e exige os 3 contratos `KEPT`. Até o PR `fix/python-importlinter` isso NÃO era verdade: o teste chamava `python -m importlinter.cli lint`, que sai com 0 sem analisar nada (ver DUVIDAS D14).
 
 ## Rodar com Docker (recomendado — igual ao avaliador)
 
@@ -50,7 +50,7 @@ pip install -e ".[dev]"
 pytest                       # unidade + arquitetura
 mypy --strict src            # sem # type: ignore em src/ (testes usam alguns, para fakes)
 ruff check .
-python -m importlinter.cli lint   # contratos de camadas (também roda em tests/unidade)
+lint-imports                 # contratos de camadas (também roda em tests/unidade)
 MOTOR_DB=postgresql://spike:spike@localhost:5432/spike_python pytest   # inclui tests/integracao
 ```
 
