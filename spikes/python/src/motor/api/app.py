@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -23,7 +23,7 @@ from motor.api.modelos import (
     OverrideRequest,
     TarefaResumo,
 )
-from motor.api.numeros import exigir_numeros_inteiros
+from motor.api.numeros import RotaValidada
 from motor.aplicacao import motor_fechamento as mf
 from motor.aplicacao.motor_fechamento import ErroNegocio
 from motor.aplicacao.portas import ConflitoConcorrencia
@@ -43,6 +43,8 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Motor do fechamento — spike Python", lifespan=ciclo_de_vida)
+# Forma do corpo (§6/§8 passo 0) e rota sem NUL, antes de qualquer consulta ou gravação.
+app.router.route_class = RotaValidada
 app.add_exception_handler(ErroDominio, tratar_erro_dominio)
 app.add_exception_handler(RequestValidationError, tratar_validacao)
 
@@ -101,7 +103,7 @@ def abrir_competencias(req: AbrirCompetenciasRequest) -> AbrirCompetenciasRespon
     return AbrirCompetenciasResponse(criados=criados, existentes=existentes)
 
 
-@app.post("/fatos", dependencies=[Depends(exigir_numeros_inteiros)])
+@app.post("/fatos")
 def publicar_fato(req: FatoRequest) -> FatoResponse:
     """§6: hash, versionamento, evento e reavaliação dos casos abertos."""
     with unidade_de_trabalho() as uow:
@@ -120,10 +122,7 @@ def publicar_fato(req: FatoRequest) -> FatoResponse:
     return FatoResponse(fato_id=fato_id, versao=versao, efeito=efeito)
 
 
-@app.post(
-    "/casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir",
-    dependencies=[Depends(exigir_numeros_inteiros)],
-)
+@app.post("/casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir")
 def concluir(
     titular_id: str, competencia: str, tipo: str, req: ConcluirRequest
 ) -> EntregavelEstado:

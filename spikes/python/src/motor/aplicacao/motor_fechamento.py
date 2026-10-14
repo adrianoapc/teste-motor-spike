@@ -226,7 +226,7 @@ def override_conferencia(
 ) -> Entregavel:
     """Libera um `divergente` B via override (§8.1). Validação 422 → 404 → 409."""
     # 1) corpo inválido → 422 (cf fora de CF-nn ou motivo curto).
-    if not re.fullmatch(r"CF-\d\d", cf) or len(motivo) < 5:
+    if not re.fullmatch(r"CF-[0-9]{2}", cf, re.ASCII) or len(motivo) < 5:
         raise _invalido("corpo_invalido", f"cf/motivo inválidos: {cf!r}, motivo<5")
 
     # 2) caso/entregável inexistente → 404.

@@ -10,8 +10,9 @@ WORKDIR /app
 # Instala só as dependências de runtime primeiro (cache de camada).
 COPY pyproject.toml ./
 COPY src ./src
+COPY log-config.json ./log-config.json
 RUN pip install .
 
 # A conexão vem só de MOTOR_DB (injetada pelo compose). Nada no código/imagem.
 EXPOSE 8080
-CMD ["uvicorn", "motor.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "motor.api.app:app", "--host", "0.0.0.0", "--port", "8080", "--log-config", "log-config.json"]

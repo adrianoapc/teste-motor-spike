@@ -53,7 +53,8 @@ Task 11 levou 2/10 → **4/10** (C1, C6, C7, C8).
 
 ## D7 — Revisão da fase 1 (achado para a Task 12)
 
-**Latente, ainda não corrigido:** `_regra_do_caso()` relê `regra_entregaveis_em_uso()` em vez
+**Corrigido (rodada 1 de revisão do PR #5; `_regra_do_caso()` lê a versão fixada no caso).**
+Descrição original: `_regra_do_caso()` relê `regra_entregaveis_em_uso()` em vez
 de usar o `caso.regra_entregaveis_versao_id` gravado na abertura. O `Caso` já carrega esse id.
 Enquanto só existe **uma** versão em uso (fase 1 e início da fase 2, pós-V006) o comportamento
 é idêntico; mas §2 exige que o caso **sempre** use a versão com que foi aberto, mesmo que outra

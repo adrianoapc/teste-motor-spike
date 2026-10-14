@@ -48,9 +48,10 @@ A conexão vem **apenas** de `MOTOR_DB`; nenhum valor de conexão no código.
 cd spikes/python
 pip install -e ".[dev]"
 pytest                       # unidade + arquitetura
-mypy --strict src            # sem # type: ignore
+mypy --strict src            # sem # type: ignore em src/ (testes usam alguns, para fakes)
 ruff check .
-lint-imports                 # contratos de camadas
+python -m importlinter.cli lint   # contratos de camadas (também roda em tests/unidade)
+MOTOR_DB=postgresql://spike:spike@localhost:5432/spike_python pytest   # inclui tests/integracao
 ```
 
 ## Verificador (juiz comum)

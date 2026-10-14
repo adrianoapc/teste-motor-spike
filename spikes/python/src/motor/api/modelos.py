@@ -1,25 +1,29 @@
 """Modelos pydantic v2 de entrada e saída (contrato/openapi.yaml)."""
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated, Literal
+import re
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 # int64 com sinal (openapi format: int64); Python não limita inteiros, o bigint do banco sim.
 # strict: true/false, 1.0 e "1" não são coagidos para inteiro.
 Int64 = Annotated[int, Field(strict=True, ge=-(2**63), le=2**63 - 1)]
-COMPETENCIA = r"^[0-9]{4}(0[1-9]|1[0-2])$"
+_RFC3339 = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})",
+    re.ASCII,
+)
+COMPETENCIA = r"^[0-9]{4}(0[1-9]|1[0-2])\z"
 
 
 class Empresa(BaseModel):
     model_config = ConfigDict(extra="forbid")
     titular_id: str = Field(min_length=1, max_length=64)
     regime: Literal["SN", "LP"]
-    tem_folha: bool
-    tem_prolabore: bool
-    tem_taxa_municipal: bool
-    filial: bool
+    tem_folha: StrictBool
+    tem_prolabore: StrictBool
+    tem_taxa_municipal: StrictBool
+    filial: StrictBool
     carteira: str = Field(min_length=1)
     municipio: str = Field(min_length=1)
 
@@ -51,7 +55,15 @@ class FatoRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
     fonte: str = Field(min_length=1)
     origem_ref: str | None = None
-    observado_em: datetime
+    observado_em: AwareDatetime
+
+    @field_validator("observado_em", mode="before")
+    @classmethod
+    def _rfc3339(cls, v: Any) -> Any:
+        """date-time RFC 3339 com fuso: sem epoch, sem data pura, sem datetime ingênuo."""
+        if isinstance(v, str) and _RFC3339.fullmatch(v):
+            return v
+        raise ValueError("observado_em deve ser date-time RFC 3339 com fuso (Z ou +hh:mm)")
 
 
 class FatoResponse(BaseModel):

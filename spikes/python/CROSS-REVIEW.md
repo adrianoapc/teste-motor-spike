@@ -30,7 +30,9 @@ docker compose --profile python up -d --build         # spike Python em :8082
 docker run --rm -v "$PWD/spikes/python:/app" -w /app python:3.13-slim \
   sh -c 'pip install -q -e ".[dev]" && python -m mypy src tests && \
          python -m ruff check src tests && python -m pytest -q'
-# esperado: mypy sem erros (0 # type: ignore), ruff limpo, 22 testes verdes
+# esperado: mypy --strict src sem erros e sem # type: ignore em src/ (os testes usam alguns
+# # type: ignore para injetar fakes), ruff limpo, todos os testes verdes (a contagem muda a
+# cada rodada; os de integração/locks só rodam com MOTOR_DB definido)
 
 # verificador (httpx + psycopg):
 python verificador/verificador.py --api http://localhost:8082 \
@@ -95,18 +97,18 @@ Medidas em `spikes/python/METRICAS.md` (seções Fase 1/2/3 + Manutenção); dec
    `docker-compose.yml`, `.kiro/steering/` devem estar intactos. O diff deve conter só
    `spikes/python/` e os checkboxes de `.kiro/specs/spike-python/tasks.md`.
 
-6. **mypy `--strict` sem `# type: ignore`** (nenhum no código) e `ruff`/`import-linter`
-   limpos. Os erros que o mypy barrou antes de teste estão em `REGISTRO-COMPILADOR.md`.
+6. **mypy `--strict src` sem `# type: ignore` em `src/`** (os testes têm `# type: ignore`
+   pontuais para injetar fakes; mypy não roda neles) e `ruff` limpo. O contrato de camadas é
+   verificado por `tests/unidade/test_arquitetura.py` (`python -m importlinter.cli lint`). Os erros que o mypy barrou antes de teste estão em `REGISTRO-COMPILADOR.md`.
 
 ## Decisões que valem contestar (estão em DUVIDAS.md)
 
 - **D2**: reavaliar **todos** os casos abertos do titular após um fato (superconjunto
   seguro de §6.2). Mais simples; a fase 3 mediu 49,2s/4500 casos — vale discutir custo.
 - **D5**: `fatos_usados` de CF-06/CF-12 usa os fatos efetivamente lidos pela regra.
-- **D7**: `_regra_do_caso()` relê a regra em uso em vez de usar o
-  `caso.regra_entregaveis_versao_id` gravado. Inócuo hoje (uma versão em uso), mas §2 pede
-  que o caso **sempre** use a versão com que foi aberto. **Candidato real a apontamento** —
-  avalie se deve ser corrigido antes do merge ou fica como dívida registrada.
+- **D7**: `_regra_do_caso()` relia a regra em uso em vez de usar o
+  `caso.regra_entregaveis_versao_id` gravado. **Já corrigido** (a regra é lida pela versão
+  fixada no caso; teste em `tests/unidade/test_revisao_codex.py`).
 - **D8**: pool não recupera de um restart do Postgres sozinho (conexões mortas →
   `/health` 500). Fora do escopo da escala, mas `ConnectionPool(check=...)` resolveria.
 

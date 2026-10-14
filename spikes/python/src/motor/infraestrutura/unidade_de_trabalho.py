@@ -197,7 +197,7 @@ class UnidadeDeTrabalhoSQL:
     def encerrar_caso(self, caso_id: str) -> None:
         self._exec(
             "UPDATE fechamento.caso_competencia "
-            "SET estado = 'encerrado', encerrado_em = now(), version = version + 1 "
+            "SET estado = 'encerrado', encerrado_em = clock_timestamp(), version = version + 1 "
             "WHERE id = %s",
             (caso_id,),
         )
@@ -483,8 +483,8 @@ class UnidadeDeTrabalhoSQL:
         row = self._um(
             "INSERT INTO conferencias.conferencia "
             "(cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash, "
-            " resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            " resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, em) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, clock_timestamp()) "
             "ON CONFLICT (cf, entregavel_id, entrada_hash) DO NOTHING RETURNING id",
             (
                 cf,
@@ -534,7 +534,8 @@ class UnidadeDeTrabalhoSQL:
 
     def concluir_tarefa_aberta(self, entregavel_id: str) -> str | None:
         row = self._um(
-            "UPDATE trabalho.tarefa_humana SET estado = 'concluida', concluida_em = now() "
+            "UPDATE trabalho.tarefa_humana "
+            "SET estado = 'concluida', concluida_em = clock_timestamp() "
             "WHERE id = ("
             "  SELECT id FROM trabalho.tarefa_humana "
             "  WHERE entregavel_id = %s AND estado = 'aberta' ORDER BY criada_em LIMIT 1"
@@ -600,7 +601,7 @@ class UnidadeDeTrabalhoSQL:
             return
         self._exec(
             "UPDATE trabalho.excecao "
-            "SET estado = 'resolvida', resolucao = %s, resolvida_em = now() "
+            "SET estado = 'resolvida', resolucao = %s, resolvida_em = clock_timestamp() "
             "WHERE entregavel_id = %s AND estado = 'aberta' "
             f"AND ({' OR '.join(condicoes)})",
             params,
@@ -658,7 +659,7 @@ class UnidadeDeTrabalhoSQL:
     def aplicar_override(self, conferencia_id: str, autor: str, motivo: str) -> None:
         self._exec(
             "UPDATE conferencias.conferencia "
-            "SET override_autor = %s, override_motivo = %s, override_em = now() "
+            "SET override_autor = %s, override_motivo = %s, override_em = clock_timestamp() "
             "WHERE id = %s",
             (autor, motivo, conferencia_id),
         )

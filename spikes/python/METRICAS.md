@@ -33,7 +33,8 @@ Fase 1 (cenários C1 e C7). Modelo: `docs/regras-do-jogo.md` §4.
 ## Rede de proteção
 - Erros barrados pelo mypy `--strict` antes de qualquer teste: **2 ocorrências registradas**
   (`unused-ignore` e `arg-type` de tipagem de conexão psycopg) — ver `REGISTRO-COMPILADOR.md`.
-- `mypy --strict` sem nenhum `# type: ignore`; `ruff check` limpo; `import-linter` sem violações.
+- `mypy --strict src` sem nenhum `# type: ignore` em `src/` (os testes têm alguns, para fakes);
+  `ruff check` limpo; contrato de camadas verificado por `tests/unidade/test_arquitetura.py`.
 
 ## Imagem
 - Tamanho da imagem (`teste-motor-spike-spike-python:latest`): **290 MB** (base `python:3.13-slim`).
@@ -96,8 +97,8 @@ Medida pedida em `docs/regras-do-jogo.md` §3, critério 8.
 ## Rede de proteção (fase 2)
 - Erros barrados pelo mypy `--strict` antes de teste: **+3 ocorrências** (`arg-type` em
   `pl` de `gravar_evento`, §10.3) — ver `REGISTRO-COMPILADOR.md`.
-- 22 testes verdes (16 fase 1 + 6 de cascata em memória), `mypy --strict` sem `# type: ignore`,
-  `ruff` e `import-linter` limpos.
+- Testes verdes na época (a contagem cresceu nas rodadas de revisão do PR #5), `mypy --strict src`
+  sem `# type: ignore` em `src/`, `ruff` limpo e contrato de camadas passando.
 
 ## Imagem (fase 2)
 - Tamanho: **290 MB** (inalterado — nenhuma dependência nova).

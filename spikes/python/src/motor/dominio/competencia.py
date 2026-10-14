@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_PADRAO = re.compile(r"^[0-9]{4}(0[1-9]|1[0-2])$")
+_PADRAO = re.compile(r"[0-9]{4}(0[1-9]|1[0-2])", re.ASCII)
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +17,7 @@ class Competencia:
     valor: str
 
     def __post_init__(self) -> None:
-        if not _PADRAO.match(self.valor):
+        if not _PADRAO.fullmatch(self.valor):
             raise ValueError(f"competência inválida: {self.valor!r}")
 
     @property
