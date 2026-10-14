@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Aplicacao\Fechamento;
 
-use App\Aplicacao\Conferencias\Formulas;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioEvento;
@@ -39,44 +38,36 @@ final readonly class ConcluirTarefa
 
     public function concluir(ConcluirTarefaComando $comando): ResultadoEntregavel
     {
-        $titularId = $comando->titularId;
-        $tipo = $comando->tipo;
-        $ator = $comando->ator;
-        $saidas = $comando->saidas;
-
-        return $this->uow->transacao(function () use ($comando, $titularId, $tipo, $ator, $saidas): ResultadoEntregavel {
+        return $this->uow->transacao(function () use ($comando): ResultadoEntregavel {
             // Ordem global de locks: 1) titular, 2) chave do fato, 3) entregáveis FOR UPDATE (caso, tipo).
-            $this->casos->travarTitular($titularId);
-            $competencia = new Competencia($comando->competencia);
-            $caso = $this->casos->porTitularCompetencia($titularId, $competencia);
+            $this->casos->travarTitular($comando->titularId);
+            $caso = $this->casos->porTitularCompetencia($comando->titularId, new Competencia($comando->competencia));
             if ($caso === null) {
-                throw ErroDeNegocio::naoEncontrado("caso inexistente: {$titularId}/{$comando->competencia}");
+                throw ErroDeNegocio::naoEncontrado("caso inexistente: {$comando->titularId}/{$comando->competencia}");
             }
+            $item = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId)->item($comando->tipo);
+
             // Nível 2 antes do 3: chaves dos fatos de saída (ordenadas) antes de travar a linha do entregável.
-            $itemPrevio = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId)->item($tipo);
-            if ($itemPrevio !== null && $itemPrevio->saidaTipo !== null) {
-                $tributos = array_map(static fn (SaidaDaTarefa $s): string => $s->tributo, $saidas);
+            if ($item !== null && $item->saidaTipo !== null) {
+                $tributos = array_map(static fn (SaidaDaTarefa $s): string => $s->tributo, $comando->saidas);
                 sort($tributos, SORT_STRING);
                 foreach ($tributos as $tributoSaida) {
-                    $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $itemPrevio->saidaTipo, $tributoSaida);
+                    $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $item->saidaTipo, $tributoSaida);
                 }
             }
-            $entregavel = $this->entregaveis->porCasoTipoParaAtualizar($caso->id, $tipo);
+            $entregavel = $this->entregaveis->porCasoTipoParaAtualizar($caso->id, $comando->tipo);
             if ($entregavel === null) {
-                throw ErroDeNegocio::naoEncontrado("entregável inexistente: {$tipo}");
+                throw ErroDeNegocio::naoEncontrado("entregável inexistente: {$comando->tipo}");
             }
             if ($entregavel->estado !== EstadoEntregavel::Pronto || $entregavel->sistema()) {
                 throw ErroDeNegocio::conflito('entregavel_nao_concluivel', 'entregável não está pronto para conclusão humana');
             }
-
-            $regra = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId);
-            $item = $regra->item($tipo);
-            if ($saidas === [] || $item === null || $item->saidaTipo === null) {
+            if ($comando->saidas === [] || $item === null || $item->saidaTipo === null) {
                 throw ErroDeNegocio::invalido('saida_invalida', 'entregável sem saída na regra, ou saídas vazias');
             }
 
             // Publica cada saída como fato (fonte=tarefa) e liga como 'saida'.
-            foreach ($saidas as $saida) {
+            foreach ($comando->saidas as $saida) {
                 $this->publicarSaida($caso, $entregavel, $item->saidaTipo, $saida);
             }
 
@@ -86,39 +77,25 @@ final readonly class ConcluirTarefa
                 $this->tarefas->concluir($tarefaId);
             }
 
-            // pronto → processado (tarefa_concluida).
-            $this->transicionador->transicionar(
-                $entregavel, EstadoEntregavel::Processado, 'tarefa_concluida', $ator,
+            // pronto → processado (tarefa_concluida); depois conferências + desfecho (§9).
+            $processado = $this->transicionador->transicionar(
+                $entregavel, EstadoEntregavel::Processado, 'tarefa_concluida', $comando->ator,
                 $caso->regraEntregaveisVersaoId, 'tarefa', $tarefaId,
             );
-
-            // Conferências + desfecho (§9).
-            $eProcessado = $this->recarregar($entregavel->id);
-            $tolerancia = $this->regras->toleranciaEmUso();
-            $parametros = $this->regras->parametrosEmUso();
-            $this->avaliar->conferirEDecidir(
-                $caso, $eProcessado, $item, new Formulas($parametros->prolaborePercentualBp), $tolerancia,
-                Tributos::guia($caso), Tributos::apuracao($caso), $caso->regraEntregaveisVersaoId,
-            );
+            $this->avaliar->conferirEDecidir($caso, $processado, $item, $this->avaliar->parametrosDe($caso));
 
             // Reavalia os casos abertos do titular (§7.4).
-            foreach ($this->casos->abertosDoTitular($caso->titularId) as $casoAberto) {
-                $this->avaliar->avaliar($casoAberto);
-            }
+            $this->avaliar->avaliarAbertosDoTitular($caso->titularId);
 
-            return ResultadoEntregavel::de($this->recarregar($entregavel->id));
+            return ResultadoEntregavel::de($this->entregaveis->obter($entregavel->id));
         });
     }
 
     private function publicarSaida(Caso $caso, Entregavel $entregavel, string $saidaTipo, SaidaDaTarefa $saida): void
     {
-        $tributo = $saida->tributo;
-        $valor = $saida->valorCentavos;
-        $payload = $saida->payload;
-
-        $hash = HashFato::hash($payload, $valor);
-        $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo);
-        $vigente = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo);
+        $hash = HashFato::hash($saida->payload, $saida->valorCentavos);
+        $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo);
+        $vigente = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo);
 
         if ($vigente !== null && $vigente->hash === $hash) {
             // sem_mudanca: liga a versão vigente mesmo assim (§8 item 4).
@@ -129,8 +106,8 @@ final readonly class ConcluirTarefa
 
         $versao = $vigente !== null ? $vigente->versao + 1 : 1;
         $fato = $this->fatos->inserir(
-            $caso->titularId, $caso->competencia->valor, $saidaTipo, $tributo, $versao,
-            $valor, $payload, 'tarefa', null, $hash, $vigente?->id, $this->agoraDoBanco(),
+            $caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo, $versao,
+            $saida->valorCentavos, $saida->payload, 'tarefa', null, $hash, $vigente?->id, $this->agoraDoBanco(),
         );
         $this->eventos->gravar('fato.publicado', $caso->id, null, ['fato_id' => $fato->id]);
         $this->entregaveis->ligarFato($entregavel->id, $fato->id, 'saida');
@@ -146,13 +123,5 @@ final readonly class ConcluirTarefa
     {
         // observado_em das saídas = instante atual do servidor (design: decisões fixas).
         return (new \DateTimeImmutable)->format(DATE_ATOM);
-    }
-
-    private function recarregar(string $entregavelId): Entregavel
-    {
-        $e = $this->entregaveis->porId($entregavelId);
-        assert($e !== null);
-
-        return $e;
     }
 }

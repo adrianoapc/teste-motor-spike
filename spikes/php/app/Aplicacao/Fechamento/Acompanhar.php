@@ -23,6 +23,7 @@ final readonly class Acompanhar
     public function __construct(
         private RepositorioEntregavel $entregaveis,
         private RepositorioExcecao $excecoes,
+        private Excecoes $abertura,
         private RepositorioEvento $eventos,
         private RepositorioFato $fatos,
         private RepositorioRegras $regras,
@@ -56,10 +57,7 @@ final readonly class Acompanhar
         }
 
         if ($tipoFato === $acomp->falhaTipo) {
-            $excId = $this->excecoes->abrirUnica($caso->id, $e11->id, 'entrega_falhou', 'O', $caso->carteira);
-            if ($excId !== null) {
-                $this->eventos->gravar('excecao.aberta', $caso->id, $e11->id, ['excecao_id' => $excId]);
-            }
+            $this->abertura->abrirUnica($caso->id, $e11->id, 'entrega_falhou', 'O', $caso->carteira);
 
             return;
         }
@@ -76,10 +74,7 @@ final readonly class Acompanhar
             // Só abre se não existe fato vigente entrega_confirmada com a mesma chave.
             $confirmada = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, $acomp->confirmacaoTipo ?? '', $tributoFato);
             if ($confirmada === null) {
-                $excId = $this->excecoes->abrirUnica($caso->id, $e11->id, 'recebimento_pendente', 'O', $caso->carteira);
-                if ($excId !== null) {
-                    $this->eventos->gravar('excecao.aberta', $caso->id, $e11->id, ['excecao_id' => $excId]);
-                }
+                $this->abertura->abrirUnica($caso->id, $e11->id, 'recebimento_pendente', 'O', $caso->carteira);
             }
         }
     }

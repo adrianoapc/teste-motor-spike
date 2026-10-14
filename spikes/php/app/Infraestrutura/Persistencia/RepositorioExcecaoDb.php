@@ -12,10 +12,8 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
 {
     public function __construct(private ConnectionInterface $conexao) {}
 
-    public function abrirUnica(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): ?string
+    public function existeAberta(string $casoId, ?string $entregavelId, string $tipo): bool
     {
-        // Abertura única (§9.4): só abre se não houver outra aberta do mesmo tipo
-        // para o alvo (entregável, ou caso quando entregavelId é null).
         if ($entregavelId === null) {
             $existe = $this->conexao->selectOne(
                 "SELECT 1 FROM trabalho.excecao WHERE caso_id = ? AND entregavel_id IS NULL AND tipo = ? AND estado = 'aberta' LIMIT 1",
@@ -27,10 +25,12 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
                 [$entregavelId, $tipo],
             );
         }
-        if ($existe !== null) {
-            return null;
-        }
 
+        return $existe !== null;
+    }
+
+    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): string
+    {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, estado)

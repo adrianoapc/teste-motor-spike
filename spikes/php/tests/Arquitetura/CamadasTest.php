@@ -99,6 +99,10 @@ arch('entrada e saída dos casos de uso são final readonly')
     ->toBeFinal()
     ->toBeReadonly();
 
+arch('testes de unidade (domínio e aplicação puros) rodam sem banco nem framework')
+    ->expect('Tests\Unidade')
+    ->not->toUse([...PACOTES_DE_FRAMEWORK, 'Tests\TestCase', 'Tests\Integracao', 'App\Infraestrutura', 'App\Api', 'App\Providers']);
+
 arch('infraestrutura não depende de api')
     ->expect('App\Infraestrutura')
     ->not->toUse('App\Api');

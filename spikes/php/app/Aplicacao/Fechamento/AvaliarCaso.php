@@ -7,13 +7,12 @@ namespace App\Aplicacao\Fechamento;
 use App\Aplicacao\Conferencias\Conferidor;
 use App\Aplicacao\Conferencias\FatosDoCaso;
 use App\Aplicacao\Conferencias\Formulas;
+use App\Aplicacao\Conferencias\ParametrosDeConferencia;
 use App\Aplicacao\Portas\RepositorioCaso;
-use App\Aplicacao\Portas\RepositorioCatalogo;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioDependencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioEvento;
-use App\Aplicacao\Portas\RepositorioExcecao;
 use App\Aplicacao\Portas\RepositorioFato;
 use App\Aplicacao\Portas\RepositorioRegras;
 use App\Aplicacao\Portas\RepositorioTarefa;
@@ -22,8 +21,6 @@ use App\Dominio\Fechamento\Condicao;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use App\Dominio\Regras\ItemEntregavel;
-use App\Dominio\Regras\RegraEntregaveis;
-use App\Dominio\Regras\Tolerancia;
 
 /**
  * Reavaliação de um caso (§7.4): em voltas, cada entregável dá no máximo um
@@ -40,21 +37,24 @@ final readonly class AvaliarCaso
         private RepositorioTarefa $tarefas,
         private RepositorioEvento $eventos,
         private RepositorioConferencia $conferencias,
-        private RepositorioExcecao $excecoes,
-        private RepositorioCatalogo $catalogo,
+        private Excecoes $excecoes,
         private RepositorioRegras $regras,
         private Transicionador $transicionador,
         private Conferidor $conferidor,
     ) {}
 
+    /** Reavalia todos os casos abertos do titular, em ordem de competência (§6.2, §7.4: superconjunto seguro). */
+    public function avaliarAbertosDoTitular(string $titularId): void
+    {
+        foreach ($this->casos->abertosDoTitular($titularId) as $caso) {
+            $this->avaliar($caso);
+        }
+    }
+
     public function avaliar(Caso $caso): void
     {
         $regra = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId);
-        $tolerancia = $this->regras->toleranciaEmUso();
-        $parametros = $this->regras->parametrosEmUso();
-        $formulas = new Formulas($parametros->prolaborePercentualBp);
-        $tributoGuia = Tributos::guia($caso);
-        $tributoApuracao = Tributos::apuracao($caso);
+        $parametros = $this->parametrosDe($caso);
 
         $encerrou = false;
         do {
@@ -66,7 +66,7 @@ final readonly class AvaliarCaso
                 if ($item === null) {
                     continue;
                 }
-                $passo = $this->passo($caso, $regra, $e, $item, $formulas, $tolerancia, $tributoGuia, $tributoApuracao);
+                $passo = $this->passo($caso, $e, $item, $parametros);
                 if ($passo === 'encerrou') {
                     $encerrou = true;
                     $mudou = true;
@@ -79,37 +79,62 @@ final readonly class AvaliarCaso
         } while ($mudou && ! $encerrou);
     }
 
+    /** Tolerância, parâmetros fiscais e tributo da guia em uso para as conferências do caso. */
+    public function parametrosDe(Caso $caso): ParametrosDeConferencia
+    {
+        return new ParametrosDeConferencia(
+            new Formulas($this->regras->parametrosEmUso()->prolaborePercentualBp),
+            $this->regras->toleranciaEmUso(),
+            Tributos::guia($caso),
+        );
+    }
+
+    /**
+     * Roda conferências e aplica o desfecho (§9.3): divergente (B) ou validado + evento.
+     */
+    public function conferirEDecidir(Caso $caso, Entregavel $eProcessado, ItemEntregavel $item, ParametrosDeConferencia $parametros): void
+    {
+        $regraVersaoId = $caso->regraEntregaveisVersaoId;
+        $fatosDoCaso = new FatosDoCaso($this->fatos->vigentesDoCaso($caso->titularId, $caso->competencia->valor));
+        $divergiu = $this->conferidor->conferir($caso, $eProcessado, $item, $fatosDoCaso, $parametros);
+
+        if ($divergiu) {
+            $divergente = $this->transicionador->transicionar($eProcessado, EstadoEntregavel::Divergente, 'conferencia_divergente', 'sistema', $regraVersaoId, 'conferencia');
+            // Abre exceção por CF bloqueante divergente (§9.3, §9.4 abertura única).
+            foreach ($this->conferencias->divergentesBloqueantes($divergente->id) as $div) {
+                $this->eventos->gravar('conferencia.divergente', $caso->id, $divergente->id, ['conferencia_id' => $div->id]);
+                // Classe gravada na conferência (S quando faltou dado de fórmula), não a do catálogo.
+                $this->excecoes->abrirUnica($caso->id, $divergente->id, $div->cf, $div->classe, $caso->carteira);
+            }
+
+            return;
+        }
+
+        // → validado + evento do tipo (se houver).
+        $this->transicionador->validar($eProcessado, 'conferencias_ok', 'sistema', $regraVersaoId, 'conferencia', null);
+    }
+
     /**
      * Um passo (§7.4). Devolve 'mudou', 'nada' ou 'encerrou'.
      *
      * @return 'mudou'|'nada'|'encerrou'
      */
-    private function passo(
-        Caso $caso,
-        RegraEntregaveis $regra,
-        Entregavel $e,
-        ItemEntregavel $item,
-        Formulas $formulas,
-        Tolerancia $tolerancia,
-        string $tributoGuia,
-        string $tributoApuracao,
-    ): string {
-        $regraVersaoId = $caso->regraEntregaveisVersaoId;
-
+    private function passo(Caso $caso, Entregavel $e, ItemEntregavel $item, ParametrosDeConferencia $parametros): string
+    {
         return match ($e->estado) {
-            EstadoEntregavel::AguardandoInsumo, EstadoEntregavel::Invalidado => $this->passoProntidao($caso, $e, $item, $regraVersaoId),
-            EstadoEntregavel::Pronto => $e->sistema()
-                ? $this->passoProcessar($caso, $e, $item, $formulas, $tolerancia, $tributoGuia, $tributoApuracao, $regraVersaoId)
-                : 'nada',
-            EstadoEntregavel::Validado => $this->passoDepoisDeValidado($caso, $e, $item, $tributoGuia, $regraVersaoId),
-            EstadoEntregavel::Liberado => $this->passoDisponibilizar($caso, $e, $item, $tributoGuia, $regraVersaoId),
+            EstadoEntregavel::AguardandoInsumo, EstadoEntregavel::Invalidado => $this->passoProntidao($caso, $e, $item),
+            EstadoEntregavel::Pronto => $e->sistema() ? $this->passoProcessar($caso, $e, $item, $parametros) : 'nada',
+            EstadoEntregavel::Validado => $this->passoDepoisDeValidado($caso, $e, $item),
+            EstadoEntregavel::Liberado => $this->passoDisponibilizar($caso, $e, $item, $parametros->tributoGuia),
             default => 'nada',
         };
     }
 
     /** @return 'mudou'|'nada' */
-    private function passoProntidao(Caso $caso, Entregavel $e, ItemEntregavel $item, string $regraVersaoId): string
+    private function passoProntidao(Caso $caso, Entregavel $e, ItemEntregavel $item): string
     {
+        $regraVersaoId = $caso->regraEntregaveisVersaoId;
+
         if ($this->prontoPodeAvancar($caso, $e, $item)) {
             // Liga as entradas resolvidas (papel entrada) com a versão vigente.
             foreach ($this->entradasResolvidas($caso, $item) as $fatoId) {
@@ -134,63 +159,20 @@ final readonly class AvaliarCaso
     }
 
     /** @return 'mudou' */
-    private function passoProcessar(
-        Caso $caso,
-        Entregavel $e,
-        ItemEntregavel $item,
-        Formulas $formulas,
-        Tolerancia $tolerancia,
-        string $tributoGuia,
-        string $tributoApuracao,
-        string $regraVersaoId,
-    ): string {
+    private function passoProcessar(Caso $caso, Entregavel $e, ItemEntregavel $item, ParametrosDeConferencia $parametros): string
+    {
         // pronto (sistema) → processado + desfecho das conferências, no mesmo passo.
-        $this->transicionador->transicionar($e, EstadoEntregavel::Processado, 'processamento_sistema', 'sistema', $regraVersaoId);
-        $eProcessado = $this->recarregar($e->id);
-        $this->conferirEDecidir($caso, $eProcessado, $item, $formulas, $tolerancia, $tributoGuia, $tributoApuracao, $regraVersaoId);
+        $processado = $this->transicionador->transicionar($e, EstadoEntregavel::Processado, 'processamento_sistema', 'sistema', $caso->regraEntregaveisVersaoId);
+        $this->conferirEDecidir($caso, $processado, $item, $parametros);
 
         return 'mudou';
     }
 
-    /**
-     * Roda conferências e aplica o desfecho (§9.3): divergente (B) ou validado + evento.
-     */
-    public function conferirEDecidir(
-        Caso $caso,
-        Entregavel $eProcessado,
-        ItemEntregavel $item,
-        Formulas $formulas,
-        Tolerancia $tolerancia,
-        string $tributoGuia,
-        string $tributoApuracao,
-        string $regraVersaoId,
-    ): void {
-        $fatosDoCaso = new FatosDoCaso($this->fatos->vigentesDoCaso($caso->titularId, $caso->competencia->valor));
-        $divergiu = $this->conferidor->conferir($caso, $eProcessado, $item, $fatosDoCaso, $formulas, $tolerancia, $tributoGuia, $tributoApuracao);
-
-        if ($divergiu) {
-            $this->transicionador->transicionar($eProcessado, EstadoEntregavel::Divergente, 'conferencia_divergente', 'sistema', $regraVersaoId, 'conferencia');
-            // Abre exceção por CF bloqueante divergente (§9.3, §9.4 abertura única).
-            foreach ($this->conferencias->divergentesBloqueantes($eProcessado->id) as $div) {
-                // Classe gravada na conferência (S quando faltou dado de fórmula), não a do catálogo.
-                $excId = $this->excecoes->abrirUnica($caso->id, $eProcessado->id, $div->cf, $div->classe, $caso->carteira);
-                $this->eventos->gravar('conferencia.divergente', $caso->id, $eProcessado->id, ['conferencia_id' => $div->id]);
-                if ($excId !== null) {
-                    $this->eventos->gravar('excecao.aberta', $caso->id, $eProcessado->id, ['excecao_id' => $excId]);
-                }
-            }
-
-            return;
-        }
-
-        // → validado + evento do tipo (se houver).
-        $this->transicionador->transicionar($eProcessado, EstadoEntregavel::Validado, 'conferencias_ok', 'sistema', $regraVersaoId, 'conferencia');
-        $this->eventoDoTipo($caso, $eProcessado);
-    }
-
     /** @return 'mudou'|'nada'|'encerrou' */
-    private function passoDepoisDeValidado(Caso $caso, Entregavel $e, ItemEntregavel $item, string $tributoGuia, string $regraVersaoId): string
+    private function passoDepoisDeValidado(Caso $caso, Entregavel $e, ItemEntregavel $item): string
     {
+        $regraVersaoId = $caso->regraEntregaveisVersaoId;
+
         // E12: encerra o caso (§10.2).
         if ($item->encerraCaso) {
             $this->transicionador->transicionar($e, EstadoEntregavel::Encerrado, 'encerramento', 'sistema', $regraVersaoId);
@@ -211,7 +193,7 @@ final readonly class AvaliarCaso
     }
 
     /** @return 'mudou'|'nada' */
-    private function passoDisponibilizar(Caso $caso, Entregavel $e, ItemEntregavel $item, string $tributoGuia, string $regraVersaoId): string
+    private function passoDisponibilizar(Caso $caso, Entregavel $e, ItemEntregavel $item, string $tributoGuia): string
     {
         $pos = $item->posValidacao;
         if ($pos === null || $pos->disponibilizadoQuandoTipo === null) {
@@ -230,7 +212,7 @@ final readonly class AvaliarCaso
             return 'nada';
         }
 
-        $this->transicionador->transicionar($e, EstadoEntregavel::Disponibilizado, 'documento_disponibilizado', 'sistema', $regraVersaoId, 'fato', $fatoDisp->id);
+        $this->transicionador->transicionar($e, EstadoEntregavel::Disponibilizado, 'documento_disponibilizado', 'sistema', $caso->regraEntregaveisVersaoId, 'fato', $fatoDisp->id);
         $this->eventos->gravar('documento.disponibilizado', $caso->id, $e->id, ['entregavel_id' => $e->id, 'fato_id' => $guia->id]);
 
         return 'mudou';
@@ -296,21 +278,5 @@ final readonly class AvaliarCaso
         }
 
         return $saida;
-    }
-
-    private function eventoDoTipo(Caso $caso, Entregavel $e): void
-    {
-        $evento = $this->catalogo->entregavelTipo($e->tipo)->eventoPublicado;
-        if ($evento !== null) {
-            $this->eventos->gravar($evento, $caso->id, $e->id, ['entregavel_id' => $e->id]);
-        }
-    }
-
-    private function recarregar(string $entregavelId): Entregavel
-    {
-        $e = $this->entregaveis->porId($entregavelId);
-        assert($e !== null);
-
-        return $e;
     }
 }

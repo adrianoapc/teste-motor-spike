@@ -8,6 +8,7 @@ use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Dominio\Fechamento\Entregavel;
 use App\Dominio\Fechamento\EstadoEntregavel;
 use Illuminate\Database\ConnectionInterface;
+use RuntimeException;
 
 final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
 {
@@ -98,6 +99,11 @@ final readonly class RepositorioEntregavelDb implements RepositorioEntregavel
         );
 
         return $linha === null ? null : $this->mapear($linha);
+    }
+
+    public function obter(string $entregavelId): Entregavel
+    {
+        return $this->porId($entregavelId) ?? throw new RuntimeException("entregável inexistente: {$entregavelId}");
     }
 
     public function salvarEstado(string $entregavelId, EstadoEntregavel $esperado, EstadoEntregavel $estado): bool
