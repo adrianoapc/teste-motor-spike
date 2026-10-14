@@ -1,0 +1,2 @@
+vetores-hash.json: cópia de contrato/vetores-hash.json (PR #7, branch docs/payload-numeros-inteiros;
+semântica §6). Fonte canônica é o arquivo do contrato; recopie ao atualizá-lo.

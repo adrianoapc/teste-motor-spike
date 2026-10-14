@@ -158,3 +158,47 @@ deste item), alterar o canônico para todos (quebra spec e vetores) e comparar s
 Também: `parcelas` ausente/null/objeto/escalar em CF-07 é operando inválido (a spec só define
 "ausente" para fatos, §9.2).
 
+## Payload do fato: números int64, sem duplicata, profundidade 64 (semântica §6 e §8 passo 0, PR #7)
+
+Decisão do usuário. Em `POST /fatos` e em cada saída de `/concluir`, o `payload` é rejeitado com 422
+`corpo_invalido` se tiver, em qualquer profundidade: número fracionário, com expoente, `-0` ou fora de int64
+(inclui >4300 dígitos); chave duplicada (comparada após decodificar escapes); substituto UTF-16 isolado (valor
+ou chave); ou mais de 64 níveis (o próprio `payload` é o nível 1). `valor_centavos` é int64 ou null com o mesmo
+critério (`1.0`, `1e2`, `-0`, `"600"`, `true`, 2^63 => 422).
+
+Implementação (`Validacao.cs`):
+- `Int64Estrito` é o critério único (`TryGetInt64` + checagem de `-0`, que só aloca string quando o valor é 0);
+  usado por `ValorCentavosValido` e pelo percurso do payload.
+- `PayloadValido(raiz, out payload, out motivo)` percorre o `JsonElement` uma vez e devolve motivo com caminho
+  (`payload.a[1].b: número deve ser inteiro int64...`; "payload deve ser um objeto JSON" quando não é objeto).
+- Duplicata e substituto isolado são detectados ao enumerar: `JsonDocument` mantém duplicatas e só falha em
+  `GetString`/`Name` (InvalidOperationException) para `\ud800`.
+- `JsonDocumentOptions.MaxDepth` sobe para 200 (`Validacao.OpcoesParse`, usada pelas 4 rotas): o padrão (64)
+  contaria o corpo como nível 1 e rejeitaria um payload de 64 níveis (nível 65 do corpo) como "JSON inválido".
+  O limite de 64 é do payload e é checado no percurso; acima de 200 o parser ainda responde 422.
+- `HashCanonico` ordena chaves por code point (`OrdemCodePoint`; `StringComparer.Ordinal` é UTF-16 e errava
+  U+FF5E vs U+1F600). O escape de strings já seguia §6 e passou nos vetores sem mudança.
+- §8 passo 0: o handler de `/concluir` já validava corpo e todas as saídas antes de chamar o serviço (nenhuma
+  consulta/gravação antes); `saidas` vazio dá 422 antes de 404/409. Agora coberto por teste.
+
+Testes: `Fixtures/vetores-hash.json` (cópia; fonte é `contrato/vetores-hash.json` do PR #7) com todos os 49
+vetores (22 aceitos: validação + canônico + sha256 exatos; 27 rejeitados, incluindo `valor_centavos_bruto`),
+contagem derivada do arquivo, leitura única; teste de drift contra `contrato/vetores-hash.json` quando existir
+(só passa a valer após o merge do PR #7); integração em memória (`WebApplicationFactory`) provando 422 nas duas
+rotas para todos os rejeitados. Content Link não usado porque o arquivo só existe na branch do PR #7.
+
+Impacto em dados legados: fato já gravado com fração/expoente continua no banco, mas reenviar o mesmo payload
+agora dá 422 (não vira `sem_mudanca`) e o hash dele não é recalculado. Nada é migrado.
+
+### U+0000 (NUL) nos textos (§6, regra adicionada no PR #7)
+
+jsonb/text do PostgreSQL não armazenam U+0000. Rejeitado com 422 `corpo_invalido`: NUL (escapado `\u0000` ou
+não) em qualquer string ou chave do `payload` (percurso de `Percorrer`, junto com os demais critérios) e em
+qualquer string/chave do corpo das 4 rotas POST (`Validacao.CorpoSemNul`, aplicada logo após o corpo ser
+confirmado objeto: cobre `tipo`, `tributo`, `fonte`, `titular_id`, `ator`, `carteira`, `municipio`, `motivo`,
+`cf`, `origem_ref`, tributo das saídas etc.). U+0001..U+001F continuam permitidos. Parâmetros de caminho
+(`titularId`, `competencia`, `tipo`) também são checados (`ContemNul`), mas na prática o Kestrel (e o TestHost)
+recusam `%00` no caminho antes do handler: resposta real 400, não 422. A checagem no handler é defensiva e não
+é alcançável por HTTP; por isso não há teste de integração para ela (a decisão "400 vs 422" fica com o Kestrel).
+Vetores: fixture com 54 (22 aceitos, 32 rejeitados); o campo `campos_texto` sobrescreve o campo do envelope em
+`Vetor.CorpoFato()`.
