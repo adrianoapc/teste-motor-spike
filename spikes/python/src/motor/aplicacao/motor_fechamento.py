@@ -14,11 +14,10 @@ from motor.aplicacao.registros import (
     RegraEntregaveis,
     SaidaTarefa,
 )
-from motor.dominio.competencia import Competencia
 from motor.dominio.condicao import casa
 from motor.dominio.estados import EstadoEntregavel as E
-from motor.dominio.estados import pelo_menos
 from motor.dominio.hashing import hash_fato
+from motor.dominio.prontidao import entradas_resolvidas, esta_pronto, tributo_da_entrada
 
 
 # =============================================================================
@@ -117,8 +116,9 @@ def publicar_fato(
         {"fato_id": fato.id},
     )
 
-    # §10.3: o estado do E11 é lido ANTES da reavaliação desta publicação.
-    e11_disponibilizado_antes = _e11_em_disponibilizado(uow, caso_do_fato)
+    # §10.3: o estado da entrega é lido ANTES da reavaliação desta publicação.
+    regra_do_fato = _regra_do_caso(uow, caso_do_fato) if caso_do_fato else None
+    entrega_disponibilizada_antes = _entrega_em_disponibilizado(uow, caso_do_fato, regra_do_fato)
 
     # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR).
     if efeito == "nova_versao" and vigente is not None:
@@ -132,7 +132,7 @@ def publicar_fato(
 
     # §10.3: acompanhamento depois do protocolo (gravado, não sem_mudanca).
     _acompanhamento_pos_protocolo(
-        uow, caso_do_fato, tipo, tributo, efeito, e11_disponibilizado_antes
+        uow, caso_do_fato, regra_do_fato, tipo, tributo, efeito, entrega_disponibilizada_antes
     )
 
     return (fato.id, versao, efeito)
@@ -287,7 +287,7 @@ def _passo(
         uow.transicionar(ent, para, motivo, por_tipo, por_id, a, rv)
 
     if estado in (E.AGUARDANDO_INSUMO, E.INVALIDADO):
-        if _dependencias_ok(uow, ent) and _entradas_presentes(uow, caso, item, ctx):
+        if _pronto(uow, caso, ent, item, ctx):
             tr(E.PRONTO, "prontidao", "dependencia", None, "sistema")
             _ligar_entradas(uow, caso, ent, item, ctx)
             if item.executor == "humano":
@@ -317,9 +317,9 @@ def _passo(
 
     if estado == E.LIBERADO:
         pos = item.pos_validacao
-        if pos is not None and _fato_pos(uow, caso, pos, "disponibilizado_quando"):
+        if pos is not None and _fato_gatilho(uow, caso, item, ctx, pos, "disponibilizado_quando"):
             tr(E.DISPONIBILIZADO, "documento_disponibilizado", "fato", None, "sistema")
-            fato_id = _guia_vigente_e11(uow, caso)
+            fato_id = _guia_vigente_da_entrega(uow, caso, item, ctx)
             uow.gravar_evento(
                 "documento.disponibilizado",
                 caso.id,
@@ -338,40 +338,19 @@ def _regra_do_caso(uow: UnidadeDeTrabalho, caso: Caso) -> RegraEntregaveis:
     return uow.regra_entregaveis_da_versao(caso.regra_entregaveis_versao_id)
 
 
-def _dependencias_ok(uow: UnidadeDeTrabalho, ent: Entregavel) -> bool:
-    for depende_de_id, estado_minimo in uow.dependencias_do_entregavel(ent.id):
-        estado_alvo = uow.estado_do_entregavel_por_id(depende_de_id)
-        if not pelo_menos(estado_alvo, estado_minimo):
-            return False
-    return True
-
-
-def _entradas_resolvidas(
-    caso: Caso, item: ItemEntregavel, ctx: Mapping[str, object]
-) -> list[tuple[str, str, str]]:
-    """[(competencia, tipo, tributo)] das entradas cujo quando casa."""
-    resolvidas: list[tuple[str, str, str]] = []
-    for entrada in item.entradas:
-        quando = entrada.get("quando")
-        quando_lista = quando if isinstance(quando, list) else None
-        if not casa(quando_lista, ctx):
-            continue
-        rel_raw = entrada.get("competencia_relativa", 0)
-        rel = rel_raw if isinstance(rel_raw, int) else 0
-        comp = Competencia(caso.competencia).somar(rel).valor
-        tipo = str(entrada["tipo"])
-        tributo = str(entrada.get("tributo") or "")
-        resolvidas.append((comp, tipo, tributo))
-    return resolvidas
-
-
-def _entradas_presentes(
-    uow: UnidadeDeTrabalho, caso: Caso, item: ItemEntregavel, ctx: Mapping[str, object]
+def _pronto(
+    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, item: ItemEntregavel,
+    ctx: Mapping[str, object],
 ) -> bool:
-    for comp, tipo, tributo in _entradas_resolvidas(caso, item, ctx):
-        if uow.fato_vigente(caso.titular_id, comp, tipo, tributo) is None:
-            return False
-    return True
+    """Carrega o que a regra de prontidão pede; a decisão é do domínio (§7.2)."""
+    chaves = entradas_resolvidas(item.entradas, ctx, caso.competencia)
+    return esta_pronto(
+        uow.dependencias_com_estado(ent.id),
+        (
+            uow.fato_vigente(caso.titular_id, c.competencia, c.tipo, c.tributo) is not None
+            for c in chaves
+        ),
+    )
 
 
 def _ligar_entradas(
@@ -381,20 +360,25 @@ def _ligar_entradas(
     item: ItemEntregavel,
     ctx: Mapping[str, object],
 ) -> None:
-    for comp, tipo, tributo in _entradas_resolvidas(caso, item, ctx):
-        f = uow.fato_vigente(caso.titular_id, comp, tipo, tributo)
+    for c in entradas_resolvidas(item.entradas, ctx, caso.competencia):
+        f = uow.fato_vigente(caso.titular_id, c.competencia, c.tipo, c.tributo)
         if f is not None:
             uow.ligar_fato(ent.id, f.id, "entrada")
 
 
-def _tributo_guia_e11(caso: Caso) -> str:
-    """Tributo da guia de entrada do E11: DAS no SN, IRPJ no LP (§10.1)."""
-    return "DAS" if caso.snapshot.get("regime") == "SN" else "IRPJ"
+def _tributo_da_guia(item: ItemEntregavel, ctx: Mapping[str, object]) -> str | None:
+    """Tributo da guia de entrada do item de entrega, lido das `entradas` da regra pinada
+    (DAS no SN, IRPJ no LP: §10.1)."""
+    return tributo_da_entrada(item.entradas, ctx, "guia")
 
 
-def _guia_vigente_e11(uow: UnidadeDeTrabalho, caso: Caso) -> str | None:
-    """fato_id da versão vigente da guia de entrada do E11, se existir (§10.1)."""
-    tributo = _tributo_guia_e11(caso)
+def _guia_vigente_da_entrega(
+    uow: UnidadeDeTrabalho, caso: Caso, item: ItemEntregavel, ctx: Mapping[str, object]
+) -> str | None:
+    """fato_id da versão vigente da guia de entrada do item de entrega, se existir (§10.1)."""
+    tributo = _tributo_da_guia(item, ctx)
+    if tributo is None:
+        return None
     f = uow.fato_vigente(caso.titular_id, caso.competencia, "guia", tributo)
     return f.id if f is not None else None
 
@@ -480,50 +464,62 @@ def _invalidar_entregavel(
 
 
 # -- Acompanhamento depois do protocolo (§10.3) -------------------------------
-def _e11_em_disponibilizado(uow: UnidadeDeTrabalho, caso: Caso | None) -> bool:
-    if caso is None:
+def _entrega_em_disponibilizado(
+    uow: UnidadeDeTrabalho, caso: Caso | None, regra: RegraEntregaveis | None
+) -> bool:
+    if caso is None or regra is None or regra.item_de_entrega is None:
         return False
-    e11 = uow.buscar_entregavel(caso.id, "E11")
-    return e11 is not None and e11.estado == E.DISPONIBILIZADO
+    entrega = uow.buscar_entregavel(caso.id, regra.item_de_entrega.tipo)
+    return entrega is not None and entrega.estado == E.DISPONIBILIZADO
 
 
 def _acompanhamento_pos_protocolo(
     uow: UnidadeDeTrabalho,
     caso: Caso | None,
+    regra: RegraEntregaveis | None,
     tipo: str,
     tributo: str,
     efeito: str,
-    e11_disponibilizado_antes: bool,
+    entrega_disponibilizada_antes: bool,
 ) -> None:
-    """Tabela §10.3: só com fato gravado e E11 já em disponibilizado antes."""
-    if caso is None or efeito == "sem_mudanca" or not e11_disponibilizado_antes:
+    """Tabela §10.3: só com fato gravado e entrega já em disponibilizado antes."""
+    if (
+        caso is None
+        or regra is None
+        or efeito == "sem_mudanca"
+        or not entrega_disponibilizada_antes
+    ):
         return
-    e11 = uow.buscar_entregavel(caso.id, "E11")
-    if e11 is None:
+    item = regra.item_de_entrega
+    if item is None:
         return
-    regra = _regra_do_caso(uow, caso)
-    item = regra.por_tipo.get("E11")
+    entrega = uow.buscar_entregavel(caso.id, item.tipo)
+    if entrega is None:
+        return
+    ctx = contexto_do_caso(caso)
+    if tributo != _tributo_da_guia(item, ctx):
+        return  # acompanhamento só vale para o tributo da guia de entrada da entrega
     acomp = _acompanhamento_do_item(item)
-    pl: dict[str, object] = {"entregavel_id": e11.id}
-    if tributo != _tributo_guia_e11(caso):
-        return  # acompanhamento só vale para o tributo da guia do E11
+    pl: dict[str, object] = {"entregavel_id": entrega.id}
 
-    if tipo == "documento_disponibilizado" and efeito == "nova_versao":
+    if tipo == _tipo_do_gatilho(item.pos_validacao, "disponibilizado_quando") and (
+        efeito == "nova_versao"
+    ):
         # Reenvio: novo protocolo + resolve entrega_falhou.
-        fato_id = _guia_vigente_e11(uow, caso)
+        fato_id = _guia_vigente_da_entrega(uow, caso, item, ctx)
         uow.gravar_evento(
-            "documento.disponibilizado", caso.id, e11.id,
-            {"entregavel_id": e11.id, "fato_id": fato_id},
+            "documento.disponibilizado", caso.id, entrega.id,
+            {"entregavel_id": entrega.id, "fato_id": fato_id},
         )
-        uow.resolver_excecoes(e11.id, None, ["entrega_falhou"], "reenviado")
+        uow.resolver_excecoes(entrega.id, None, ["entrega_falhou"], "reenviado")
     elif tipo == acomp.get("falha"):
-        nova = uow.abrir_excecao_unica(caso.id, e11.id, "entrega_falhou", "O", caso.carteira)
+        nova = uow.abrir_excecao_unica(caso.id, entrega.id, "entrega_falhou", "O", caso.carteira)
         if nova is not None:
-            uow.gravar_evento("excecao.aberta", caso.id, e11.id, {"excecao_id": nova})
+            uow.gravar_evento("excecao.aberta", caso.id, entrega.id, {"excecao_id": nova})
     elif tipo == acomp.get("confirmacao"):
-        uow.gravar_evento("recebimento.confirmado", caso.id, e11.id, pl)
+        uow.gravar_evento("recebimento.confirmado", caso.id, entrega.id, pl)
         uow.resolver_excecoes(
-            e11.id, None, ["entrega_falhou", "recebimento_pendente"], "recebido"
+            entrega.id, None, ["entrega_falhou", "recebimento_pendente"], "recebido"
         )
     elif tipo == acomp.get("pendencia"):
         confirmada = uow.fato_vigente(
@@ -531,14 +527,14 @@ def _acompanhamento_pos_protocolo(
         )
         if confirmada is None:
             nova = uow.abrir_excecao_unica(
-                caso.id, e11.id, "recebimento_pendente", "O", caso.carteira
+                caso.id, entrega.id, "recebimento_pendente", "O", caso.carteira
             )
             if nova is not None:
-                uow.gravar_evento("excecao.aberta", caso.id, e11.id, {"excecao_id": nova})
+                uow.gravar_evento("excecao.aberta", caso.id, entrega.id, {"excecao_id": nova})
 
 
 def _acompanhamento_do_item(item: ItemEntregavel | None) -> dict[str, str]:
-    """Extrai os tipos de acompanhamento do bloco `acompanhamento` do E11 (§10.3)."""
+    """Extrai os tipos de acompanhamento do bloco `acompanhamento` do item de entrega (§10.3)."""
     if item is None or item.acompanhamento is None:
         return {}
     bloco = item.acompanhamento
@@ -550,15 +546,25 @@ def _acompanhamento_do_item(item: ItemEntregavel | None) -> dict[str, str]:
     return saida
 
 
-def _fato_pos(
-    uow: UnidadeDeTrabalho, caso: Caso, pos: Mapping[str, object], chave: str
+def _tipo_do_gatilho(pos: Mapping[str, object] | None, chave: str) -> str | None:
+    """`pos_validacao[chave].tipo` (ex.: `disponibilizado_quando` -> documento_disponibilizado)."""
+    gatilho = pos.get(chave) if pos is not None else None
+    return str(gatilho["tipo"]) if isinstance(gatilho, Mapping) else None
+
+
+def _fato_gatilho(
+    uow: UnidadeDeTrabalho,
+    caso: Caso,
+    item: ItemEntregavel,
+    ctx: Mapping[str, object],
+    pos: Mapping[str, object],
+    chave: str,
 ) -> bool:
-    """Existe fato pos[chave].tipo com o tributo da guia de entrada do E11?"""
-    gatilho = pos.get(chave)
-    if not isinstance(gatilho, Mapping):
+    """Existe o fato pos[chave].tipo com o tributo da guia de entrada do item (§10.1)?"""
+    tipo = _tipo_do_gatilho(pos, chave)
+    tributo = _tributo_da_guia(item, ctx)
+    if tipo is None or tributo is None:
         return False
-    tipo = str(gatilho["tipo"])
-    tributo = _tributo_guia_e11(caso)
     return uow.fato_vigente(caso.titular_id, caso.competencia, tipo, tributo) is not None
 
 
@@ -578,7 +584,7 @@ def _conferir_entregavel(
             continue
         cf = str(cfobj["cf"])
         resultado, severidade, conferencia_id, classe_cf, sobrescrita = conferir(
-            uow, caso, ent, cf
+            uow, caso, ent, cf, regra
         )
         # §9.2: só divergência B bloqueia e abre exceção; A é registrada e segue.
         # Conferência reaproveitada que já tem override (§8.1) continua sobrescrita.
