@@ -4,14 +4,22 @@ declare(strict_types=1);
 
 namespace Tests\Integracao;
 
+use App\Aplicacao\Conferencias\Conferidor;
+use App\Aplicacao\Conferencias\FatosDoCaso;
+use App\Aplicacao\Conferencias\Formulas;
 use App\Aplicacao\Fechamento\Transicionador;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioFato;
+use App\Aplicacao\Portas\RepositorioRegras;
 use App\Aplicacao\Suporte\ErroDeNegocio;
+use App\Dominio\Conferencias\HashConferencia;
+use App\Dominio\Fatos\Fato;
 use App\Dominio\Fechamento\Competencia;
 use App\Dominio\Fechamento\EstadoEntregavel;
+use App\Dominio\Regras\ConferenciaRegra;
+use App\Dominio\Regras\ItemEntregavel;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -591,5 +599,104 @@ final class RevisaoCodexTest extends TestCase
 
         // U+0001..U+001F continuam permitidos.
         $this->postJson('/fatos', ['titular_id' => "T\u{1}X", 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'])->assertOk();
+    }
+
+    public function test_cf12_ok_grava_esperado_e_obtido_nulos_e_diferenca_zero(): void
+    {
+        $caso = $this->abrirCaso('TCX50');
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $this->fato('TCX50', 'recibo_obrigacao', null, ['n' => 1]);
+        $fato = (array) DB::selectOne("SELECT id::text AS id, versao FROM fatos.fato WHERE titular_id = 'TCX50' AND tipo = 'recibo_obrigacao'");
+        $this->assertIsString($fato['id']);
+
+        $formulas = new Formulas(5000);
+        $fatosCaso = new FatosDoCaso([
+            new Fato($fato['id'], 'TCX50', self::COMP, 'recibo_obrigacao', 'PGDAS-D', 1, null, new \stdClass, 'h'),
+        ]);
+        $r = $formulas->cf12($fatosCaso, 'PGDAS-D');
+        // Formula: sem valores em centavos, diferença 0, fatos_usados com o recibo (entrada_hash segue dependendo só deles).
+        $this->assertNull($r->esperadoCentavos);
+        $this->assertNull($r->obtidoCentavos);
+        $this->assertTrue($r->comparacaoTexto && $r->textoIgual);
+        $this->assertSame(['centavos' => 0], $r->diferencaExtra);
+        $this->assertSame([['fato_id' => $fato['id'], 'versao' => 1]], $r->fatosUsados);
+
+        // Gravação pelo Conferidor.
+        $conferidor = $this->app->make(Conferidor::class);
+        $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
+        $this->assertNotNull($caso0);
+        $regras = $this->app->make(RepositorioRegras::class);
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+
+        $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
+        $this->assertSame('ok', $linha['resultado']);
+        $this->assertNull($linha['esperado_centavos']);
+        $this->assertNull($linha['obtido_centavos']);
+        $this->assertSame('{"centavos": 0}', $linha['dif']);
+    }
+
+    public function test_cf12_sem_recibo_e_divergente_classe_s(): void
+    {
+        $caso = $this->abrirCaso('TCX51');
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $formulas = new Formulas(5000);
+        $vazio = new FatosDoCaso([]);
+        $conferidor = $this->app->make(Conferidor::class);
+        $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
+        $this->assertNotNull($caso0);
+        $regras = $this->app->make(RepositorioRegras::class);
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+        $conferidor->conferir($caso0, $e01, $item, $vazio, $formulas, $regras->toleranciaEmUso(), 'DAS', 'DAS');
+
+        $linha = (array) DB::selectOne("SELECT resultado, classe, esperado_centavos, obtido_centavos, diferenca::text AS dif FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12'", [$e01->id]);
+        $this->assertSame('divergente', $linha['resultado']);
+        $this->assertSame('S', $linha['classe']);
+        $this->assertNull($linha['esperado_centavos']);
+        $this->assertNull($linha['obtido_centavos']);
+        $this->assertStringContainsString('recibo_obrigacao[PGDAS-D]', self::txt($linha['dif']));
+    }
+
+    public function test_conferencia_grava_semantica_calculo_2_e_legada_nao_e_reaproveitada(): void
+    {
+        $caso = $this->abrirCaso('TCX60');
+        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
+        $this->assertNotNull($e01);
+        $this->fato('TCX60', 'recibo_obrigacao', null, ['n' => 1]);
+        $fato = (array) DB::selectOne("SELECT id::text AS id FROM fatos.fato WHERE titular_id = 'TCX60' AND tipo = 'recibo_obrigacao'");
+        $this->assertIsString($fato['id']);
+        $usados = [['fato_id' => $fato['id'], 'versao' => 1]];
+        $fatosCaso = new FatosDoCaso([
+            new Fato($fato['id'], 'TCX60', self::COMP, 'recibo_obrigacao', 'PGDAS-D', 1, null, new \stdClass, 'h'),
+        ]);
+        $formulas = new Formulas(5000);
+        $conferidor = $this->app->make(Conferidor::class);
+        $caso0 = $this->app->make(RepositorioCaso::class)->porId($caso['id']);
+        $this->assertNotNull($caso0);
+        $tolerancia = $this->app->make(RepositorioRegras::class)->toleranciaEmUso();
+        $item = new ItemEntregavel('E10', 'sistema', [], [], [], null, [new ConferenciaRegra('CF-12', [])], false, null, null);
+
+        // Conferência LEGADA (semantica 1) inserida à mão, com o MESMO recibo, a mesma versão e a mesma regra.
+        $hashLegado = HashConferencia::entradaHash('CF-12', $usados, $tolerancia->versaoId, 1);
+        DB::insert(
+            "INSERT INTO conferencias.conferencia (cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash, resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, semantica_calculo)
+             VALUES ('CF-12', ?, ?, ?, ?::jsonb, ?, 'ok', 0, 0, '{\"centavos\": 0}'::jsonb, 'B', 'O', 1)",
+            [$caso['id'], $e01->id, $tolerancia->versaoId, json_encode($usados, JSON_THROW_ON_ERROR), $hashLegado],
+        );
+
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS');
+        $conferidor->conferir($caso0, $e01, $item, $fatosCaso, $formulas, $tolerancia, 'DAS', 'DAS'); // idempotente com semantica 2
+
+        $linhas = array_map(
+            static fn (mixed $l): array => (array) $l,
+            DB::select("SELECT semantica_calculo, entrada_hash, esperado_centavos FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-12' ORDER BY semantica_calculo", [$e01->id]),
+        );
+        $this->assertCount(2, $linhas, 'a legada não foi reaproveitada e a nova não duplicou');
+        $this->assertSame('1', self::txt($linhas[0]['semantica_calculo']));
+        $this->assertSame('2', self::txt($linhas[1]['semantica_calculo']));
+        $this->assertNotSame($linhas[0]['entrada_hash'], $linhas[1]['entrada_hash']);
+        $this->assertNull($linhas[1]['esperado_centavos']);
     }
 }

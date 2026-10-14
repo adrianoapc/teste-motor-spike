@@ -1,0 +1,158 @@
+{
+  "descricao": "Vetores compartilhados do entrada_hash da conferencia (semantica §9.2). Para cada vetor: ordene fatos_usados_entrada por fato_id (texto, code point), monte o JSON canonico {cf,fatos_usados,regra_versao_id} com chaves por code point, sem espacos, UTF-8 cru; acrescente \"semantica_calculo\":N (inteiro) como ultima chave SOMENTE se semantica_calculo > 1; sha256 = hex minusculo do SHA-256 do UTF-8 de canonico.",
+  "vetores": [
+    {
+      "nome": "cf01-um-fato-sem1",
+      "cf": "CF-01",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        }
+      ],
+      "regra_versao_id": "11111111-2222-4333-8444-555555555555",
+      "semantica_calculo": 1,
+      "canonico": "{\"cf\":\"CF-01\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1}],\"regra_versao_id\":\"11111111-2222-4333-8444-555555555555\"}",
+      "sha256": "6e842d0ce9cd418233e4fb9e24840ca3e6f1fbee2dc0ad33eea893268302589f"
+    },
+    {
+      "nome": "cf01-um-fato-sem2",
+      "cf": "CF-01",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        }
+      ],
+      "regra_versao_id": "11111111-2222-4333-8444-555555555555",
+      "semantica_calculo": 2,
+      "canonico": "{\"cf\":\"CF-01\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1}],\"regra_versao_id\":\"11111111-2222-4333-8444-555555555555\",\"semantica_calculo\":2}",
+      "sha256": "b9a28e6438444db52a453e4c197416cb28f8f1a102b48bda8eeb918b13c5de99"
+    },
+    {
+      "nome": "cf04-dois-fatos-ordenados-sem1",
+      "cf": "CF-04",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        },
+        {
+          "fato_id": "0a0b0c0d-0000-4000-8000-000000000002",
+          "versao": 3
+        }
+      ],
+      "regra_versao_id": "11111111-2222-4333-8444-555555555555",
+      "semantica_calculo": 1,
+      "canonico": "{\"cf\":\"CF-04\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1},{\"fato_id\":\"0a0b0c0d-0000-4000-8000-000000000002\",\"versao\":3}],\"regra_versao_id\":\"11111111-2222-4333-8444-555555555555\"}",
+      "sha256": "b7c1b8a1b24f0874c396381e2f62fdcce44e056611dec2158aeca5dde6154ecb"
+    },
+    {
+      "nome": "cf04-dois-fatos-ordenados-sem2",
+      "cf": "CF-04",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        },
+        {
+          "fato_id": "0a0b0c0d-0000-4000-8000-000000000002",
+          "versao": 3
+        }
+      ],
+      "regra_versao_id": "11111111-2222-4333-8444-555555555555",
+      "semantica_calculo": 2,
+      "canonico": "{\"cf\":\"CF-04\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1},{\"fato_id\":\"0a0b0c0d-0000-4000-8000-000000000002\",\"versao\":3}],\"regra_versao_id\":\"11111111-2222-4333-8444-555555555555\",\"semantica_calculo\":2}",
+      "sha256": "3a27991566648cc677eb154aaa4862adf77ea5593d75e853c1f5cdeb1d501412"
+    },
+    {
+      "nome": "cf09-fora-de-ordem-sem2",
+      "cf": "CF-09",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+          "versao": 2
+        },
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        },
+        {
+          "fato_id": "f0000000-0000-4000-8000-000000000003",
+          "versao": 7
+        },
+        {
+          "fato_id": "0a0b0c0d-0000-4000-8000-000000000002",
+          "versao": 3
+        }
+      ],
+      "regra_versao_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "semantica_calculo": 2,
+      "canonico": "{\"cf\":\"CF-09\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1},{\"fato_id\":\"0a0b0c0d-0000-4000-8000-000000000002\",\"versao\":3},{\"fato_id\":\"f0000000-0000-4000-8000-000000000003\",\"versao\":7},{\"fato_id\":\"ffffffff-ffff-4fff-8fff-ffffffffffff\",\"versao\":2}],\"regra_versao_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\",\"semantica_calculo\":2}",
+      "sha256": "7642306cf69d4eb9c6c6db58116a28d76508b6e42983a42376fecca6b7de78b9"
+    },
+    {
+      "nome": "cf09-fora-de-ordem-sem1",
+      "cf": "CF-09",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "f0000000-0000-4000-8000-000000000003",
+          "versao": 7
+        },
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        }
+      ],
+      "regra_versao_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "semantica_calculo": 1,
+      "canonico": "{\"cf\":\"CF-09\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1},{\"fato_id\":\"f0000000-0000-4000-8000-000000000003\",\"versao\":7}],\"regra_versao_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\"}",
+      "sha256": "381c45c33d8284817691dafeffc116663d702ddd54ffb83ab4d73c0759a2f93c"
+    },
+    {
+      "nome": "cf12-lista-vazia-sem2",
+      "cf": "CF-12",
+      "fatos_usados_entrada": [],
+      "regra_versao_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "semantica_calculo": 2,
+      "canonico": "{\"cf\":\"CF-12\",\"fatos_usados\":[],\"regra_versao_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\",\"semantica_calculo\":2}",
+      "sha256": "4ceccf7515a4e9feafcfbcede31f3887bbee6c84e315a02548e91a123dbccbfb"
+    },
+    {
+      "nome": "cf06-versao-grande-sem2",
+      "cf": "CF-06",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "0a0b0c0d-0000-4000-8000-000000000002",
+          "versao": 2147483647
+        }
+      ],
+      "regra_versao_id": "11111111-2222-4333-8444-555555555555",
+      "semantica_calculo": 2,
+      "canonico": "{\"cf\":\"CF-06\",\"fatos_usados\":[{\"fato_id\":\"0a0b0c0d-0000-4000-8000-000000000002\",\"versao\":2147483647}],\"regra_versao_id\":\"11111111-2222-4333-8444-555555555555\",\"semantica_calculo\":2}",
+      "sha256": "3a4ec0c67ab489c71f584bdc39b61911b454b93e36fe74b685e6e1fd4d4c34ef"
+    },
+    {
+      "nome": "cf05-tres-fatos-sem1",
+      "cf": "CF-05",
+      "fatos_usados_entrada": [
+        {
+          "fato_id": "00000000-0000-4000-8000-000000000001",
+          "versao": 1
+        },
+        {
+          "fato_id": "0a0b0c0d-0000-4000-8000-000000000002",
+          "versao": 1
+        },
+        {
+          "fato_id": "f0000000-0000-4000-8000-000000000003",
+          "versao": 1
+        }
+      ],
+      "regra_versao_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "semantica_calculo": 1,
+      "canonico": "{\"cf\":\"CF-05\",\"fatos_usados\":[{\"fato_id\":\"00000000-0000-4000-8000-000000000001\",\"versao\":1},{\"fato_id\":\"0a0b0c0d-0000-4000-8000-000000000002\",\"versao\":1},{\"fato_id\":\"f0000000-0000-4000-8000-000000000003\",\"versao\":1}],\"regra_versao_id\":\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\"}",
+      "sha256": "f6781a3f0591fd58caac99a4aed323734a156ba62120ba5264c9a03201ba7e6f"
+    }
+  ]
+}

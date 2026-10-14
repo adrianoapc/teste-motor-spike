@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infraestrutura\Persistencia;
 
 use App\Aplicacao\Portas\RepositorioConferencia;
+use App\Dominio\Conferencias\HashConferencia;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class RepositorioConferenciaDb implements RepositorioConferencia
@@ -37,13 +38,14 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
             <<<'SQL'
             INSERT INTO conferencias.conferencia
                 (cf, caso_id, entregavel_id, regra_versao_id, fatos_usados, entrada_hash,
-                 resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, em)
-            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?::jsonb, ?, ?, clock_timestamp())
+                 resultado, esperado_centavos, obtido_centavos, diferenca, severidade, classe, em, semantica_calculo)
+            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?::jsonb, ?, ?, clock_timestamp(), ?)
             ON CONFLICT (cf, entregavel_id, entrada_hash) DO NOTHING
             SQL,
             [
                 $cf, $casoId, $entregavelId, $regraVersaoId, $fatosJson, $entradaHash,
                 $resultado, $esperadoCentavos, $obtidoCentavos, $difJson, $severidade, $classe,
+                HashConferencia::SEMANTICA_CALCULO,
             ],
         );
     }

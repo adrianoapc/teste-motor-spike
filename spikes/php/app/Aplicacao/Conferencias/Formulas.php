@@ -217,7 +217,10 @@ final readonly class Formulas
         return new ResultadoFormula($esperado, $obtido, $usados);
     }
 
-    /** CF-12 (E10): ok se existe recibo_obrigacao com o tributo exigido. diferenca = 0. */
+    /**
+     * CF-12 (E10): ok se existe recibo_obrigacao com o tributo exigido (§9.1: sem valores em centavos).
+     * Segue o caminho de existência (como o CF-06): esperado/obtido NULL e diferenca {"centavos": 0}.
+     */
     public function cf12(FatosDoCaso $f, string $tributoRecibo): ResultadoFormula
     {
         $recibo = $f->de('recibo_obrigacao', $tributoRecibo);
@@ -225,8 +228,15 @@ final readonly class Formulas
             return ResultadoFormula::fatoAusente("recibo_obrigacao[{$tributoRecibo}]");
         }
 
-        // ok: existe. esperado/obtido ambos 0 → diferença 0.
-        return new ResultadoFormula(0, 0, $this->usados($recibo));
+        // Existe => ok. Sem esperado/obtido (NULL), diferença 0.
+        return new ResultadoFormula(
+            esperadoCentavos: null,
+            obtidoCentavos: null,
+            fatosUsados: $this->usados($recibo),
+            comparacaoTexto: true,
+            textoIgual: true,
+            diferencaExtra: ['centavos' => 0],
+        );
     }
 
     /** Soma das parcelas; null se `parcelas` falta, não é lista ou alguma entrada é malformada (ou a soma estoura int64). */

@@ -85,7 +85,7 @@ final readonly class Conferidor
         ResultadoFormula $r,
         Tolerancia $tolerancia,
     ): void {
-        $entradaHash = HashConferencia::entradaHash($cf, $r->fatosUsados, $tolerancia->versaoId);
+        $entradaHash = HashConferencia::entradaHash($cf, $r->fatosUsados, $tolerancia->versaoId, HashConferencia::SEMANTICA_CALCULO);
 
         // Fato ausente → divergente, classe S (§9.2).
         if ($r->fatoAusente !== null) {
@@ -97,7 +97,7 @@ final readonly class Conferidor
             return;
         }
 
-        // CF-06 e CF-12: comparação de texto / existência.
+        // CF-06 (texto) e CF-12 (existência): sem valores em centavos (esperado/obtido NULL).
         if ($r->comparacaoTexto) {
             $resultado = $r->textoIgual ? 'ok' : 'divergente';
             $this->conferencias->gravarSeNova(

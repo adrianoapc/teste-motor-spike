@@ -64,6 +64,7 @@ it('produz o entrada_hash da conferência (Requisito 7.4)', function (): void {
             ['fato_id' => '00000000-0000-0000-0000-000000000002', 'versao' => 1],
         ],
         '00000000-0000-0000-0000-0000000000aa',
+        1,
     );
 
     expect($hash)->toBe('4e0ad4ed509cc1fa2e908b6ef9253d5927588b01a9001b8195c7185e75c878ca');
@@ -73,12 +74,12 @@ it('ordena fatos_usados por fato_id no entrada_hash', function (): void {
     $ordenado = HashConferencia::entradaHash('CF-01', [
         ['fato_id' => '00000000-0000-0000-0000-000000000001', 'versao' => 1],
         ['fato_id' => '00000000-0000-0000-0000-000000000002', 'versao' => 1],
-    ], '00000000-0000-0000-0000-0000000000aa');
+    ], '00000000-0000-0000-0000-0000000000aa', 2);
 
     $desordenado = HashConferencia::entradaHash('CF-01', [
         ['fato_id' => '00000000-0000-0000-0000-000000000002', 'versao' => 1],
         ['fato_id' => '00000000-0000-0000-0000-000000000001', 'versao' => 1],
-    ], '00000000-0000-0000-0000-0000000000aa');
+    ], '00000000-0000-0000-0000-0000000000aa', 2);
 
     expect($desordenado)->toBe($ordenado);
 });
@@ -109,4 +110,27 @@ it('JsonCru preserva {} vs [], aceita unicode/escapes e recusa JSON inválido', 
     foreach (['', '{', '{"a":}', '[1,]', '01', '1.', '{"a":1} x', "{'a':1}", '{"a":1,}', '+1'] as $ruim) {
         expect(fn () => JsonCru::decodificar($ruim))->toThrow(JsonException::class);
     }
+});
+
+/*
+ * Vetores compartilhados do entrada_hash (semântica §9.2). Cópia de contrato/vetores-entrada-hash.json de
+ * origin/docs/metricas-pos-merge (git show origin/docs/metricas-pos-merge:contrato/vetores-entrada-hash.json):
+ * tests/fixtures/vetores-entrada-hash.json.
+ */
+it('entrada_hash bate com os 9 vetores compartilhados (canônico e sha256), com fatos fora de ordem e semantica 1/2', function (): void {
+    $json = file_get_contents(__DIR__.'/../fixtures/vetores-entrada-hash.json');
+    assert(is_string($json));
+    /** @var array{vetores: list<array{nome: string, cf: string, fatos_usados_entrada: list<array{fato_id: string, versao: int}>, regra_versao_id: string, semantica_calculo: int, canonico: string, sha256: string}>} $d */
+    $d = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+    expect($d['vetores'])->toHaveCount(9);
+    foreach ($d['vetores'] as $v) {
+        expect(HashConferencia::entradaHash($v['cf'], $v['fatos_usados_entrada'], $v['regra_versao_id'], $v['semantica_calculo']))
+            ->toBe($v['sha256'], $v['nome']);
+        // Canônico: a chave só existe quando semantica_calculo > 1.
+        expect(str_contains($v['canonico'], 'semantica_calculo'))->toBe($v['semantica_calculo'] > 1, $v['nome']);
+    }
+});
+
+it('a constante de semântica do cálculo é 2 (§9.2)', function (): void {
+    expect(HashConferencia::SEMANTICA_CALCULO)->toBe(2);
 });
