@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from motor.dominio.dinheiro import arred_meio_par
 
+# Versão da semântica do cálculo das conferências (semântica §9.2). Entra na chave de
+# idempotência (entrada_hash, só se > 1) e é persistida em conferencias.conferencia. Linhas
+# legadas valem 1 e nunca colidem com as novas. Mudar a fórmula/classificação => incrementar.
+SEMANTICA_CALCULO = 2
+
 
 def esperado_das_simples(faturamento_centavos: int, aliquota_bp: int) -> int:
     """CF-04: round_half_even(faturamento * aliquota_bp / 10000)."""
