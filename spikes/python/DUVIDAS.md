@@ -77,3 +77,29 @@ com conexões mortas — `/health` devolveu 500 até reiniciar o contêiner. O `
 psycopg aceita `check=ConnectionPool.check_connection`, que descartaria a conexão morta sozinho;
 é um endurecimento barato se o motor precisar sobreviver a quedas do banco em produção. No
 spike, o run válido foi feito com o banco íntegro e só esta spike contendo o Postgres.
+
+## D9 — Manutenção 1: uma hierarquia de erro, um handler, sem código morto
+
+Revisão de manutenção/complexidade (code-review xhigh). Sem mudança de comportamento observável.
+
+- **Uma só hierarquia de erro.** `ErroDominio` (api) e `ErroNegocio` (aplicação) eram idênticas.
+  Ficou `motor.aplicacao.erros.ErroNegocio` (+ `nao_encontrado`/`conflito`/`invalido`), com
+  UM handler em `api/erros.py`. `ConflitoConcorrencia` agora é subclasse (409
+  `conflito_concorrencia`), então perdeu o handler próprio. Fica em `aplicacao` porque a
+  regra de camadas só deixa `api → aplicacao`.
+- **int64: validação só na borda, tradução em um lugar.** A borda (`numeros._inteiro` para
+  qualquer número do JSON e `Int64` estrito do Pydantic para `valor_centavos`) continua a barrar
+  entrada com `corpo_invalido`. Saíram os `try/except` de `publicar_fato`,
+  `_conferir_entregavel` e `_valor_opcional` (que conferia de novo o que o Pydantic já garantia;
+  as saídas de `/concluir` agora chegam tipadas como `SaidaTarefa`). O único valor que ainda
+  pode estourar depois da borda é o **calculado** (esperado/obtido de uma conferência, coluna
+  `bigint`): `conferencia._gravar` chama `garantir_int64` e um exception handler único
+  (`ValorForaDoIntervalo` → 422 `valor_fora_do_intervalo`) faz a tradução. A transação dá
+  rollback como antes.
+- **Código morto removido:** `_indexar_por_tributo`, `saiu_de_divergente_tem_excecao_cf`,
+  `tarefa_aberta_do_entregavel`, `Centavos`, o `conflito()` duplicado da api, o parâmetro
+  `uow` sem uso de `_tributo_da_guia`, e `excecao_aberta_existe` saiu do protocolo da unidade de
+  trabalho (só a implementação o usa, dentro de `abrir_excecao_unica`). `_gravar` passou a
+  receber `TipoConferencia` (sem import local nem `assert isinstance`).
+  Observação: `.kiro/specs/spike-python/design.md` cita `Centavos = NewType(...)` como tipo de
+  domínio; nunca foi usado no código e foi retirado (a spec é somente leitura para esta tarefa).

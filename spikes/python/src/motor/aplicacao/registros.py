@@ -1,6 +1,7 @@
 """Registros simples que o motor manipula (sem pydantic, sem driver)."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 
@@ -66,6 +67,15 @@ class RegraEntregaveis:
     def __post_init__(self) -> None:
         if not self.por_tipo:
             self.por_tipo = {it.tipo: it for it in self.itens}
+
+
+@dataclass(slots=True)
+class SaidaTarefa:
+    """Uma saída informada ao concluir a tarefa de um entregável (§8 item 4)."""
+
+    tributo: str
+    valor_centavos: int | None
+    payload: Mapping[str, object]
 
 
 @dataclass(slots=True)
