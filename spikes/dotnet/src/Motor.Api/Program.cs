@@ -28,6 +28,35 @@ var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 IResult Erro(int status, string erro, string mensagem) =>
     Results.Json(new { erro, mensagem }, jsonOpts, statusCode: status);
 
+// Preâmbulo comum dos POSTs: corpo JSON válido, objeto e sem U+0000. Devolve o documento ou o 422.
+async Task<(JsonDocument? Doc, IResult? Falha)> LerCorpoObjetoAsync(HttpRequest req)
+{
+    JsonDocument doc;
+    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
+    catch (JsonException) { return (null, Erro(422, "corpo_invalido", "JSON inválido")); }
+    if (doc.RootElement.ValueKind != JsonValueKind.Object)
+    {
+        doc.Dispose();
+        return (null, Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON"));
+    }
+    if (!Validacao.CorpoSemNul(doc.RootElement, out var motivoNul))
+    {
+        doc.Dispose();
+        return (null, Erro(422, "corpo_invalido", motivoNul));
+    }
+    return (doc, null);
+}
+
+// Parâmetros de caminho: competência AAAAMM e nenhum texto com U+0000. Devolve o 422 ou null.
+IResult? ErroDeCaminho(string competencia, params string[] textos)
+{
+    if (!Validacao.CompetenciaTextoValida(competencia))
+        return Erro(422, "corpo_invalido", "competência inválida");
+    if (textos.Any(Validacao.ContemNul))
+        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
+    return null;
+}
+
 // ---- /health ----
 app.MapGet("/health", async (IFabricaUnidade fab) =>
 {
@@ -45,16 +74,11 @@ app.MapGet("/admin/fila", async (IFabricaUnidade fab) =>
 // ---- /competencias/abrir ----
 app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =>
 {
-    JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
-    catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
     using (doc)
     {
-        var raiz = doc.RootElement;
-        if (raiz.ValueKind != JsonValueKind.Object)
-            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
-        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
-            return Erro(422, "corpo_invalido", motivoNul);
+        var raiz = doc!.RootElement;
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
             return Erro(422, "corpo_invalido", "competência ausente ou inválida");
         if (!raiz.TryGetProperty("ator", out var ator) || ator.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(ator.GetString()))
@@ -85,16 +109,11 @@ app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =
 // ---- /fatos ----
 app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
 {
-    JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
-    catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
     using (doc)
     {
-        var raiz = doc.RootElement;
-        if (raiz.ValueKind != JsonValueKind.Object)
-            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
-        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
-            return Erro(422, "corpo_invalido", motivoNul);
+        var raiz = doc!.RootElement;
         if (!Validacao.CampoTextoNaoVazio(raiz, "titular_id", out var titular))
             return Erro(422, "corpo_invalido", "titular_id ausente");
         if (!Validacao.CompetenciaValida(raiz, out var compTexto))
@@ -137,20 +156,12 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
 app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
     async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
 {
-    if (!Validacao.CompetenciaTextoValida(competencia))
-        return Erro(422, "corpo_invalido", "competência inválida");
-    if (Validacao.ContemNul(competencia) || Validacao.ContemNul(titularId) || Validacao.ContemNul(tipo))
-        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
-    JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
-    catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
+    if (ErroDeCaminho(competencia, titularId, tipo) is { } falhaCaminho) return falhaCaminho;
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
     using (doc)
     {
-        var raiz = doc.RootElement;
-        if (raiz.ValueKind != JsonValueKind.Object)
-            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
-        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
-            return Erro(422, "corpo_invalido", motivoNul);
+        var raiz = doc!.RootElement;
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
         if (!raiz.TryGetProperty("saidas", out var saidas) || saidas.ValueKind != JsonValueKind.Array || saidas.GetArrayLength() == 0)
@@ -191,20 +202,12 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
 app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
     async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
 {
-    if (!Validacao.CompetenciaTextoValida(competencia))
-        return Erro(422, "corpo_invalido", "competência inválida");
-    if (Validacao.ContemNul(competencia) || Validacao.ContemNul(titularId) || Validacao.ContemNul(tipo))
-        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
-    JsonDocument doc;
-    try { doc = await JsonDocument.ParseAsync(req.Body, Validacao.OpcoesParse); }
-    catch (JsonException) { return Erro(422, "corpo_invalido", "JSON inválido"); }
+    if (ErroDeCaminho(competencia, titularId, tipo) is { } falhaCaminho) return falhaCaminho;
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
     using (doc)
     {
-        var raiz = doc.RootElement;
-        if (raiz.ValueKind != JsonValueKind.Object)
-            return Erro(422, "corpo_invalido", "corpo deve ser um objeto JSON");
-        if (!Validacao.CorpoSemNul(raiz, out var motivoNul))
-            return Erro(422, "corpo_invalido", motivoNul);
+        var raiz = doc!.RootElement;
         if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
             return Erro(422, "corpo_invalido", "ator ausente");
         if (!Validacao.CampoTextoNaoVazio(raiz, "cf", out var cf) || !Regex.IsMatch(cf, @"\ACF-[0-9]{2}\z"))
@@ -231,10 +234,7 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
 // ---- GET /casos/{titular_id}/{competencia} ----
 app.MapGet("/casos/{titularId}/{competencia}", async (string titularId, string competencia, IFabricaUnidade fab) =>
 {
-    if (!Validacao.CompetenciaTextoValida(competencia))
-        return Erro(422, "corpo_invalido", "competência inválida");
-    if (Validacao.ContemNul(titularId))
-        return Erro(422, "corpo_invalido", "parâmetro de caminho com U+0000");
+    if (ErroDeCaminho(competencia, titularId) is { } falhaCaminho) return falhaCaminho;
     var caso = await fab.ConsultarCasoAsync(titularId, competencia);
     if (caso is null) return Erro(404, "nao_encontrado", "caso inexistente");
     return Results.Json(new

@@ -49,7 +49,7 @@ public static class Estados
         _ => throw new ArgumentOutOfRangeException(nameof(nome), nome, "estado desconhecido"),
     };
 
-    /// <summary>Ordem no caminho principal; null para divergente/invalidado (§4).</summary>
+    /// <summary>Ordem no caminho principal; null para divergente/invalidado e para o aposentado pago (§4).</summary>
     public static int? Ordem(this EstadoEntregavel e) => e switch
     {
         EstadoEntregavel.AguardandoInsumo => 1,
@@ -58,7 +58,6 @@ public static class Estados
         EstadoEntregavel.Validado => 4,
         EstadoEntregavel.Liberado => 5,
         EstadoEntregavel.Disponibilizado => 6,
-        EstadoEntregavel.Pago => 7,
         EstadoEntregavel.Encerrado => 8,
         _ => null,
     };
