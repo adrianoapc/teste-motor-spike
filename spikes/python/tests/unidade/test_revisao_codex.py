@@ -546,14 +546,27 @@ def test_cf05_usa_o_tributo_da_guia_declarado_na_regra() -> None:
     assert resultado == "ok"
 
 
-def test_cf07_usa_o_tributo_da_guia_do_item_de_entrega() -> None:
+def test_cf07_lp_confere_tributo_a_tributo_e_valida_quando_cada_tributo_bate() -> None:
+    # v4 (M1.3): CF-07 do LP é tributo a tributo. Com apurado[IRPJ] = soma das parcelas de
+    # IRPJ, o par de maior diferença é 0 → ok. (Antes, LP somava tudo contra o apurado da guia.)
+    uow = _Fake(caso=_caso("LP"))
+    uow.fatos_caso = [
+        _fv("apurado", "IRPJ", valor=300),
+        _fv("divisao_socios", payload={"parcelas": [{"tributo": "IRPJ", "valor_centavos": 300}]}),
+    ]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
+    assert resultado == "ok"
+
+
+def test_cf07_lp_parcela_sem_tributo_e_dado_ausente_classe_s() -> None:
+    # No LP toda parcela precisa de `tributo`; sem ele é operando inválido (§9.2) → classe S.
     uow = _Fake(caso=_caso("LP"))
     uow.fatos_caso = [
         _fv("apurado", "IRPJ", valor=300),
         _fv("divisao_socios", payload={"parcelas": [{"valor_centavos": 300}]}),
     ]
-    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
-    assert resultado == "ok"
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
 
 
 def test_regra_sem_a_entrada_exigida_vira_insumo_ausente_classe_s() -> None:

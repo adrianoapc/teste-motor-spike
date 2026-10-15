@@ -14,6 +14,8 @@ from motor.aplicacao.registros import (
 from motor.dominio.competencia import Competencia
 from motor.dominio.conferencias import (
     SEMANTICA_CALCULO,
+    DadoAusente,
+    cf07_lp_par_de_maior_diferenca,
     classificar_numerica,
     esperado_das_simples,
     esperado_prolabore,
@@ -155,15 +157,37 @@ def conferir(
                 resultado, None, None, diferenca, severidade,
             )
         elif cf == "CF-07":
-            # §9.1: apurado[DAS] (SN) ou apurado[IRPJ] (LP) = tributo da guia de entrada do
-            # item de entrega; a regra não declara `apurado` nas entradas do E04.
-            entrega = regra.item_de_entrega
-            trib = _tributo_exigido(entrega.entradas if entrega else [], ctx, "guia")
-            apur = _usar(fatos_usados, _fato(fatos, "apurado", trib), f"apurado[{trib}]")
-            divisao = _usar(fatos_usados, _fato(fatos, "divisao_socios"), "divisao_socios[]")
-            parcelas = _parcelas(divisao)
-            esperado = _valor(apur)
-            obtido = soma_parcelas(parcelas)
+            if ctx.get("regime") == "LP":
+                # LP (v4, §9.1): tributo a tributo. Tributos = apurados do caso ∪ tributos das
+                # parcelas; par do tributo de maior diferença. apurado[T] ausente ou parcela
+                # sem tributo = dado ausente (classe S).
+                divisao = _usar(fatos_usados, _fato(fatos, "divisao_socios"), "divisao_socios[]")
+                parcelas = _parcelas(divisao)
+                apurados: dict[str, int] = {}
+                for f in fatos:
+                    if f.tipo == "apurado" and f.tributo != "":
+                        apurados[f.tributo] = _valor(f)
+                try:
+                    trib_vencedor, esperado, obtido = cf07_lp_par_de_maior_diferenca(
+                        apurados, parcelas
+                    )
+                except DadoAusente as e:
+                    raise _FatoAusente(e.chave) from e
+                # Só os apurados usados no cálculo (os dos tributos conferidos) entram em
+                # fatos_usados, para a chave de idempotência refletir o que foi lido.
+                for f in fatos:
+                    if f.tipo == "apurado" and f.tributo in apurados:
+                        fatos_usados.append({"fato_id": f.id, "versao": f.versao})
+            else:
+                # SN (§9.1): apurado[DAS] = tributo da guia de entrada do item de entrega; a
+                # regra não declara `apurado` nas entradas do E04.
+                entrega = regra.item_de_entrega
+                trib = _tributo_exigido(entrega.entradas if entrega else [], ctx, "guia")
+                apur = _usar(fatos_usados, _fato(fatos, "apurado", trib), f"apurado[{trib}]")
+                divisao = _usar(fatos_usados, _fato(fatos, "divisao_socios"), "divisao_socios[]")
+                parcelas = _parcelas(divisao)
+                esperado = _valor(apur)
+                obtido = soma_parcelas(parcelas)
         elif cf == "CF-08":
             fat = _usar(fatos_usados, _fato(fatos, "faturamento_mes"), "faturamento_mes[]")
             pro = _usar(fatos_usados, _fato(fatos, "prolabore"), "prolabore[]")

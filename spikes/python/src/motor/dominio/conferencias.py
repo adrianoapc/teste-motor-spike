@@ -36,6 +36,62 @@ def soma_parcelas(parcelas: list[dict[str, object]]) -> int:
     return total
 
 
+class DadoAusente(Exception):
+    """Operando necessário à fórmula ausente/inválido → conferência divergente classe 'S'
+    (§9.2). Carrega a chave para a mensagem `fato ausente: <chave>`."""
+
+    def __init__(self, chave: str) -> None:
+        super().__init__(chave)
+        self.chave = chave
+
+
+def cf07_lp_par_de_maior_diferenca(
+    apurados: dict[str, int], parcelas: list[dict[str, object]]
+) -> tuple[str, int, int]:
+    """CF-07 do Lucro Presumido, tributo a tributo (§9.1, v4).
+
+    `apurados` = {tributo: valor_centavos} dos fatos vigentes `apurado` do caso.
+    `parcelas` = parcelas[] de `divisao_socios`; cada uma com `valor_centavos` inteiro (já
+    validado pelo chamador) e `tributo` (texto não vazio, obrigatório no LP).
+
+    Tributos conferidos = tributos apurados ∪ tributos das parcelas. Para cada T:
+    esperado = `apurado[T]`; obtido = soma das parcelas com `tributo = T` (nenhuma = 0).
+    Devolve `(tributo, esperado, obtido)` do tributo de **maior diferença**; empate = menor
+    tributo em ordem de code point.
+
+    Levanta `DadoAusente` quando: alguma parcela não tem `tributo` (texto não vazio); ou um
+    tributo que aparece em parcela não tem fato `apurado` no caso.
+    """
+    obtido_por_tributo: dict[str, int] = {}
+    for p in parcelas:
+        t = p.get("tributo")
+        if not isinstance(t, str) or t == "":
+            raise DadoAusente("divisao_socios[].parcela sem tributo")
+        valor = p["valor_centavos"]
+        assert isinstance(valor, int)  # garantido pelo chamador
+        obtido_por_tributo[t] = obtido_por_tributo.get(t, 0) + valor
+
+    for t in obtido_por_tributo:
+        if t not in apurados:
+            raise DadoAusente(f"apurado[{t}]")
+
+    tributos = set(apurados) | set(obtido_por_tributo)
+    if not tributos:
+        raise DadoAusente("apurado[] e parcelas vazios")
+    # Maior diferença; empate resolvido pelo menor tributo em ordem de code point.
+    melhor: tuple[int, str] | None = None  # (-diferenca, tributo) para ordenar
+    escolha: tuple[str, int, int] | None = None
+    for t in sorted(tributos):
+        esperado = apurados[t]
+        obtido = obtido_por_tributo.get(t, 0)
+        chave = (-abs(esperado - obtido), t)
+        if melhor is None or chave < melhor:
+            melhor = chave
+            escolha = (t, esperado, obtido)
+    assert escolha is not None  # tributos não é vazio aqui
+    return escolha
+
+
 def classificar_numerica(
     esperado: int,
     obtido: int,
