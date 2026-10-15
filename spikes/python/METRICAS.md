@@ -140,6 +140,41 @@ descartar conexão morta sozinho.
 
 ---
 
+# Manutenção M1 — semântica v4 (teste comum de manutenção)
+
+Branch `m1/spike-python` a partir de `main` (`3ef6f45`, já com V008, contrato 1.3.0,
+semântica v4 e os cenários C11–C13). A mesma mudança foi pedida às três spikes; o que se
+mede é o tempo e o retrabalho até passar no verificador com `--fase 4` (`docs/regras-do-jogo.md`,
+critério 8). Mudanças pedidas: M1.1 (tolerância 1–10 = alerta A), M1.2 (CF-08 só SN com Fator R),
+M1.3 (CF-07 do LP tributo a tributo), M1.4 (CF-09 confere IRRF da folha M−1), M1.5 (reavaliação
+idempotente, recorte registrado na transição única).
+
+- **Início da tarefa 19:** 2026-10-15 00:54 -03 (03:54 UTC)
+- **Fim (13/13):** _(a preencher ao chegar a 13/13)_
+
+## Tarefa 19 — regressão com as regras novas, sem mudar código
+
+`--todos cenarios --fase 3 --limpar` contra o código da fase 3 (sem nenhuma mudança M1):
+**`RESULTADO: há falhas (9/10)`**.
+
+| Cenário | Resultado | Por quê |
+|---|---|---|
+| C1 | **FALHOU** (55 de 122) | O C1 novo manda `sujeito_fator_r` no `abrir_competencias`; o código ainda rejeita campo não declarado → `422 corpo_invalido` ("Extra inputs are not permitted"). O caso nunca abre, então **todas** as 55 falhas descem desse único ponto (caso/entregáveis inexistentes, 404 nas conclusões, conferências/eventos zerados). É exatamente a mudança M1.2 (tarefa 20). |
+| C2–C10 | PASSOU (0 falha) | Nenhum deles exercita as mudanças M1 na `--fase 3`: a tolerância nova (M1.1), o CF-07 por tributo (M1.3), o CF-09 do IRRF M−1 (M1.4) e o `semantica_calculo = 3` (M1.5) só aparecem nos cenários C11–C13, que são `--fase 4`. A `fechamento.entregaveis` v3 (V008) ainda não muda o comportamento desses casos porque o código lê a versão em uso pelo `status` desde a fase 2. |
+
+**Impacto da mudança de regra, medido:** só o C1 regride, e por um único motivo (o campo novo no contrato). As demais mudanças M1 são aditivas e só aparecem nos cenários C11–C13.
+
+## Retrabalho e intervenções
+_(a preencher ao fim da fase)_
+
+## Impacto (git diff --stat da fase)
+_(a preencher ao fim da fase)_
+
+## Erros barrados pelo mypy antes de teste
+_(ver `REGISTRO-COMPILADOR.md`; resumo ao fim da fase)_
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`, depois do merge do PR #5. Os valores da fase 3 acima (inclusive 49,2 s) ficam como histórico.
