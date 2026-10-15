@@ -41,3 +41,7 @@ Arquivos obrigatórios em cada spike:
 - `DUVIDAS.md`: tudo o que a semântica não respondeu e a decisão tomada.
 - `METRICAS.md`: preenchido ao final (modelo em `docs/regras-do-jogo.md`).
 - `REGISTRO-COMPILADOR.md`: cada vez que o compilador (.NET), o mypy (Python) ou o PHPStan (PHP) barrar um erro antes de qualquer teste, uma linha com data, arquivo e o tipo do erro.
+
+## Decisões em aberto
+
+- **Reavaliação após fato (spec §6 passo 2 x design dos spikes):** divergência aberta, requer decisão do dono da spec. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`. Não trate a linha "Reavaliação após fato" dos `design.md` como fixa.

@@ -237,3 +237,7 @@ roda o `lint-imports` do mesmo ambiente e exige exit 0, os 3 nomes de contrato c
 cópia temporária: `import psycopg` e `import fastapi` em `dominio`, `import motor.api` em
 `aplicacao` e `import psycopg` em `aplicacao` quebram os contratos e fazem teste e comando
 falharem (exit 1); sem violação, tudo volta a passar.
+
+## D15 — Reavaliação ampla x §6.2: ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
+
+O Python reavalia por sementes (§6.2 literal, D11), em desacordo com a linha "Reavaliação após fato" do `design.md` (superconjunto). Evidência: `scripts/diferencial_reavaliacao.py`, 450 sequências, 0 divergência. Divergência aberta: decisão do dono da spec.

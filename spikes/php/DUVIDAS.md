@@ -77,3 +77,5 @@ registrar o resto aqui.
 - **D18. Tributo do recibo (CF-12) vem da regra.** O tributo exigido é o da entrada `recibo_obrigacao` do item cujo `quando` casa com o contexto do caso (SN: PGDAS-D, LP: DCTFWEB na regra v2). Item sem entrada aplicável é `RegraInvalida`.
 - **D19. `observado_em` das saídas de tarefa = `now()` do banco** (port `Relogio`/`RelogioDb`), não o relógio do PHP: dentro da transação é o instante de início dela.
 - **D20. Memória de leitura por requisição.** Regra (por id e a em uso), catálogo e dependências são lidos uma vez por requisição (repositórios `scoped`; dependências são descartadas em `gravar`). Nenhum estado sobrevive à requisição.
+
+- **D21. Reavaliação ampla x §6.2: ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.** O PHP reavalia todos os entregáveis de todos os casos abertos do titular a cada fato (`PublicarFato` -> `AvaliarCaso::avaliarAbertosDoTitular`), como o design; a §6 passo 2 restringe aos entregáveis com a chave como entrada ou gatilho. Divergência aberta; sem diferencial equivalente ao do Python.
