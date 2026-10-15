@@ -240,15 +240,21 @@ final readonly class Formulas
     }
 
     /**
-     * CF-09 (E08): para INSS e FGTS: esperado = folha.payload.<tributo>_centavos; obtido = guia[tributo].valor.
-     * A diferença é a MAIOR das duas; esperado/obtido gravam o par do tributo de maior diferença (empate: INSS).
+     * CF-09 (E08): três pares (v4, §9.1).
+     *   INSS: esperado = folha.payload.inss_centavos; obtido = guia[INSS].valor.
+     *   FGTS: esperado = folha.payload.fgts_centavos; obtido = guia[FGTS].valor.
+     *   IRRF: esperado = folha[competência − 1].payload.irrf_centavos; obtido = guia[IRRF].valor.
+     * A diferença é a MAIOR das três; esperado/obtido gravam o par do tributo de maior diferença
+     * (empate: INSS, depois FGTS, depois IRRF).
      */
     public function cf09(FatosDoCaso $f): ResultadoFormula
     {
         $folha = $f->de('folha');
+        $folhaAnterior = $f->folhaMesAnterior();
         $guiaInss = $f->de('guia', 'INSS');
         $guiaFgts = $f->de('guia', 'FGTS');
-        $usados = $this->usadosExistentes($folha, $guiaInss, $guiaFgts);
+        $guiaIrrf = $f->de('guia', 'IRRF');
+        $usados = $this->usadosExistentes($folha, $folhaAnterior, $guiaInss, $guiaFgts, $guiaIrrf);
         if ($folha === null) {
             return ResultadoFormula::fatoAusente('folha[]', $usados);
         }
@@ -258,32 +264,55 @@ final readonly class Formulas
         if ($guiaFgts === null) {
             return ResultadoFormula::fatoAusente('guia[FGTS]', $usados);
         }
+        if ($guiaIrrf === null) {
+            return ResultadoFormula::fatoAusente('guia[IRRF]', $usados);
+        }
+        if ($folhaAnterior === null) {
+            return ResultadoFormula::fatoAusente('folha[-1]', $usados);
+        }
         $espInss = $this->inteiroDoPayload($folha, 'inss_centavos');
         $espFgts = $this->inteiroDoPayload($folha, 'fgts_centavos');
+        $espIrrf = $this->inteiroDoPayload($folhaAnterior, 'irrf_centavos');
         if ($espInss === null) {
             return ResultadoFormula::fatoAusente('folha.payload.inss_centavos', $usados);
         }
         if ($espFgts === null) {
             return ResultadoFormula::fatoAusente('folha.payload.fgts_centavos', $usados);
         }
+        if ($espIrrf === null) {
+            return ResultadoFormula::fatoAusente('folha[-1].payload.irrf_centavos', $usados);
+        }
         $obtInss = $guiaInss->valorCentavos;
         $obtFgts = $guiaFgts->valorCentavos;
+        $obtIrrf = $guiaIrrf->valorCentavos;
         if ($obtInss === null) {
             return ResultadoFormula::fatoAusente('guia[INSS].valor', $usados);
         }
         if ($obtFgts === null) {
             return ResultadoFormula::fatoAusente('guia[FGTS].valor', $usados);
         }
+        if ($obtIrrf === null) {
+            return ResultadoFormula::fatoAusente('guia[IRRF].valor', $usados);
+        }
+
+        // Par do tributo de maior diferença (comparação exata, mesmo acima de int64).
+        // Empate: INSS, depois FGTS, depois IRRF — por isso só substituo com diferença ESTRITAMENTE maior,
+        // avaliando na ordem INSS → FGTS → IRRF.
         $difInss = Dinheiro::diferencaExata($espInss, $obtInss);
         $difFgts = Dinheiro::diferencaExata($espFgts, $obtFgts);
+        $difIrrf = Dinheiro::diferencaExata($espIrrf, $obtIrrf);
 
-        // Par do tributo de maior diferença (comparação exata, mesmo acima de int64); empate → INSS.
-        if (Dinheiro::compararDiferencas($difFgts, $difInss) > 0) {
+        $esperado = $espInss;
+        $obtido = $obtInss;
+        $melhorDif = $difInss;
+        if (Dinheiro::compararDiferencas($difFgts, $melhorDif) > 0) {
             $esperado = $espFgts;
             $obtido = $obtFgts;
-        } else {
-            $esperado = $espInss;
-            $obtido = $obtInss;
+            $melhorDif = $difFgts;
+        }
+        if (Dinheiro::compararDiferencas($difIrrf, $melhorDif) > 0) {
+            $esperado = $espIrrf;
+            $obtido = $obtIrrf;
         }
 
         return new ResultadoFormula($esperado, $obtido, $usados);

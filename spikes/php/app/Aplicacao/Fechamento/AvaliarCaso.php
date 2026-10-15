@@ -95,7 +95,10 @@ final readonly class AvaliarCaso
     public function conferirEDecidir(Caso $caso, Entregavel $eProcessado, ItemEntregavel $item, ParametrosDeConferencia $parametros): void
     {
         $regraVersaoId = $caso->regraEntregaveisVersaoId;
-        $fatosDoCaso = new FatosDoCaso($this->fatos->vigentesDoCaso($caso->titularId, $caso->competencia->valor));
+        // Folha da competência anterior (CF-09 IRRF, v4 §9.1): o IRRF retido na folha de M-1
+        // é declarado na DCTFWeb de M. Entrada declarada do E08 com competencia_relativa: -1 na regra v3.
+        $folhaMesAnterior = $this->fatos->vigente($caso->titularId, $caso->competencia->somar(-1)->valor, 'folha', '');
+        $fatosDoCaso = new FatosDoCaso($this->fatos->vigentesDoCaso($caso->titularId, $caso->competencia->valor), $folhaMesAnterior);
         $divergiu = $this->conferidor->conferir($caso, $eProcessado, $item, $fatosDoCaso, $parametros);
 
         if ($divergiu) {

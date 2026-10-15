@@ -77,19 +77,57 @@ it('CF-04 e CF-08 não estouram com valores int64 grandes', function (): void {
 
 it('CF-09 compara diferenças acima de int64 sem empate falso', function (): void {
     // INSS: |MAX - (-1)| = 2^63; FGTS: |MAX - (-2)| = 2^63 + 1 (maior). Antes o float igualava as duas.
+    // IRRF (folha M-1): 0 vs guia 0 => dif 0, não interfere.
+    $folhaAnterior = fatoF('fa', 'folha', '', null, payloadJson('{"irrf_centavos": 0}'));
     $f = new FatosDoCaso([
         fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 9223372036854775807, "fgts_centavos": 9223372036854775807}')),
-        fatoF('gi', 'guia', 'INSS', -1), fatoF('gf', 'guia', 'FGTS', -2),
-    ]);
+        fatoF('gi', 'guia', 'INSS', -1), fatoF('gf', 'guia', 'FGTS', -2), fatoF('gr', 'guia', 'IRRF', 0),
+    ], $folhaAnterior);
     $r = (new Formulas(5000))->cf09($f);
     expect($r->fatoAusente)->toBeNull()->and($r->obtidoCentavos)->toBe(-2);
 
     $g = new FatosDoCaso([
         fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 9223372036854775806, "fgts_centavos": 9223372036854775807}')),
-        fatoF('gi', 'guia', 'INSS', 0), fatoF('gf', 'guia', 'FGTS', 0),
-    ]);
+        fatoF('gi', 'guia', 'INSS', 0), fatoF('gf', 'guia', 'FGTS', 0), fatoF('gr', 'guia', 'IRRF', 0),
+    ], $folhaAnterior);
     $r = (new Formulas(5000))->cf09($g);
     expect($r->fatoAusente)->toBeNull()->and($r->esperadoCentavos)->toBe(PHP_INT_MAX)->and($r->obtidoCentavos)->toBe(0);
+});
+
+it('CF-09 confere três pares e grava o par de maior diferença (v4, IRRF da folha M-1)', function (): void {
+    // INSS: 1000 vs 1000 (dif 0); FGTS: 500 vs 480 (dif 20); IRRF: 300 vs 250 (dif 50) <- maior
+    $folhaAnterior = fatoF('fa', 'folha', '', null, payloadJson('{"irrf_centavos": 300}'));
+    $f = new FatosDoCaso([
+        fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 1000, "fgts_centavos": 500}')),
+        fatoF('gi', 'guia', 'INSS', 1000), fatoF('gf', 'guia', 'FGTS', 480), fatoF('gr', 'guia', 'IRRF', 250),
+    ], $folhaAnterior);
+    $r = (new Formulas(5000))->cf09($f);
+    expect($r->fatoAusente)->toBeNull()
+        ->and($r->esperadoCentavos)->toBe(300)   // IRRF
+        ->and($r->obtidoCentavos)->toBe(250)
+        ->and($r->fatosUsados)->toHaveCount(5);   // folha, folha M-1, 3 guias
+});
+
+it('CF-09 empate entre três pares desempata INSS > FGTS > IRRF', function (): void {
+    // Todas as diferenças = 10. Empate → INSS primeiro.
+    $folhaAnterior = fatoF('fa', 'folha', '', null, payloadJson('{"irrf_centavos": 310}'));
+    $f = new FatosDoCaso([
+        fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 1010, "fgts_centavos": 510}')),
+        fatoF('gi', 'guia', 'INSS', 1000), fatoF('gf', 'guia', 'FGTS', 500), fatoF('gr', 'guia', 'IRRF', 300),
+    ], $folhaAnterior);
+    $r = (new Formulas(5000))->cf09($f);
+    expect($r->fatoAusente)->toBeNull()
+        ->and($r->esperadoCentavos)->toBe(1010)   // INSS
+        ->and($r->obtidoCentavos)->toBe(1000);
+});
+
+it('CF-09 sem folha do mês anterior é dado ausente (classe S)', function (): void {
+    $f = new FatosDoCaso([
+        fatoF('f', 'folha', '', null, payloadJson('{"inss_centavos": 1000, "fgts_centavos": 500}')),
+        fatoF('gi', 'guia', 'INSS', 1000), fatoF('gf', 'guia', 'FGTS', 500), fatoF('gr', 'guia', 'IRRF', 300),
+    ], null); // sem folha M-1
+    $r = (new Formulas(5000))->cf09($f);
+    expect($r->fatoAusente)->toContain('folha[-1]');
 });
 
 it('CF-07 LP confere tributo a tributo e grava o par de maior diferença', function (): void {
