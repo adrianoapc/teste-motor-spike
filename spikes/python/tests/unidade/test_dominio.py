@@ -11,6 +11,7 @@ from motor.dominio.conferencias import (
     classificar_numerica,
     esperado_das_simples,
     esperado_prolabore,
+    par_de_maior_diferenca,
     soma_parcelas,
 )
 from motor.dominio.dinheiro import arred_meio_par
@@ -225,3 +226,24 @@ def test_cf07_lp_tributo_apurado_sem_parcela_vale_zero() -> None:
     apurados = {"IRPJ": 160000, "CSLL": 50000}
     parcelas = [_p("IRPJ", 160000)]
     assert cf07_lp_par_de_maior_diferenca(apurados, parcelas) == ("CSLL", 50000, 0)
+
+
+# -- CF-09 com três pares INSS/FGTS/IRRF (req 21.4, M1.4, §9.1 v4) ------------
+def test_cf09_par_de_maior_diferenca_escolhe_o_irrf() -> None:
+    # INSS bate; FGTS 0; IRRF 1000 abaixo → o par do IRRF é o de maior diferença.
+    pares = [(88000, 88000), (50000, 50000), (26000, 25000)]  # INSS, FGTS, IRRF
+    assert par_de_maior_diferenca(pares) == (26000, 25000)
+
+
+def test_cf09_empate_resolve_na_ordem_inss_fgts_irrf() -> None:
+    # Três com a mesma diferença (100): vence o primeiro na ordem dada (INSS).
+    pares = [(1000, 900), (2000, 1900), (3000, 2900)]
+    assert par_de_maior_diferenca(pares) == (1000, 900)
+    # Se só FGTS e IRRF empatam e INSS bate, vence FGTS (o anterior ao IRRF).
+    pares2 = [(1000, 1000), (2000, 1900), (3000, 2900)]
+    assert par_de_maior_diferenca(pares2) == (2000, 1900)
+
+
+def test_cf09_todos_batem_devolve_o_primeiro() -> None:
+    pares = [(88000, 88000), (50000, 50000), (26000, 26000)]
+    assert par_de_maior_diferenca(pares) == (88000, 88000)

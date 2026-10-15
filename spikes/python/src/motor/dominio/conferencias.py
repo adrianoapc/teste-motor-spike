@@ -112,3 +112,21 @@ def classificar_numerica(
     if diferenca <= alerta_ate_centavos:
         return ("divergente", "A", diferenca)
     return ("divergente", severidade_catalogo, diferenca)
+
+
+def par_de_maior_diferenca(pares: list[tuple[int, int]]) -> tuple[int, int]:
+    """Dado uma lista ORDENADA por prioridade de desempate de pares (esperado, obtido),
+    devolve o par de maior |esperado − obtido|. Empate = o primeiro na ordem dada.
+
+    Usada pela CF-09 (§9.1, v4) com os pares na ordem INSS, FGTS, IRRF.
+    """
+    if not pares:
+        raise ValueError("sem pares para comparar")
+    melhor_idx = 0
+    melhor_dif = abs(pares[0][0] - pares[0][1])
+    for i in range(1, len(pares)):
+        dif = abs(pares[i][0] - pares[i][1])
+        if dif > melhor_dif:  # estritamente maior preserva o empate pelo primeiro
+            melhor_dif = dif
+            melhor_idx = i
+    return pares[melhor_idx]

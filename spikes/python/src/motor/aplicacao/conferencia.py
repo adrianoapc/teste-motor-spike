@@ -19,6 +19,7 @@ from motor.dominio.conferencias import (
     classificar_numerica,
     esperado_das_simples,
     esperado_prolabore,
+    par_de_maior_diferenca,
     soma_parcelas,
 )
 from motor.dominio.dinheiro import garantir_int64
@@ -198,15 +199,21 @@ def conferir(
             folha = _usar(fatos_usados, _fato(fatos, "folha"), "folha[]")
             guia_inss = _usar(fatos_usados, _fato(fatos, "guia", "INSS"), "guia[INSS]")
             guia_fgts = _usar(fatos_usados, _fato(fatos, "guia", "FGTS"), "guia[FGTS]")
+            guia_irrf = _usar(fatos_usados, _fato(fatos, "guia", "IRRF"), "guia[IRRF]")
+            # IRRF (v4): esperado vem da folha do MÊS ANTERIOR (competencia_relativa −1), que
+            # pode ser de competência sem caso aberto. Lido pela chave explícita (§7.1, §9.1).
+            comp_anterior = Competencia(caso.competencia).somar(-1).valor
+            folha_ant = uow.fato_vigente(caso.titular_id, comp_anterior, "folha", "")
+            folha_ant = _usar(fatos_usados, folha_ant, f"folha[{comp_anterior}]")
             inss_esp = _campo_int(folha, "inss_centavos")
             fgts_esp = _campo_int(folha, "fgts_centavos")
-            dif_inss = abs(inss_esp - _valor(guia_inss))
-            dif_fgts = abs(fgts_esp - _valor(guia_fgts))
-            # A diferença da conferência é a MAIOR das duas (§9.1).
-            if dif_inss >= dif_fgts:
-                esperado, obtido = inss_esp, _valor(guia_inss)
-            else:
-                esperado, obtido = fgts_esp, _valor(guia_fgts)
+            irrf_esp = _campo_int(folha_ant, "irrf_centavos")
+            # §9.1: três pares; a diferença da conferência é a MAIOR; empate: INSS, FGTS, IRRF.
+            esperado, obtido = par_de_maior_diferenca([
+                (inss_esp, _valor(guia_inss)),
+                (fgts_esp, _valor(guia_fgts)),
+                (irrf_esp, _valor(guia_irrf)),
+            ])
         elif cf == "CF-12":
             # ok se existe recibo_obrigacao com o tributo exigido pela entrada.
             trib_recibo = _tributo_exigido(entradas, ctx, "recibo_obrigacao")
