@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Motor do fechamento — contrato comum do spike
-  version: "1.2.0"
+  version: "1.3.0"
   description: |
     Contrato que as TRES spikes (.NET 10, Python e PHP) implementam exatamente igual.
     Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
@@ -220,6 +220,7 @@ components:
         filial: { type: boolean }
         carteira: { type: string, minLength: 1 }
         municipio: { type: string, minLength: 1 }
+        sujeito_fator_r: { type: boolean, default: false, description: "v4 (M1): SN sujeito ao Fator R com pró-labore controlado pela Rissi. Opcional; ausente = false. Só o CF-08 usa (semântica §3)." }
 
     AbrirCompetenciasRequest:
       type: object

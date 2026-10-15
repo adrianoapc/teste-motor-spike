@@ -191,6 +191,25 @@ Tudo das fases 2 e 3 abaixo.
 4. O SISTEMA PODE passar a usar `eventos.fila` (assíncrono, §13) se o síncrono não cumprir os limites; nesse caso, `/admin/fila` DEVE refletir o trabalho pendente de verdade e as fases 1 e 2 DEVEM continuar passando.
 5. *Verificador:* `… --cenario cenarios/c6-escala-4500-casos.json --limpar --relatorio resultado-c6-dotnet.json`, e depois `--todos cenarios --fase 3` (10/10).
 
+## Fase 4 · manutenção M1 (teste comum de manutenção)
+
+**Escopo:** semântica **v4** (`docs/semantica-do-motor.md` §16), migração **V008**, contrato **1.3.0** e cenários **C11, C12 e C13** (`"fase": 4`). A mesma mudança é pedida às três spikes; o que se mede é o tempo e o retrabalho até passar (`docs/regras-do-jogo.md`, critério 8).
+
+### Requisito 21 · Regras da manutenção M1
+
+1. O SISTEMA DEVE aceitar o campo opcional `sujeito_fator_r` (booleano) em cada empresa de `POST /competencias/abrir` e tratá-lo como `false` quando ausente (§3). Outros campos não declarados continuam dando 422.
+2. O SISTEMA DEVE usar as versões em uso das regras pelo `status` (V008: `fechamento.entregaveis` v3 e `fiscal.tolerancia` v2), sem nenhum número de versão no código (§2).
+3. A CF-07 do Lucro Presumido DEVE conferir tributo a tributo e gravar o par do tributo de maior diferença; parcela sem `tributo` ou tributo sem apurado no caso é dado ausente, classe S (§9.1). A do Simples não muda.
+4. A CF-09 DEVE conferir três pares (INSS, FGTS e IRRF), com o IRRF esperado lido da folha da competência anterior (§9.1), e gravar o par de maior diferença (empate: INSS, FGTS, IRRF).
+5. As conferências novas DEVEM gravar `semantica_calculo = 3` e usá-lo no `entrada_hash` (§9.2).
+6. A reavaliação após fato DEVE ser idempotente (§6 passo 2, v4): um fato sem consumidor não pode gravar transição, evento (além do `fato.publicado`), conferência, exceção, tarefa nem `version` nova.
+7. *Verificador:* `python verificador/verificador.py --api http://localhost:8081 --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --fase 4 --limpar --relatorio resultado-fase4-dotnet.json` DEVE terminar com 13/13 (regressão das fases 1 a 3 incluída).
+
+### Requisito 22 · Entrega da fase 4
+
+1. `METRICAS.md` DEVE ganhar a seção "Manutenção M1": tempo de relógio do início da tarefa 19 até 13/13, retrabalhos, intervenções humanas, arquivos e linhas alterados (`git diff --stat` da fase), erros barrados por o compilador antes de teste.
+2. `DUVIDAS.md` DEVE registrar as decisões da fase 4; erro na base comum é registrado e a spike para (`docs/regras-do-jogo.md` §1).
+
 ### Fora do escopo (todas as fases)
 
 Reabertura de competência encerrada; resolução das exceções `substituicao` e `competencia_encerrada`; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.

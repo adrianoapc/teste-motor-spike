@@ -10,8 +10,8 @@
     "§11.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v2",
-    "fiscal.tolerancia v1"
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2"
   ],
   "titulares": [
     "T003"
@@ -39,6 +39,26 @@
         "status": 200,
         "criados": 1,
         "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "folha do mês anterior sem IRRF retido (v4)",
+      "corpo": {
+        "titular_id": "T003",
+        "competencia": "202608",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000,
+          "irrf_centavos": 0
+        }
+      },
+      "espera": {
+        "efeito": "novo"
       }
     },
     {
@@ -181,6 +201,26 @@
         "observado_em": "2026-10-01T09:00:00-03:00",
         "tributo": "FGTS",
         "valor_centavos": 32000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "DCTFWeb do mês sem código 0561: o adaptador publica IRRF = 0 (v4 §16)",
+      "corpo": {
+        "titular_id": "T003",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRRF",
+        "valor_centavos": 0,
         "payload": {
           "competencia_impressa": "202609",
           "vencimento": "2026-10-20"
@@ -705,6 +745,13 @@
             "tipo": "guia",
             "tributo": "FGTS",
             "versoes": 1
+          },
+          {
+            "titular_id": "T003",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "IRRF",
+            "versoes": 1
           }
         ],
         "eventos": [
@@ -718,7 +765,7 @@
             "titular_id": "T003",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 13
+            "quantidade": 14
           },
           {
             "titular_id": "T003",

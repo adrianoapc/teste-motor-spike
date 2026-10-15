@@ -1,0 +1,622 @@
+{
+  "id": "C13",
+  "fase": 4,
+  "nome": "M1: CF-09 com o IRRF da folha do mês anterior",
+  "descricao": "Simples com folha. O IRRF retido na folha de agosto é declarado na DCTFWeb de setembro (amostra real de 14/10, 5 de 5 pares). O E08 de setembro só fica pronto quando chega a folha de agosto, uma competência sem caso aberto (entrada com competencia_relativa -1, §7.1). A folha de agosto reaberta pelo DP invalida o E08 de setembro, que diverge no IRRF até a DCTFWeb ser retificada. Na segunda empresa a folha de agosto vem sem irrf_centavos: dado ausente, classe S. Um fato sem consumidor com o E08 validado não grava nada.",
+  "secoes_semantica": [
+    "§6",
+    "§7.1",
+    "§9.1",
+    "§11",
+    "§16"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2"
+  ],
+  "titulares": [
+    "T017",
+    "T018"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T017",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-03",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T018",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-03",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 2,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T017",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c03",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T018",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c03",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "INSS",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "FGTS",
+        "valor_centavos": 32000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "IRRF da DCTFWeb de setembro: é o retido na folha de agosto",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRRF",
+        "valor_centavos": 25000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "sem a folha de agosto o E08 não fica pronto",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "tarefas_abertas": []
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "folha de agosto chega (competência sem caso): reavalia o E08 de setembro",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202608",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000,
+          "irrf_centavos": 25000
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "E08 confere INSS, FGTS e o IRRF de agosto",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "cf": "CF-09",
+            "resultados": [
+              "ok:B"
+            ],
+            "valores": [
+              [
+                88000,
+                88000
+              ]
+            ],
+            "semantica_calculo": 3
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "anotação com o E08 validado: nada muda",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202609",
+        "tipo": "anotacao_interna",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "texto": "anotação com o E08 validado: nada muda"
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "DP reabre a folha de agosto: IRRF sobe R$ 10,00",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202608",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000,
+          "irrf_centavos": 26000
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "folha do mês anterior reaberta invalida o E08 deste mês, que diverge no IRRF",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "divergente"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "cf": "CF-09",
+            "resultados": [
+              "ok:B",
+              "divergente:B"
+            ],
+            "valores": [
+              [
+                88000,
+                88000
+              ],
+              [
+                26000,
+                25000
+              ]
+            ]
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "entregavel": "E08",
+            "tipo": "CF-09",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "DCTFWeb retificada com o IRRF novo",
+      "corpo": {
+        "titular_id": "T017",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRRF",
+        "valor_centavos": 26000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T018",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "INSS",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T018",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "FGTS",
+        "valor_centavos": 32000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T018",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRRF",
+        "valor_centavos": 0,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "folha de agosto sem irrf_centavos: operando ausente",
+      "corpo": {
+        "titular_id": "T018",
+        "competencia": "202608",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "invalidado",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T018",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T018",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "divergente",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente"
+            ]
+          }
+        ],
+        "entregaveis_inexistentes": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E07"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "E08",
+            "cf": "CF-09",
+            "resultados": [
+              "ok:B",
+              "divergente:B",
+              "ok:B"
+            ],
+            "valores": [
+              [
+                88000,
+                88000
+              ],
+              [
+                26000,
+                25000
+              ],
+              [
+                88000,
+                88000
+              ]
+            ],
+            "classes": [
+              "O",
+              "O",
+              "O"
+            ],
+            "semantica_calculo": 3
+          },
+          {
+            "titular_id": "T018",
+            "competencia": "202609",
+            "tipo": "E08",
+            "cf": "CF-09",
+            "resultados": [
+              "divergente:B"
+            ],
+            "classes": [
+              "S"
+            ]
+          }
+        ],
+        "conferencias_total": 4,
+        "excecoes": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "entregavel": "E08",
+            "tipo": "CF-09",
+            "estados": [
+              "resolvida:fato_alterado"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T018",
+            "competencia": "202609",
+            "entregavel": "E08",
+            "tipo": "CF-09",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "S"
+          }
+        ],
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T017",
+            "competencia": "202608",
+            "tipo": "folha",
+            "tributo": "",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "IRRF",
+            "versoes": 2
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "nome": "folha.fechada",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "nome": "guias.validadas",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T017",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 2
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -44,4 +44,4 @@ Arquivos obrigatórios em cada spike:
 
 ## Decisões em aberto
 
-- **Reavaliação após fato: ambiguidade na spec (§6 passo 2: piso ou exato?).** A spec prevalece (`product.md`, regra 1); o design não decide. Requer decisão do dono da spec e correção da §6.2. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`. Não trate a linha "Reavaliação após fato" dos `design.md` como fixa.
+- Nenhuma. A reavaliação após fato (§6 passo 2) foi resolvida em 15/10/2026: mínimo + idempotência; recorte só como otimização com teste diferencial. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.

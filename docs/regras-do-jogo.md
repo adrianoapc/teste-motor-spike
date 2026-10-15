@@ -1,6 +1,6 @@
 # Regras do jogo: como as três spikes são comparadas
 
-**v2 · 12/10/2026.** Base: spec do spike v0.5 §4.3 e §4.4 (projeto Rissi). v2: entra a spike PHP.
+**v3 · 15/10/2026.** Base: spec do spike v0.7 §4.3 e §4.4 (projeto Rissi). v2: entra a spike PHP. v3: o teste comum de manutenção vira a fase 4 (manutenção M1).
 
 ## 1 · O que é comum e ninguém altera
 
@@ -32,7 +32,7 @@ Se uma spike achar erro na base comum, ela **para** e registra em `DUVIDAS.md`. 
 | 5 | Rede de proteção | Erros barrados pelo compilador (.NET), mypy (Python) ou PHPStan (PHP) antes de teste | `REGISTRO-COMPILADOR.md` |
 | 6 | Esforço do agente | Tarefas concluídas, retrabalhos, intervenções humanas, tempo de relógio | `METRICAS.md` |
 | 7 | Dúvidas | Quantas e de que tipo; quantas viraram invenção sem registro (avaliado na revisão) | `DUVIDAS.md` e revisão |
-| 8 | Manutenção | A fase 2 é um teste de manutenção em duas camadas: a semântica v2 muda regras sobre código pronto (§7.4, §8 item 4, §9.1 CF-09) e a **v3 muda o domínio** (fim no protocolo, estado `pago` aposentado, regra trocada de versão pela V006). Medir retrabalho e tempo da fase 2 em separado, e a tarefa 11 (v3) à parte. **Teste comum (as três):** depois da fase 2, a mesma mudança de regra nas três (proposta: as regras validadas com o Rafael em 08/10, como nova versão de `fiscal.tolerancia` e `fechamento.entregaveis`), medindo tempo até passar no verificador | `METRICAS.md` (seções Fase 2 e Manutenção) |
+| 8 | Manutenção | A fase 2 é um teste de manutenção em duas camadas: a semântica v2 muda regras sobre código pronto (§7.4, §8 item 4, §9.1 CF-09) e a **v3 muda o domínio** (fim no protocolo, estado `pago` aposentado, regra trocada de versão pela V006). Medir retrabalho e tempo da fase 2 em separado, e a tarefa 11 (v3) à parte. **Teste comum (as três): fase 4, manutenção M1** (semântica v4 §16, V008, cenários C11 a C13): regras de 08/10 e da amostra real de 14/10, como nova versão de `fiscal.tolerancia` e `fechamento.entregaveis`, mais duas mudanças de cálculo (CF-07 do LP e CF-09 com IRRF). Mede tempo de relógio do início da tarefa 19 até 13/13 no verificador, retrabalhos, intervenções humanas e `git diff --stat`. É a única medida de manutenção que compara as três nas mesmas condições | `METRICAS.md` (seções Fase 2 e Manutenção) |
 | 9 | Imagem | Tamanho da imagem e tempo de subida até `/health` responder | `METRICAS.md` |
 | 10 | Escala | Cenário C6 (fase 3), uma spike de cada vez | relatório do verificador |
 

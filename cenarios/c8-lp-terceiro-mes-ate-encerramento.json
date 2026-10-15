@@ -10,8 +10,8 @@
     "§10.2"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v2",
-    "fiscal.tolerancia v1"
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2"
   ],
   "titulares": [
     "T008"
@@ -225,10 +225,12 @@
           "parcelas": [
             {
               "socio": "S1",
+              "tributo": "IRPJ",
               "valor_centavos": 96000
             },
             {
               "socio": "S2",
+              "tributo": "IRPJ",
               "valor_centavos": 64000
             }
           ]
