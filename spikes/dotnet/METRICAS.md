@@ -121,7 +121,7 @@ Sem A/B controlado contra a medição anterior; sem teste de que 1 core é o lim
 
 # Comparação entre spikes: fonte única em `medicao/RESULTADOS.md`
 
-As comparações entre spikes (conjunto FIXO de 5 operações idêntico nas 3 linguagens; C6 isolado N=3; abertura de 10.000 empresas com N=3 em SN pura e em mix SN/LP; diferencial do Python) estão em **`medicao/RESULTADOS.md`**, medidas na mesma sessão, com imagens sem bind mount. As tabelas por spike acima ficam como histórico: **antes, os cenários de medição diferiam entre os spikes e elas não são comparáveis linha a linha.** Números copiados de `medicao/RESULTADOS.md` (mediana [mín–máx], N=3), carga do host nunca abaixo de 2,9 com 10 CPUs:
+As comparações entre spikes (conjunto FIXO de 5 operações idêntico nas 3 linguagens; C6 isolado N=3; abertura de 10.000 empresas com N=3 em SN pura e em mix SN/LP; diferencial do Python) estão em **`medicao/RESULTADOS.md`**, medidas na mesma sessão, com imagens sem bind mount. As tabelas por spike acima ficam como histórico: **antes, os cenários de medição diferiam entre os spikes e elas não são comparáveis linha a linha.** Números copiados de `medicao/RESULTADOS.md` (mediana [mín–máx], N=3), carga média do host (`uptime`, 1 min, antes de cada bloco, 10 CPUs): rodada 1 de 2,89 a 6,43; rodada 2 de 2,75 a 8,46 (valores em `medicao/RESULTADOS.md`):
 
 | Medida | .NET | PHP | Python |
 |---|---|---|---|
