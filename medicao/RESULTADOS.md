@@ -195,7 +195,7 @@ pró-labore 5.998, taxa 1.436; LP: folha 904, pró-labore 2.523, taxa 556. Cada 
 | PHP 8.4 | **143.3** [140.8–146.4] | [143.3, 146.4, 140.8] | 200 | 10000/0 | 65288 / 24250 | 730029 | 32 / 102 | 248 | 49 / 76 | 297 | False / 0 |
 | Python 3.13 | **74.9** [74.0–105.5] | [105.5, 74.9, 74.0] | 200 | 10000/0 | 65288 / 24250 | 730029 | 43 / 52 | 110 | 45 / 79 | 282 | False / 0 |
 
-Massa (idêntica nos 3, semente 20261006, `gerar_massa_sintetica.py`): SN 7062 (folha 2108, pró-labore 5998, taxa 1436), LP 2938 (folha 904, pró-labore 2523, taxa 556). Requisição: 1746532 bytes.
+Massa (idêntica nos 3, semente 20261006, `gerar_massa_sintetica.py`): SN 7062 (folha 2108, pró-labore 5998, taxa 1436), LP 2938 (folha 904, pró-labore 2523, taxa 556). Requisição: **1.586.528 bytes** (corpo JSON compacto, como o HTTPX 0.28.1 envia). Nota: a versão anterior deste arquivo dizia 1.746.532 bytes, valor calculado com `len(json.dumps(corpo))`, que inclui espaços após `:` e `,`; o corpo enviado não os tem. Corrigido sem reexecutar a medição, regerando o mesmo corpo de forma determinística (semente 20261006).
 
 #### SQLs totais da abertura (log_statement=all, tudo contado; 1 passada por conjunto, banco limpo antes)
 
@@ -255,3 +255,10 @@ Entregáveis por empresa: SN pura 9.245, LP pura 8.245. Tempo da requisição co
 | Fim | 21:49 | 8,46 / 7,22 / 6,27 |
 
 (As execuções 2 e 3 do diferencial ocorreram entre 20:54 e 21:06 hora local do host; os registros delas estão no mesmo arquivo.)
+
+
+## Leitura honesta: operação isolada vs em lote, e a anomalia do .NET
+
+- **O ranking muda entre operação isolada e lote.** Ao abrir 1 caso, o PHP faz mais SQLs (94) do que o Python (85) e o .NET (79). Na abertura de 10.000 empresas em uma requisição, o PHP faz menos SQLs por empresa (65,99) do que o .NET (68,94) e o Python (69,75). Esses são os números das tabelas (i) e da rodada 2; não são do mesmo cenário.
+- **Causa: HIPÓTESE não provada.** Uma explicação possível é que o memo por requisição seja amortizado em lote, mas isso não foi testado.
+- **Anomalia do .NET não investigada.** O .NET levou 108 a 125 s no mix SN/LP de 10.000 empresas contra ~70 s nas 10.000 SN puras da rodada 1, embora faça menos SQLs por empresa no mix. Carga do host, 50 carteiras, o mix ou outra coisa: **não foi investigado**.

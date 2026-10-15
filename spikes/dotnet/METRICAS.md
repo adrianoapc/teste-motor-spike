@@ -116,3 +116,29 @@ O teste só compara de fato se `contrato/` estiver visível a partir do diretór
 
 ## Não medido
 Sem A/B controlado contra a medição anterior; sem teste de que 1 core é o limite; causa do `AdminShutdown` não identificada.
+
+---
+
+# Comparação entre spikes: fonte única em `medicao/RESULTADOS.md`
+
+As comparações entre spikes (conjunto FIXO de 5 operações idêntico nas 3 linguagens; C6 isolado N=3; abertura de 10.000 empresas com N=3 em SN pura e em mix SN/LP; diferencial do Python) estão em **`medicao/RESULTADOS.md`**, medidas na mesma sessão, com imagens sem bind mount. As tabelas por spike acima ficam como histórico: **antes, os cenários de medição diferiam entre os spikes e elas não são comparáveis linha a linha.** Números copiados de `medicao/RESULTADOS.md` (mediana [mín–máx], N=3), carga do host nunca abaixo de 2,9 com 10 CPUs:
+
+| Medida | .NET | PHP | Python |
+|---|---|---|---|
+| SQLs: abrir 1 caso SN com folha | 79 [79–79] | 94 [94–94] | 85 [85–85] |
+| SQLs: fato que não afeta nada | 19 | 34 | 12 |
+| SQLs: fato que leva o E01 a validado | 40 | 70 [70–72] | 39 |
+| SQLs: fato repetido | 6 | 6 | 6 |
+| SQLs: nova versão de fato existente | 50 | 83 [83–85] | 49 |
+| C6 isolado: abertura de 4.500 casos (s) | 28.35 [28.20–28.60] | 38.92 [38.45–40.09] | 19.45 [19.15–19.76] |
+| C6 isolado: p95 das 300 publicações (s) | 0.030 | 0.075 | 0.050 |
+| 10.000 SN puras, 1 requisição (s) | 70.5 [70.1–71.1] | 110.2 [103.9–116.9] | 52.8 [51.9–53.7] |
+| 10.000 mix SN/LP, 1 requisição (s) | 108.3 [108.3–125.4] | 143.3 [140.8–146.4] | 74.9 [74.0–105.5] |
+| SQLs por empresa, mix de 10.000 (1 passada) | 68.94 | 65.99 | 69.75 |
+
+Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (3 execuções de 150).
+
+## Leitura honesta
+- O ranking de SQLs muda entre operação isolada e lote: o PHP faz mais SQLs ao abrir 1 caso (94 contra 79 e 85), mas menos por empresa em lote (65,99 contra 68,94 e 69,75). A causa (memo por requisição amortizado em lote) é **hipótese não provada**.
+- A anomalia do .NET (108–125 s no mix contra ~70 s em 10.000 SN puras) **não foi investigada**.
+- Tempo de parede continua sendo ordem de grandeza: máquina não totalmente quieta, 11 contêineres alheios no ar, cliente no host.
