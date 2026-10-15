@@ -206,3 +206,57 @@ Vetores: fixture com 54 (22 aceitos, 32 rejeitados); o campo `campos_texto` sobr
 ### 15. Ambiguidade na §6.2: piso ou exato
 
 O .NET implementa a leitura PISO: reavalia todos os entregáveis de todos os casos abertos do titular a cada fato (`MotorServico`/`AvaliarCaso`). A §6 passo 2 diz o que deve ser reavaliado, sem "apenas". Sem diferencial equivalente ao do Python. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
+
+
+## Fase 4 — Manutenção M1 (semântica v4, V008, cenários C11–C13)
+
+Nenhuma dúvida bloqueante; a base comum (`db/`, `contrato/`, `cenarios/`, `verificador/`,
+`docs/`, `.kiro/steering/`) não foi tocada. Decisões tomadas ao implementar as tarefas 19–23:
+
+### 16. `semantica_calculo` = 3 (tarefa 20)
+A §9.2 e o §16 (M1.3/M1.4) pedem que a versão da semântica do cálculo suba quando uma regra de
+cálculo muda o resultado para os mesmos fatos — exatamente o caso da CF-07 do LP e do par IRRF da
+CF-09. Subi `EntradaHash.SemanticaCalculo` de 2 para 3; **todas** as conferências novas gravam 3 e
+entram no `entrada_hash` com `"semantica_calculo":3` (linhas 1 continuam sem o campo, 2 com `":2"`).
+O `sujeito_fator_r` e a tolerância v2 não exigiram código: a condição do CF-08 (só SN sujeito ao
+Fator R) e os limiares de tolerância vêm da `fechamento.entregaveis` v3 / `fiscal.tolerancia` v2,
+lidas pelo `status` ("em uso"), que o motor já lê desde a v3. O campo `sujeito_fator_r` chega no
+snapshot e é copiado ao contexto por `Contexto.DeSnapshot` (nenhuma validação nova foi necessária:
+o C11 publica o campo e o verificador passa; a `EmpresaValida` já aceita campos extras do snapshot).
+
+### 17. CF-07: ramo SN agregado × ramo LP tributo a tributo (tarefa 21)
+A regra v3 tem **uma** CF-07 sem `quando` por regime; a §9.1 ramifica por regime dentro da fórmula.
+Decisão: ler o `regime` do contexto do caso. **SN** mantém o comportamento anterior (esperado =
+`apurado[DAS]`, obtido = soma de **todas** as parcelas, sem olhar tributo). **LP**: tributos =
+apurados vigentes do caso ∪ tributos das parcelas; para cada T, esperado = `apurado[T].valor`,
+obtido = soma das parcelas com `tributo = T` (nenhuma = 0); grava o par de **maior diferença**
+(empate: menor tributo por code point, via `SortedSet` ordinal). Parcela sem `tributo` (texto não
+vazio) = operando inválido (classe S); tributo da união sem `apurado` no caso = dado ausente
+(classe S). Os apurados vêm dos fatos vigentes do caso (publicados pela conclusão do E03), não das
+entradas declaradas — como a §9.1 descreve ("os valores vêm dos fatos vigentes do próprio caso").
+
+### 18. CF-09: de onde vem cada par (tarefa 22)
+A §9.1 é literal: **INSS/FGTS da folha do próprio mês**, **IRRF da folha da competência anterior**.
+A regra v3 do E08 declara a entrada `folha` com `competencia_relativa: -1` (que resolve o IRRF) e as
+guias INSS/FGTS/IRRF do mês. A folha do próprio mês é publicada pela conclusão do E06 e está nos
+fatos vigentes do caso; a folha do mês anterior é de **outra** competência, então não aparece em
+`VigentesDoCasoAsync` — `Conferir` resolve a entrada `folha` do item (competência deslocada) e busca
+o fato por chave (`VigenteAsync`), passando-o em `ContextoCalculo.FolhaConferencia`. INSS/FGTS lêem
+`Buscar(fatos,"folha")` (mês); IRRF lê `FolhaConferencia.payload.irrf_centavos` (mês anterior).
+Par de maior diferença; empate = INSS, depois FGTS, depois IRRF. Folha do mês anterior sem
+`irrf_centavos` = dado ausente, classe S (C13 T018). A invalidação da folha M-1 já atinge o E08
+deste mês (§11.1): o E08 liga a folha M-1 como `entregavel_fato` (papel entrada) ao ficar pronto, e
+a invalidação busca sementes por `ComFatoLigadoAsync(fatoAnterior)` sem filtrar competência — nada
+a mudar no mecanismo de invalidação/cascata.
+
+> **Retrabalho registrado (medida de manutenção):** a primeira versão da CF-09 lia os três pares da
+> folha do mês anterior e regrediu o C2 (12/13) — INSS/FGTS têm de vir da folha do próprio mês.
+> Corrigido conforme acima; é a única reversão de rumo da fase 4.
+
+### 19. §6 passo 2 (idempotência) — v4
+Esta spike faz percurso completo (todos os entregáveis de todos os casos abertos do titular a cada
+fato). A idempotência cobrada pela fase 4 (`espera.sem_efeito_nos_casos`: fato sem consumidor não
+grava transição/evento/conferência/exceção/tarefa/`version`) já era respeitada: a prontidão só
+transiciona quando o estado efetivamente muda, e as conferências reaproveitam pela chave
+(`cf`, `entregavel_id`, `entrada_hash`) sem gravar outra. Os três cenários C11–C13 têm passo de fato
+sem consumidor e passam. Mantida a leitura PISO descrita no item 15.

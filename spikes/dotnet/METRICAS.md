@@ -66,6 +66,63 @@ Sob escala (C6, 4.500 casos no banco), pior leitura: I1 0,015 · I2 0,039 · I3 
 
 ---
 
+# Manutenção M1 (Fase 4)
+
+> Teste comum de manutenção (`docs/regras-do-jogo.md`, critério 8): a mesma mudança
+> (semântica **v4**, migração **V008**, contrato **1.3.0**, cenários **C11–C13**) pedida
+> às três spikes. Mede-se tempo de relógio e retrabalho até o verificador passar `--fase 4`
+> (13/13). Branch `m1/spike-dotnet`, cortada da `main` (que já traz a base v4: V008 aplicada,
+> C11–C13 e o verificador com `--fase 4`).
+
+- **Início da tarefa 19:** 2026-10-15 00:47 -03.
+- **Fim (13/13):** 2026-10-15 01:13 -03. **Tempo de relógio: ~26 min.**
+
+## Correção — Fase 4
+`python verificador/verificador.py --api http://localhost:8081 --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --fase 4 --limpar --relatorio spikes/dotnet/resultado-fase4-spike-dotnet.json`
+→ **`RESULTADO: todos passaram (13/13)`** (C1–C13, regressão das fases 1–3 incluída; INV-1 a INV-15 ok).
+Relatório em `spikes/dotnet/resultado-fase4-spike-dotnet.json`.
+
+## Tarefa 19 · regressão com as regras novas (código v3, DB v4)
+Rodado `--todos cenarios --fase 3 --limpar` com o código **sem alteração** (estado da
+fase 3, v3) contra o banco já migrado para **V008** (regras v4). Resultado:
+**`RESULTADO: todos passaram (10/10)`** — nenhum cenário da fase 3 quebrou.
+
+Por quê: as mudanças de regra da M1 (tolerância v2, CF-08 só para SN sujeito ao Fator R,
+CF-07 do LP tributo a tributo, par IRRF da CF-09) só se manifestam nos cenários **novos**
+C11–C13 (fase 4) e no `sujeito_fator_r`, que a fase 3 não exercita. As versões de regra
+(`fechamento.entregaveis` v3, `fiscal.tolerancia` v2) são lidas pelo `status` ("em uso"),
+e o código já lê por `status` desde a v3 — então o bump da V008 é absorvido de forma
+transparente nos cenários antigos (as tolerâncias 1–10 = alerta A não bloqueiam onde antes
+já passavam; nenhum caso da fase 3 tem divergência de 1–10 centavos que mudasse de classe).
+
+Impacto da mudança de regra sobre o código existente: **zero regressão**. O trabalho da
+fase 4 é todo nos cenários novos (tarefas 20–22). Rodando `--fase 4` sem mudar código: **9/13**
+(C11, C12, C13 falham); todo o restante já passava.
+
+## Tarefas 20–22 · o que mudou no código
+| Tarefa | Mudança | Arquivos |
+|---|---|---|
+| 20 (C11) | `semantica_calculo` 2 → 3 (M1.3/M1.4: a semântica do cálculo mudou). O `sujeito_fator_r` e a tolerância v2 já são absorvidos pela regra v3 lida por `status`; a condição do CF-08 (Fator R) vem da regra, não do código | `EntradaHash.cs` |
+| 21 (C12) | CF-07 passa a ramificar por regime: **SN** continua agregado (`apurado[DAS]` × soma de todas as parcelas); **LP** vira tributo a tributo — tributos = apurados do caso ∪ tributos das parcelas, par de maior diferença (empate: menor por code point), parcela sem tributo = operando inválido, tributo sem apurado = dado ausente (classe S) | `CalculadoraConferencias.cs` |
+| 22 (C13) | CF-09 ganha o 3º par IRRF: INSS/FGTS continuam da folha do **próprio mês** (fatos do caso), IRRF vem da folha do **mês anterior** (entrada do E08 com `competencia_relativa -1`, resolvida em `Conferir`), guia IRRF do mês; par de maior diferença (empate: INSS, FGTS, IRRF); folha M-1 sem `irrf_centavos` = dado ausente (classe S). A invalidação da folha M-1 já atingia o E08 do mês (§11.1) pelo mecanismo de sementes por fato ligado — nada a mudar lá | `CalculadoraConferencias.cs`, `Conferir.cs` |
+
+## Esforço da Fase 4
+- **Retrabalhos (reversões de rumo):** 1. A primeira versão da CF-09 lia os **três** pares
+  da folha do mês anterior; C2 regrediu (12/13) porque INSS/FGTS vêm da folha do próprio mês
+  (a folha M-1 só fornece o IRRF). Corrigido lendo INSS/FGTS de `Buscar(fatos,"folha")` e só o
+  IRRF de `FolhaConferencia`. As demais tarefas passaram no primeiro verificador.
+- **Intervenções humanas:** 0 (nenhuma dúvida bloqueante; a base comum não foi tocada).
+- **Arquivos e linhas (`git diff --stat main -- spikes/dotnet/src spikes/dotnet/tests`):**
+  5 arquivos, **+325 / −45**. Só código/teste da spike `dotnet`; produção: `CalculadoraConferencias.cs`
+  (+169/−~), `Conferir.cs` (+17), `EntradaHash.cs` (+5/−3). Testes: `DominioVetoresTeste.cs` (+153),
+  `RevisaoPosMergeTeste.cs` (±26, ajuste dos vetores de CF-09 e do hash de semântica).
+- **Erros barrados pelo compilador antes de teste:** 1 (CS1501, chamada de `Calcular` com 5
+  argumentos nos testes de CF-09 — a assinatura recebe uma lista de fatos; corrigido para `new[]{...}`).
+  Registrado em `REGISTRO-COMPILADOR.md`.
+- **Testes:** 243 (233 unidade + 10 arquitetura), todos verdes; `TreatWarningsAsErrors` sem avisos.
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.

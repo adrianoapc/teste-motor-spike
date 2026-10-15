@@ -43,8 +43,12 @@ public sealed class Conferir
     {
         var fatos = await _r.Fatos.VigentesDoCasoAsync(caso.TitularId, caso.Competencia);
         var algumaBloqueanteDivergente = false;
+        // Folha resolvida da entrada do item (§7.1): a regra v3 do E08 declara 'folha' com
+        // competencia_relativa -1, então esta é a folha do mês anterior. CF-09 lê os três pares dela.
+        // Em outra competência que não a do caso, o fato não está em VigentesDoCasoAsync — busca direto.
+        var folhaConf = await ResolverFolhaAsync(caso, item, ctx);
         var contextoCalculo = new ContextoCalculo(caso.Competencia, item, ctx,
-            _regra.TributoDaGuia(ctx, caso.Competencia), _fiscal.ProlaboreBp);
+            _regra.TributoDaGuia(ctx, caso.Competencia), _fiscal.ProlaboreBp, folhaConf);
 
         foreach (var cfItem in item.Conferencias)
         {
@@ -143,6 +147,17 @@ public sealed class Conferir
             if (excId is { } eid)
                 await _r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, e.Id, "excecao_id", eid);
         }
+    }
+
+    /// <summary>Folha resolvida como entrada do item (§7.1): tipo 'folha', competência deslocada por
+    /// <c>competencia_relativa</c> (a regra v3 do E08 aponta -1 = mês anterior). Fora da competência do
+    /// caso o fato não está em VigentesDoCasoAsync, então busca pela chave. Nulo se o item não tem
+    /// entrada de folha que case o contexto, ou se a folha ainda não foi publicada.</summary>
+    private async Task<Motor.Dominio.Fatos.FatoVigente?> ResolverFolhaAsync(Caso caso, ItemEntregavel item, Contexto ctx)
+    {
+        var folha = item.EntradasResolvidas(ctx, caso.Competencia).FirstOrDefault(e => e.Tipo == "folha");
+        if (folha.Tipo != "folha") return null; // struct default => sem entrada de folha
+        return await _r.Fatos.VigenteAsync(caso.TitularId, folha.Competencia, "folha", folha.Tributo);
     }
 
     private static JsonElement Json(string s)
