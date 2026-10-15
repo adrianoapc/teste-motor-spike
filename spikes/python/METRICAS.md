@@ -150,7 +150,11 @@ M1.3 (CF-07 do LP tributo a tributo), M1.4 (CF-09 confere IRRF da folha M−1), 
 idempotente, recorte registrado na transição única).
 
 - **Início da tarefa 19:** 2026-10-15 00:54 -03 (03:54 UTC)
-- **Fim (13/13):** _(a preencher ao chegar a 13/13)_
+- **Fim (13/13):** 2026-10-15 01:26 -03 (04:26 UTC) — ~32 min de relógio.
+- **Verificador final:** `--todos cenarios --fase 4 --limpar --relatorio resultado-fase4-python.json`,
+  só esta spike no ar (dotnet e php parados), **`RESULTADO: todos passaram (13/13)`**
+  (C1–C13; regressão das fases 1–3 incluída). Relatório em
+  `spikes/python/resultado-fase4-python.json`.
 
 ## Tarefa 19 — regressão com as regras novas, sem mudar código
 
@@ -186,13 +190,42 @@ transicoes por estado de destino (modo recorte): {'aguardando_insumo': 4765,
 **0 divergência e 0 não determinismo** em 150 × 150 operações.
 
 ## Retrabalho e intervenções
-_(a preencher ao fim da fase)_
 
-## Impacto (git diff --stat da fase)
-_(a preencher ao fim da fase)_
+- **Intervenções humanas:** 0. A fase correu de ponta a ponta sem decisão de produto nem
+  desbloqueio manual — a semântica v4 (§16, §6 passo 2) já estava resolvida antes de começar.
+- **Retrabalho de código (idas e voltas no verificador):** 1 rodada extra, na tarefa 20. A
+  primeira execução do C11 passou em 133 de 134 checagens; faltava `semantica_calculo = 3`
+  (M1.5), que a conferência ainda gravava como 2. Bumpado o `SEMANTICA_CALCULO` de 2→3 e o C11
+  fechou 134/134. As tarefas 21, 22 e 23 passaram no verificador do cenário na primeira
+  execução após a implementação.
+- **Testes existentes ajustados pela mudança de semântica** (não é retrabalho de defeito, é a
+  própria manutenção): `test_vetores_entrada_hash` (semântica atual 2→3),
+  `test_semantica_calculo` (docstring), `test_revisao_codex::test_cf07_*` (CF-07 do LP deixou de
+  somar tudo contra o apurado da guia e passou a conferir tributo a tributo),
+  `test_invalidacao` e os `_conferir_entregavel`/`_invalidar` dos testes (nova assinatura com
+  `pend`, pela função única de transição).
+
+## Impacto (git diff --stat da fase, main..m1/spike-python)
+
+Código e testes (sem o relatório gerado): **11 arquivos, +364 / −63 linhas**.
+
+| Arquivo | Linhas |
+|---|---|
+| `src/motor/api/modelos.py` | +3 |
+| `src/motor/aplicacao/conferencia.py` | +63/− (CF-07 LP e CF-09 IRRF) |
+| `src/motor/aplicacao/motor_fechamento.py` | +90/−… (função única de transição) |
+| `src/motor/dominio/conferencias.py` | +78 (fórmulas puras M1) |
+| testes (6 arquivos) | +126 líquidas |
+
+Por tarefa (fonte): t20 contrato+semantica_calculo; t21 CF-07 LP; t22 CF-09 IRRF; t23 refatoração
+da transição única (o maior toque em `motor_fechamento.py`).
 
 ## Erros barrados pelo mypy antes de teste
-_(ver `REGISTRO-COMPILADOR.md`; resumo ao fim da fase)_
+
+**Nenhum nesta fase.** `mypy --strict src` (sem `# type: ignore`) passou em toda execução, antes
+de cada rodada de testes — nenhuma linha nova em `REGISTRO-COMPILADOR.md`. As falhas encontradas
+durante a fase foram de **teste** (comportamento), não de tipo, e estão contabilizadas em
+"Retrabalho" acima.
 
 ---
 
