@@ -22,6 +22,7 @@ final readonly class Empresa
         public bool $filial,
         public string $carteira,
         public string $municipio,
+        public bool $sujeitoFatorR = false,
     ) {}
 
     /**
@@ -40,6 +41,7 @@ final readonly class Empresa
             'filial' => $this->filial,
             'carteira' => $this->carteira,
             'municipio' => $this->municipio,
+            'sujeito_fator_r' => $this->sujeitoFatorR,
         ];
     }
 
@@ -62,6 +64,7 @@ final readonly class Empresa
             self::booleano($snapshot, 'filial'),
             self::texto($snapshot, 'carteira'),
             self::texto($snapshot, 'municipio'),
+            self::booleanoOpcional($snapshot, 'sujeito_fator_r'),
         );
     }
 
@@ -80,6 +83,24 @@ final readonly class Empresa
     private static function booleano(array $snapshot, string $chave): bool
     {
         $valor = $snapshot[$chave] ?? null;
+        if (! is_bool($valor)) {
+            throw new InvalidArgumentException("snapshot da empresa: {$chave} deve ser booleano");
+        }
+
+        return $valor;
+    }
+
+    /**
+     * Campo booleano opcional do snapshot: ausente ou null = false (v4: sujeito_fator_r, §3).
+     *
+     * @param  array<array-key, mixed>  $snapshot
+     */
+    private static function booleanoOpcional(array $snapshot, string $chave): bool
+    {
+        $valor = $snapshot[$chave] ?? null;
+        if ($valor === null) {
+            return false;
+        }
         if (! is_bool($valor)) {
             throw new InvalidArgumentException("snapshot da empresa: {$chave} deve ser booleano");
         }
