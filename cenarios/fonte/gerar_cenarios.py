@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gera cenarios/c*.json. Fonte única dos cenários do spike.
 
-Os valores esperados são derivados à mão de docs/semantica-do-motor.md (v3); cada
+Os valores esperados são derivados à mão de docs/semantica-do-motor.md (v4); cada
 cenário cita as seções que exercita. Rodar da raiz:  python cenarios/fonte/gerar_cenarios.py
 """
 from __future__ import annotations
@@ -21,9 +21,12 @@ E12_ENC = SEQ4 + ["encerrado"]
 # Construtores de passo
 # ---------------------------------------------------------------------------
 def empresa(tit: str, regime: str, folha: bool = False, prolabore: bool = False, taxa: bool = False,
-            carteira: str = "C-01") -> dict[str, Any]:
-    return {"titular_id": tit, "regime": regime, "tem_folha": folha, "tem_prolabore": prolabore,
-            "tem_taxa_municipal": taxa, "filial": False, "carteira": carteira, "municipio": "3549805"}
+            carteira: str = "C-01", fator_r: bool | None = None) -> dict[str, Any]:
+    e: dict[str, Any] = {"titular_id": tit, "regime": regime, "tem_folha": folha, "tem_prolabore": prolabore,
+                         "tem_taxa_municipal": taxa, "filial": False, "carteira": carteira, "municipio": "3549805"}
+    if fator_r is not None:  # v4: campo opcional; ausente = false (§3)
+        e["sujeito_fator_r"] = fator_r
+    return e
 
 
 def abrir(comp: str, *empresas: dict[str, Any], criados: int | None = None, existentes: int = 0,
@@ -36,7 +39,7 @@ def abrir(comp: str, *empresas: dict[str, Any], criados: int | None = None, exis
 
 
 def fato(tit: str, comp: str, tipo: str, valor: int | None = None, tributo: str = "", payload: dict[str, Any] | None = None,
-         fonte: str = "spike", efeito: str = "novo", descricao: str | None = None) -> dict[str, Any]:
+         fonte: str = "spike", efeito: str = "novo", descricao: str | None = None, sem_efeito: bool = False) -> dict[str, Any]:
     corpo: dict[str, Any] = {"titular_id": tit, "competencia": comp, "tipo": tipo, "fonte": fonte, "observado_em": OBS}
     if tributo:
         corpo["tributo"] = tributo
@@ -44,10 +47,18 @@ def fato(tit: str, comp: str, tipo: str, valor: int | None = None, tributo: str 
         corpo["valor_centavos"] = valor
     if payload is not None:
         corpo["payload"] = payload
-    p: dict[str, Any] = {"acao": "publicar_fato", "corpo": corpo, "espera": {"efeito": efeito}}
+    espera: dict[str, Any] = {"efeito": efeito}
+    if sem_efeito:  # v4 §6 passo 2: idempotência da reavaliação
+        espera["sem_efeito_nos_casos"] = True
+    p: dict[str, Any] = {"acao": "publicar_fato", "corpo": corpo, "espera": espera}
     if descricao:
-        p = {"acao": "publicar_fato", "descricao": descricao, "corpo": corpo, "espera": {"efeito": efeito}}
+        p = {"acao": "publicar_fato", "descricao": descricao, "corpo": corpo, "espera": espera}
     return p
+
+
+def ruido(tit: str, comp: str, descricao: str) -> dict[str, Any]:
+    """Fato de um tipo que nenhuma regra consome: reavaliar o titular inteiro é permitido, mas não pode gravar nada."""
+    return fato(tit, comp, "anotacao_interna", None, payload={"texto": descricao}, fonte="intranet", descricao=descricao, sem_efeito=True)
 
 
 def concluir(tit: str, comp: str, tipo: str, saidas: list[dict[str, Any]], status: int = 200,
@@ -87,10 +98,18 @@ def conf(tit: str, comp: str, tipo: str, cf: str, resultado: str = "ok", quantid
     return {"titular_id": tit, "competencia": comp, "tipo": tipo, "cf": cf, "resultado": resultado, "quantidade": quantidade}
 
 
-def conf_seq(tit: str, comp: str, tipo: str, cf: str, resultados: list[str], override: list[int] | None = None) -> dict[str, Any]:
+def conf_seq(tit: str, comp: str, tipo: str, cf: str, resultados: list[str], override: list[int] | None = None,
+             valores: list[list[int | None]] | None = None, classes: list[str] | None = None,
+             semantica: int | None = None) -> dict[str, Any]:
     c: dict[str, Any] = {"titular_id": tit, "competencia": comp, "tipo": tipo, "cf": cf, "resultados": resultados}
     if override is not None:
         c["override"] = override
+    if valores is not None:
+        c["valores"] = valores
+    if classes is not None:
+        c["classes"] = classes
+    if semantica is not None:
+        c["semantica_calculo"] = semantica
     return c
 
 
@@ -124,8 +143,9 @@ def cenario(cid: str, fase: int, nome: str, descricao: str, secoes: list[str], r
             "regras_usadas": regras, "titulares": titulares, "passos": passos}
 
 
-R_ALL = ["fechamento.entregaveis v2", "fiscal.tolerancia v1", "fiscal.parametros v1"]
-R_SEM_PARAM = ["fechamento.entregaveis v2", "fiscal.tolerancia v1"]
+R_ALL = ["fechamento.entregaveis v3", "fiscal.tolerancia v2", "fiscal.parametros v1"]
+R_SEM_PARAM = ["fechamento.entregaveis v3", "fiscal.tolerancia v2"]
+ANT = "202608"  # competência anterior a C: a folha dela entra na CF-09 de C (v4, par IRRF)
 C = "202609"
 
 
@@ -134,7 +154,7 @@ C = "202609"
 # ---------------------------------------------------------------------------
 def c1() -> dict[str, Any]:
     t = "T001"
-    emp = empresa(t, "SN", folha=True, prolabore=True)
+    emp = empresa(t, "SN", folha=True, prolabore=True, fator_r=True)
     passos = [
         abrir(C, emp),
         abrir(C, emp, criados=0, existentes=1, descricao="repetir a abertura é idempotente"),
@@ -156,13 +176,16 @@ def c1() -> dict[str, Any]:
             "tarefas_abertas": [tarefa(t, C, "E03"), tarefa(t, C, "E06")],
             "fatos": [versoes(t, C, "notas_oneflow", 1)]}),
         concluir(t, C, "E03", [{"tributo": "DAS", "valor_centavos": 600000}]),
-        concluir(t, C, "E06", [{"valor_centavos": 500000, "payload": {"inss_centavos": 110000, "fgts_centavos": 40000}}]),
+        concluir(t, C, "E06", [{"valor_centavos": 500000, "payload": {"inss_centavos": 110000, "fgts_centavos": 40000, "irrf_centavos": 52000}}]),
         AGUARDAR,
         concluir(t, C, "E07", [{"valor_centavos": 2800000}]),
+        fato(t, ANT, "folha", 500000, payload={"inss_centavos": 110000, "fgts_centavos": 40000, "irrf_centavos": 51500}, fonte="dp",
+             descricao="folha do mês anterior (sem caso aberto): o IRRF dela é declarado na DCTFWeb deste mês (v4)"),
         fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 360000}, {"socio": "S2", "valor_centavos": 240000}]}, fonte="calculo"),
         fato(t, C, "recibo_obrigacao", None, tributo="PGDAS-D", payload={"numero_recibo": "R-0001"}, fonte="integra"),
         fato(t, C, "guia", 110000, tributo="INSS", payload=guia_payload(C), fonte="porta_documental"),
         fato(t, C, "guia", 40000, tributo="FGTS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(t, C, "guia", 51500, tributo="IRRF", payload=guia_payload(C), fonte="porta_documental"),
         fato(t, C, "guia", 600000, tributo="DAS", payload=guia_payload(C), fonte="porta_documental"),
         AGUARDAR,
         verificar("guias validadas, antes da entrega", {
@@ -171,7 +194,7 @@ def c1() -> dict[str, Any]:
         fato(t, C, "documento_disponibilizado", None, tributo="DAS", payload={"canal": "nibo"}, fonte="entrega"),
         AGUARDAR,
         verificar("final", {
-            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 2}],
+            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 3}],
             "entregaveis": [ent(t, C, x, "validado", SEQ4) for x in ["E01", "E02", "E03", "E04", "E07", "E08", "E10"]]
                            + [ent(t, C, "E06", "validado", SEQ4), ent(t, C, "E11", "disponibilizado", E11_PROT), ent(t, C, "E12", "encerrado", E12_ENC)],
             "entregaveis_inexistentes": [{"titular_id": t, "competencia": C, "tipo": "E05"}],
@@ -181,13 +204,13 @@ def c1() -> dict[str, Any]:
             "excecoes_abertas": 0,
             "tarefas_abertas": [],
             "fatos": [versoes(t, C, "notas_oneflow", 1), versoes(t, C, "apurado", 1, "DAS"), versoes(t, C, "folha", 1), versoes(t, C, "prolabore", 1)],
-            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=12, insumos__completos=1, apuracao__concluida=1,
+            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=13, insumos__completos=1, apuracao__concluida=1,
                                folha__fechada=2, guias__validadas=2, documento__disponibilizado=1, recebimento__confirmado=0, guia__paga=0,
                                fechamento__concluido=1, conferencia__divergente=0, excecao__aberta=0, entregavel__invalidado=0),
         }, final=True),
     ]
     return cenario("C1", 1, "Feliz: Simples Nacional com folha e pró-labore",
-                   "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11 até o protocolo de entrega, encerramento pelo E12 no protocolo (sem esperar pagamento), versão em uso da regra (v2), idempotência de fato e eventos.",
+                   "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11 até o protocolo de entrega, encerramento pelo E12 no protocolo (sem esperar pagamento), versão em uso da regra (v3), idempotência de fato e eventos. v4: empresa sujeita ao Fator R (CF-08 roda) e CF-09 com o IRRF da folha do mês anterior.",
                    ["§5", "§6", "§7", "§8", "§9", "§10", "§12"], R_ALL, [t], passos)
 
 
@@ -245,7 +268,8 @@ def c7() -> dict[str, Any]:
 def c8() -> dict[str, Any]:
     t = "T008"
     passos = lp_terceiro_mes(t) + [
-        fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 96000}, {"socio": "S2", "valor_centavos": 64000}]}, fonte="calculo"),
+        fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "tributo": "IRPJ", "valor_centavos": 96000},
+                                                                 {"socio": "S2", "tributo": "IRPJ", "valor_centavos": 64000}]}, fonte="calculo"),
         fato(t, C, "recibo_obrigacao", None, tributo="DCTFWEB", payload={"numero_recibo": "D-0001"}, fonte="integra"),
         fato(t, C, "recibo_obrigacao", None, tributo="PGDAS-D", payload={"numero_recibo": "X-0001"}, fonte="integra",
              descricao="recibo de outro regime: grava, mas não é entrada de nenhum entregável desta empresa LP"),
@@ -284,6 +308,8 @@ def c2() -> dict[str, Any]:
     E06_SEQ = ["aguardando_insumo", "pronto", "processado", "validado", "invalidado", "pronto", "processado", "validado"]
     passos = [
         abrir(C, empresa(t, "SN", folha=True)),
+        fato(t, ANT, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 0}, fonte="dp",
+             descricao="folha do mês anterior sem IRRF retido (v4)"),
         fato(t, C, "faturamento_mes", 8000000, fonte="intranet"),
         fato(t, C, "notas_oneflow", 8000000, fonte="oneflow"),
         fato(t, C, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
@@ -293,6 +319,8 @@ def c2() -> dict[str, Any]:
         fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 288000}, {"socio": "S2", "valor_centavos": 192000}]}, fonte="calculo"),
         fato(t, C, "guia", 88000, tributo="INSS", payload=guia_payload(C), fonte="porta_documental"),
         fato(t, C, "guia", 32000, tributo="FGTS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(t, C, "guia", 0, tributo="IRRF", payload=guia_payload(C), fonte="porta_documental",
+             descricao="DCTFWeb do mês sem código 0561: o adaptador publica IRRF = 0 (v4 §16)"),
         fato(t, C, "guia", 480000, tributo="DAS", payload=guia_payload(C), fonte="porta_documental"),
         fato(t, C, "documento_disponibilizado", None, tributo="DAS", payload={"canal": "nibo"}, fonte="entrega"),
         AGUARDAR,
@@ -334,8 +362,8 @@ def c2() -> dict[str, Any]:
             "excecoes": [exc(t, C, "E11", "substituicao", ["aberta:"]), exc(t, C, "E08", "CF-09", ["resolvida:fato_alterado"])],
             "excecoes_total": 2,
             "tarefas_abertas": [],
-            "fatos": [versoes(t, C, "folha", 2), versoes(t, C, "guia", 2, "INSS"), versoes(t, C, "guia", 1, "FGTS")],
-            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=13, insumos__completos=1, apuracao__concluida=1,
+            "fatos": [versoes(t, C, "folha", 2), versoes(t, C, "guia", 2, "INSS"), versoes(t, C, "guia", 1, "FGTS"), versoes(t, C, "guia", 1, "IRRF")],
+            "eventos": eventos(t, C, competencia__aberta=1, fato__publicado=14, insumos__completos=1, apuracao__concluida=1,
                                folha__fechada=2, guias__validadas=3, documento__disponibilizado=1, guia__paga=0,
                                fechamento__concluido=1, conferencia__divergente=1, excecao__aberta=2, entregavel__invalidado=3),
         }, final=True),
@@ -495,7 +523,8 @@ def c5() -> dict[str, Any]:
         fato(t, J, "notas_oneflow", 12000000, fonte="oneflow"),
         AGUARDAR,
         concluir(t, J, "E03", [{"tributo": "IRPJ", "valor_centavos": 150000}]),
-        fato(t, J, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 90000}, {"socio": "S2", "valor_centavos": 60000}]}, fonte="calculo"),
+        fato(t, J, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "tributo": "IRPJ", "valor_centavos": 90000},
+                                                                 {"socio": "S2", "tributo": "IRPJ", "valor_centavos": 60000}]}, fonte="calculo"),
         fato(t, J, "recibo_obrigacao", None, tributo="DCTFWEB", payload={"numero_recibo": "D-0607"}, fonte="integra"),
         fato(t, J, "guia", 150000, tributo="IRPJ", payload=guia_payload(J), fonte="porta_documental"),
         fato(t, J, "documento_disponibilizado", None, tributo="IRPJ", payload={"canal": "nibo"}, fonte="entrega"),
@@ -622,7 +651,7 @@ def c10() -> dict[str, Any]:
              descricao="protocolo: e-mail disparado"),
         AGUARDAR,
         verificar("protocolo encerra o caso", {
-            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 2}],
+            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 3}],
             "entregaveis": [ent(t, C, "E11", "disponibilizado", E11_PROT), ent(t, C, "E12", "encerrado", E12_ENC)],
             "excecoes_total": 0,
             "eventos": eventos(t, C, documento__disponibilizado=1, fechamento__concluido=1)}),
@@ -655,7 +684,7 @@ def c10() -> dict[str, Any]:
              descricao="agendador roda de novo: já há confirmação, nada acontece"),
         AGUARDAR,
         verificar("final", {
-            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 2}],
+            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado", "regra_entregaveis_versao": 3}],
             "entregaveis": [ent(t, C, x, "validado", SEQ4) for x in ["E01", "E02", "E03", "E04", "E10"]]
                            + [ent(t, C, "E11", "disponibilizado", E11_PROT), ent(t, C, "E12", "encerrado", E12_ENC)],
             "entregaveis_inexistentes": [{"titular_id": t, "competencia": C, "tipo": x} for x in ["E05", "E06", "E07", "E08"]],
@@ -716,6 +745,176 @@ def c6() -> dict[str, Any]:
                    ["§5", "§6", "§13"], R_SEM_PARAM, [], passos)
 
 
+# ---------------------------------------------------------------------------
+# Fase 4 · manutenção M1 (semântica v4, §16)
+# ---------------------------------------------------------------------------
+def c11() -> dict[str, Any]:
+    a, b = "T011", "T012"
+    E01_B = ["aguardando_insumo", "pronto", "processado", "divergente", "invalidado", "pronto", "processado", "validado"]
+    passos = [
+        abrir(C, empresa(a, "SN", prolabore=True, fator_r=True), empresa(b, "SN", prolabore=True, carteira="C-02")),
+        fato(a, C, "faturamento_mes", 10000000, fonte="intranet"),
+        fato(a, C, "notas_oneflow", 9999990, fonte="oneflow", descricao="10 centavos a menos: alerta, não bloqueia"),
+        fato(a, C, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        fato(b, C, "faturamento_mes", 10000000, fonte="intranet"),
+        fato(b, C, "notas_oneflow", 9999989, fonte="oneflow", descricao="11 centavos a menos: bloqueia"),
+        fato(b, C, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        AGUARDAR,
+        verificar("10 centavos passa como alerta; 11 centavos bloqueia", {
+            "entregaveis": [ent(a, C, "E01", "validado"), ent(a, C, "E03", "pronto"),
+                            ent(b, C, "E01", "divergente"), ent(b, C, "E03", "aguardando_insumo")],
+            "conferencias": [conf_seq(a, C, "E01", "CF-01", ["divergente:A"], valores=[[10000000, 9999990]]),
+                             conf_seq(b, C, "E01", "CF-01", ["divergente:B"], valores=[[10000000, 9999989]])],
+            "excecoes": [exc(a, C, "E01", "CF-01", []), exc(b, C, "E01", "CF-01", ["aberta:"], "O")],
+            "tarefas_abertas": [tarefa(a, C, "E03")]}),
+        ruido(a, C, "anotação com tarefa aberta: não pode criar outra tarefa"),
+        ruido(b, C, "anotação com exceção aberta: não pode abrir outra exceção nem reconferir"),
+        concluir(a, C, "E03", [{"tributo": "DAS", "valor_centavos": 600000}]),
+        AGUARDAR,
+        concluir(a, C, "E07", [{"valor_centavos": 2800000}]),
+        fato(b, C, "notas_oneflow", 10000000, fonte="oneflow", efeito="nova_versao", descricao="OneFlow sincroniza a nota de 11 centavos"),
+        AGUARDAR,
+        concluir(b, C, "E03", [{"tributo": "DAS", "valor_centavos": 600000}]),
+        AGUARDAR,
+        concluir(b, C, "E07", [{"valor_centavos": 1500000}],
+                 ator="analista-c02"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(a, C, x, "validado", SEQ4) for x in ["E01", "E02", "E03", "E07"]]
+                           + [ent(b, C, "E01", "validado", E01_B)] + [ent(b, C, x, "validado", SEQ4) for x in ["E02", "E03", "E07"]],
+            "conferencias": [conf_seq(a, C, "E01", "CF-01", ["divergente:A"]), conf_seq(a, C, "E03", "CF-04", ["ok:B"]),
+                             conf_seq(a, C, "E07", "CF-08", ["ok:B"], valores=[[2800000, 2800000]], semantica=3),
+                             conf_seq(b, C, "E01", "CF-01", ["divergente:B", "ok:B"]), conf_seq(b, C, "E03", "CF-04", ["ok:B"]),
+                             conf(b, C, "E07", "CF-08", quantidade=0)],
+            "conferencias_total": 6,
+            "excecoes": [exc(a, C, "E01", "CF-01", []), exc(b, C, "E01", "CF-01", ["resolvida:fato_alterado"], "O")],
+            "tarefas_abertas": [],
+            "eventos": eventos(a, C, conferencia__divergente=0, excecao__aberta=0, entregavel__invalidado=0, folha__fechada=1)
+                       + eventos(b, C, conferencia__divergente=1, excecao__aberta=1, entregavel__invalidado=1, folha__fechada=1),
+        }, final=True),
+    ]
+    return cenario("C11", 4, "M1: tolerância de 10 centavos e CF-08 só com Fator R",
+                   "Duas empresas do Simples com pró-labore. Na primeira (sujeita ao Fator R) o OneFlow tem 10 centavos a menos: a CF-01 grava divergência A e o E01 segue validado; a CF-08 roda e confere os 28%. Na segunda (sem o campo sujeito_fator_r, que vale false) faltam 11 centavos: a CF-01 bloqueia (B) até o OneFlow sincronizar; o pró-labore de 15% passa sem CF-08, porque a empresa não está sujeita ao Fator R. Fatos sem consumidor publicados com tarefa e exceção abertas não podem gravar nada (idempotência da reavaliação, §6 passo 2).",
+                   ["§3", "§6", "§9.1", "§9.2", "§16"], R_ALL, [a, b], passos)
+
+
+def c12() -> dict[str, Any]:
+    t, u, w = "T014", "T015", "T016"
+    M2 = "202608"  # 2º mês do trimestre: a apuração do LP não pede meses anteriores
+    E04_SEQ = ["aguardando_insumo", "pronto", "processado", "divergente", "invalidado", "pronto", "processado", "validado"]
+
+    def parcelas(*itens: tuple[str, str, int]) -> dict[str, Any]:
+        return {"parcelas": [{"socio": s_, "tributo": tr, "valor_centavos": v} for s_, tr, v in itens]}
+
+    def lp_apurado(x: str, saidas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [fato(x, M2, "faturamento_mes", 20000000, fonte="intranet"), fato(x, M2, "notas_oneflow", 20000000, fonte="oneflow"),
+                AGUARDAR, concluir(x, M2, "E03", saidas, ator="analista-c02")]
+
+    passos = [
+        abrir(M2, empresa(t, "LP", carteira="C-02"), empresa(u, "LP", carteira="C-02"), empresa(w, "LP", carteira="C-02")),
+        *lp_apurado(t, [{"tributo": "IRPJ", "valor_centavos": 160000}, {"tributo": "CSLL", "valor_centavos": 144000},
+                        {"tributo": "PIS", "valor_centavos": 13000}, {"tributo": "COFINS", "valor_centavos": 60000}]),
+        *lp_apurado(u, [{"tributo": "IRPJ", "valor_centavos": 160000}]),
+        *lp_apurado(w, [{"tributo": "IRPJ", "valor_centavos": 160000}]),
+        fato(t, M2, "divisao_socios", None, fonte="calculo", descricao="PIS dividido com truncamento: 39 centavos a menos",
+             payload=parcelas(("S1", "IRPJ", 96000), ("S2", "IRPJ", 64000), ("S1", "CSLL", 86400), ("S2", "CSLL", 57600),
+                              ("S1", "PIS", 7780), ("S2", "PIS", 5181), ("S1", "COFINS", 36000), ("S2", "COFINS", 24000))),
+        fato(u, M2, "divisao_socios", None, fonte="calculo", descricao="parcela de ISS sem apurado de ISS no caso",
+             payload=parcelas(("S1", "IRPJ", 160000), ("S1", "ISS", 5000))),
+        fato(w, M2, "divisao_socios", None, fonte="calculo", descricao="parcela sem tributo no Presumido",
+             payload={"parcelas": [{"socio": "S1", "tributo": "IRPJ", "valor_centavos": 100000}, {"socio": "S2", "valor_centavos": 60000}]}),
+        AGUARDAR,
+        verificar("CF-07 tributo a tributo: o PIS bloqueia; tributo sem apurado e parcela sem tributo são dado ausente (S)", {
+            "entregaveis": [ent(t, M2, "E03", "validado"), ent(t, M2, "E04", "divergente"),
+                            ent(u, M2, "E04", "divergente"), ent(w, M2, "E04", "divergente")],
+            "conferencias": [conf_seq(t, M2, "E04", "CF-07", ["divergente:B"], valores=[[13000, 12961]], classes=["S"], semantica=3),
+                             conf(u, M2, "E04", "CF-07", "divergente"), conf_seq(u, M2, "E04", "CF-07", ["divergente:B"], classes=["S"]),
+                             conf(w, M2, "E04", "CF-07", "divergente"), conf_seq(w, M2, "E04", "CF-07", ["divergente:B"], classes=["S"])],
+            "excecoes": [exc(t, M2, "E04", "CF-07", ["aberta:"], "S"), exc(u, M2, "E04", "CF-07", ["aberta:"], "S"),
+                         exc(w, M2, "E04", "CF-07", ["aberta:"], "S")]}),
+        ruido(t, M2, "anotação com o E04 divergente: nada muda"),
+        fato(t, M2, "divisao_socios", None, fonte="calculo", efeito="nova_versao",
+             descricao="divisão refeita: PIS fecha; CSLL fica 5 centavos abaixo (alerta)",
+             payload=parcelas(("S1", "IRPJ", 96000), ("S2", "IRPJ", 64000), ("S1", "CSLL", 86400), ("S2", "CSLL", 57595),
+                              ("S1", "PIS", 7800), ("S2", "PIS", 5200), ("S1", "COFINS", 36000), ("S2", "COFINS", 24000))),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(t, M2, "E01", "validado", SEQ4), ent(t, M2, "E03", "validado", SEQ4), ent(t, M2, "E04", "validado", E04_SEQ),
+                            ent(u, M2, "E04", "divergente"), ent(w, M2, "E04", "divergente")],
+            "entregaveis_inexistentes": [{"titular_id": t, "competencia": M2, "tipo": x} for x in ["E02", "E05", "E06", "E07", "E08"]],
+            "conferencias": [conf_seq(t, M2, "E04", "CF-07", ["divergente:B", "divergente:A"],
+                                      valores=[[13000, 12961], [144000, 143995]], classes=["S", "S"], semantica=3),
+                             conf_seq(t, M2, "E01", "CF-01", ["ok:B"])],
+            "conferencias_total": 7,
+            "excecoes": [exc(t, M2, "E04", "CF-07", ["resolvida:fato_alterado"], "S"), exc(u, M2, "E04", "CF-07", ["aberta:"], "S"),
+                         exc(w, M2, "E04", "CF-07", ["aberta:"], "S")],
+            "tarefas_abertas": [],
+            "fatos": [versoes(t, M2, "apurado", 1, x) for x in ["IRPJ", "CSLL", "PIS", "COFINS"]] + [versoes(t, M2, "divisao_socios", 2)],
+            "eventos": eventos(t, M2, conferencia__divergente=1, excecao__aberta=1, entregavel__invalidado=1, apuracao__concluida=1),
+        }, final=True),
+    ]
+    return cenario("C12", 4, "M1: CF-07 do Presumido tributo a tributo",
+                   "Três empresas do Lucro Presumido no 2º mês do trimestre. A primeira apura IRPJ, CSLL, PIS e COFINS; a divisão por sócio trunca o PIS e fica 39 centavos abaixo (caso real da amostra de 14/10): a CF-07 bloqueia e grava o par do PIS, o tributo de maior diferença. A divisão refeita fecha o PIS e deixa a CSLL 5 centavos abaixo: alerta, o E04 valida e a conferência grava o par da CSLL. A segunda tem parcela de ISS sem apurado de ISS no caso e a terceira tem parcela sem tributo: as duas são dado ausente (classe S) e bloqueiam. Um fato sem consumidor com o E04 divergente não grava nada.",
+                   ["§9.1", "§9.2", "§9.3", "§16"], R_SEM_PARAM, [t, u, w], passos)
+
+
+def c13() -> dict[str, Any]:
+    t, u = "T017", "T018"
+    E08_SEQ = ["aguardando_insumo", "pronto", "processado", "validado", "invalidado", "pronto", "processado", "divergente",
+               "invalidado", "pronto", "processado", "validado"]
+    folha_c = {"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 30000}
+    passos = [
+        abrir(C, empresa(t, "SN", folha=True, carteira="C-03"), empresa(u, "SN", folha=True, carteira="C-03")),
+        concluir(t, C, "E06", [{"valor_centavos": 400000, "payload": folha_c}], ator="dp-c03"),
+        concluir(u, C, "E06", [{"valor_centavos": 400000, "payload": folha_c}], ator="dp-c03"),
+        fato(t, C, "guia", 88000, tributo="INSS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(t, C, "guia", 32000, tributo="FGTS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(t, C, "guia", 25000, tributo="IRRF", payload=guia_payload(C), fonte="porta_documental",
+             descricao="IRRF da DCTFWeb de setembro: é o retido na folha de agosto"),
+        AGUARDAR,
+        verificar("sem a folha de agosto o E08 não fica pronto", {
+            "entregaveis": [ent(t, C, "E06", "validado"), ent(t, C, "E08", "aguardando_insumo")], "tarefas_abertas": []}),
+        fato(t, ANT, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 25000}, fonte="dp",
+             descricao="folha de agosto chega (competência sem caso): reavalia o E08 de setembro"),
+        AGUARDAR,
+        verificar("E08 confere INSS, FGTS e o IRRF de agosto", {
+            "entregaveis": [ent(t, C, "E08", "validado")],
+            "conferencias": [conf_seq(t, C, "E08", "CF-09", ["ok:B"], valores=[[88000, 88000]], semantica=3)]}),
+        ruido(t, C, "anotação com o E08 validado: nada muda"),
+        fato(t, ANT, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 26000}, fonte="dp",
+             efeito="nova_versao", descricao="DP reabre a folha de agosto: IRRF sobe R$ 10,00"),
+        AGUARDAR,
+        verificar("folha do mês anterior reaberta invalida o E08 deste mês, que diverge no IRRF", {
+            "entregaveis": [ent(t, C, "E08", "divergente")],
+            "conferencias": [conf_seq(t, C, "E08", "CF-09", ["ok:B", "divergente:B"], valores=[[88000, 88000], [26000, 25000]])],
+            "excecoes": [exc(t, C, "E08", "CF-09", ["aberta:"], "O")]}),
+        fato(t, C, "guia", 26000, tributo="IRRF", payload=guia_payload(C), fonte="porta_documental", efeito="nova_versao",
+             descricao="DCTFWeb retificada com o IRRF novo"),
+        fato(u, C, "guia", 88000, tributo="INSS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(u, C, "guia", 32000, tributo="FGTS", payload=guia_payload(C), fonte="porta_documental"),
+        fato(u, C, "guia", 0, tributo="IRRF", payload=guia_payload(C), fonte="porta_documental"),
+        fato(u, ANT, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000}, fonte="dp",
+             descricao="folha de agosto sem irrf_centavos: operando ausente"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(t, C, "E06", "validado", SEQ4), ent(t, C, "E08", "validado", E08_SEQ),
+                            ent(u, C, "E06", "validado", SEQ4), ent(u, C, "E08", "divergente", ["aguardando_insumo", "pronto", "processado", "divergente"])],
+            "entregaveis_inexistentes": [{"titular_id": t, "competencia": C, "tipo": "E07"}],
+            "conferencias": [conf_seq(t, C, "E08", "CF-09", ["ok:B", "divergente:B", "ok:B"],
+                                      valores=[[88000, 88000], [26000, 25000], [88000, 88000]], classes=["O", "O", "O"], semantica=3),
+                             conf_seq(u, C, "E08", "CF-09", ["divergente:B"], classes=["S"])],
+            "conferencias_total": 4,
+            "excecoes": [exc(t, C, "E08", "CF-09", ["resolvida:fato_alterado"], "O"), exc(u, C, "E08", "CF-09", ["aberta:"], "S")],
+            "tarefas_abertas": [],
+            "fatos": [versoes(t, ANT, "folha", 2), versoes(t, C, "folha", 1), versoes(t, C, "guia", 2, "IRRF")],
+            "eventos": eventos(t, C, folha__fechada=1, guias__validadas=2, conferencia__divergente=1, excecao__aberta=1, entregavel__invalidado=2),
+        }, final=True),
+    ]
+    return cenario("C13", 4, "M1: CF-09 com o IRRF da folha do mês anterior",
+                   "Simples com folha. O IRRF retido na folha de agosto é declarado na DCTFWeb de setembro (amostra real de 14/10, 5 de 5 pares). O E08 de setembro só fica pronto quando chega a folha de agosto, uma competência sem caso aberto (entrada com competencia_relativa -1, §7.1). A folha de agosto reaberta pelo DP invalida o E08 de setembro, que diverge no IRRF até a DCTFWeb ser retificada. Na segunda empresa a folha de agosto vem sem irrf_centavos: dado ausente, classe S. Um fato sem consumidor com o E08 validado não grava nada.",
+                   ["§6", "§7.1", "§9.1", "§11", "§16"], R_SEM_PARAM, [t, u], passos)
+
+
 def main() -> None:
     gerados = {
         "c1-feliz-simples-com-folha.json": c1(),
@@ -728,6 +927,9 @@ def main() -> None:
         "c8-lp-terceiro-mes-ate-encerramento.json": c8(),
         "c9-override-conferencia.json": c9(),
         "c10-acompanhamento-apos-protocolo.json": c10(),
+        "c11-m1-tolerancia-e-fator-r.json": c11(),
+        "c12-m1-cf07-presumido-por-tributo.json": c12(),
+        "c13-m1-irrf-folha-mes-anterior.json": c13(),
     }
     for nome, conteudo in gerados.items():
         (SAIDA / nome).write_text(json.dumps(conteudo, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

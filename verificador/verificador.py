@@ -145,7 +145,7 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
 
     for cf in esp.get("conferencias", []):
         cur.execute(
-            """SELECT cf.resultado, cf.severidade, cf.override_autor FROM conferencias.conferencia cf
+            """SELECT cf.resultado, cf.severidade, cf.override_autor, cf.esperado_centavos, cf.obtido_centavos, cf.classe, cf.semantica_calculo FROM conferencias.conferencia cf
                JOIN fechamento.entregavel e ON e.id = cf.entregavel_id
                JOIN fechamento.caso_competencia c ON c.id = e.caso_id
                WHERE c.titular_id = %s AND c.competencia = %s AND e.tipo = %s AND cf.cf = %s
@@ -164,6 +164,17 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
             if rows:
                 r.checar(rows[-1]["resultado"] == cf["resultado"],
                          f"[{rotulo}] conferência {ident}: resultado {rows[-1]['resultado']!r}, esperado {cf['resultado']!r}")
+        if "valores" in cf:
+            # v4: par (esperado, obtido) gravado em cada conferência, na ordem; confere a escolha do tributo de maior diferença
+            obtido_v = [[x["esperado_centavos"], x["obtido_centavos"]] for x in rows]
+            r.checar(obtido_v == cf["valores"],
+                     f"[{rotulo}] conferência {ident}: (esperado, obtido) {obtido_v}, esperado {cf['valores']}")
+        if "classes" in cf:
+            obtido_c = [x["classe"] for x in rows]
+            r.checar(obtido_c == cf["classes"], f"[{rotulo}] conferência {ident}: classes {obtido_c}, esperado {cf['classes']}")
+        if "semantica_calculo" in cf and rows:
+            r.checar(all(x["semantica_calculo"] == cf["semantica_calculo"] for x in rows),
+                     f"[{rotulo}] conferência {ident}: semantica_calculo {[x['semantica_calculo'] for x in rows]}, esperado {cf['semantica_calculo']}")
         if "override" in cf and rows:
             com_override = [i for i, x in enumerate(rows) if x["override_autor"]]
             r.checar(com_override == cf["override"],
@@ -489,6 +500,27 @@ def _cliente_thread(api: str) -> httpx.Client:
     return c
 
 
+def contagem_efeitos(conn: psycopg.Connection, titular: str) -> dict[str, int]:
+    """Tudo o que uma reavaliação poderia criar ou mudar nos casos do titular (§6 passo 2, idempotência)."""
+    sql = {
+        "transicoes": "SELECT count(*) FROM fechamento.entregavel_transicao t JOIN fechamento.caso_competencia c ON c.id = t.caso_id WHERE c.titular_id = %s",
+        "conferencias": "SELECT count(*) FROM conferencias.conferencia x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s",
+        "excecoes": "SELECT count(*) FROM trabalho.excecao x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s",
+        "excecoes_abertas": "SELECT count(*) FROM trabalho.excecao x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s AND x.estado = 'aberta'",
+        "tarefas": "SELECT count(*) FROM trabalho.tarefa_humana x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s",
+        "tarefas_abertas": "SELECT count(*) FROM trabalho.tarefa_humana x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s AND x.estado = 'aberta'",
+        "eventos_exceto_fato_publicado": "SELECT count(*) FROM eventos.evento x JOIN fechamento.caso_competencia c ON c.id = x.caso_id WHERE c.titular_id = %s AND x.nome <> 'fato.publicado'",
+        "versoes_de_entregavel": "SELECT coalesce(sum(e.version), 0) FROM fechamento.entregavel e JOIN fechamento.caso_competencia c ON c.id = e.caso_id WHERE c.titular_id = %s",
+    }
+    out: dict[str, int] = {}
+    with conn.cursor() as cur:
+        for k, q in sql.items():
+            cur.execute(q, (titular,))
+            row = cur.fetchone()
+            out[k] = int(list(row.values())[0] if isinstance(row, dict) else row[0])
+    return out
+
+
 def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[str, Any],
                    titulares: list[str], r: Resultado, i: int) -> None:
     acao = passo["acao"]
@@ -507,11 +539,20 @@ def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[
                 r.checar(len(corpo.get("existentes", [])) == esp["existentes"], f"[{rotulo}] existentes {len(corpo.get('existentes', []))}, esperado {esp['existentes']}")
 
     elif acao == "publicar_fato":
+        antes = contagem_efeitos(conn, passo["corpo"]["titular_id"]) if esp.get("sem_efeito_nos_casos") else None
         resp = cliente.post("/fatos", json=passo["corpo"])
         r.checar(resp.status_code == esp.get("status", 200), f"[{rotulo}] HTTP {resp.status_code}: {resp.text[:300]}")
         if resp.status_code == 200 and "efeito" in esp:
             r.checar(resp.json().get("efeito") == esp["efeito"],
                      f"[{rotulo}] efeito {resp.json().get('efeito')!r}, esperado {esp['efeito']!r} ({passo['corpo']['tipo']})")
+        if antes is not None:
+            # Idempotência da reavaliação (semântica v4, §6 passo 2): o fato não é entrada de ninguém;
+            # reavaliar o titular inteiro (permitido) não pode criar nem mudar nada.
+            aguardar_fila(cliente)
+            depois = contagem_efeitos(conn, passo["corpo"]["titular_id"])
+            for k in antes:
+                r.checar(antes[k] == depois[k],
+                         f"[{rotulo}] idempotência: {k} mudou de {antes[k]} para {depois[k]} com fato sem consumidor ({passo['corpo']['tipo']})")
 
     elif acao == "concluir_entregavel":
         url = f"/casos/{passo['titular_id']}/{passo['competencia']}/entregaveis/{passo['tipo']}/concluir"

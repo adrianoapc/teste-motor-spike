@@ -1,6 +1,6 @@
-# Semântica do motor do fechamento (normativa para as duas spikes)
+# Semântica do motor do fechamento (normativa para as três spikes)
 
-**v3 · 07/10/2026** (v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As duas spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
+**v4 · 15/10/2026** (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
 
 Fontes do domínio: spec do spike v0.3, spec da saga do fechamento (CF-01..18, R1–R10), catálogo de capacidades (E01–E12). Tudo o que é regra fiscal aqui é **provisório** (status `provisoria` no banco) e não foi validado pelas áreas.
 
@@ -27,11 +27,11 @@ O motor lê, na abertura do caso, a versão **em uso** de cada regra: a única l
 
 | Chave | Usada para |
 |---|---|
-| `fechamento.entregaveis` | Quais entregáveis existem, dependências, entradas, saída, conferências, pós-validação, acompanhamento. **Em uso: v2** (a v1 está `aposentada` desde a V006) |
-| `fiscal.tolerancia` | Tolerância das conferências numéricas |
+| `fechamento.entregaveis` | Quais entregáveis existem, dependências, entradas, saída, conferências, pós-validação, acompanhamento. **Em uso: v3** (V008; a v1 está `aposentada` desde a V006 e a v2 desde a V008) |
+| `fiscal.tolerancia` | Tolerância das conferências numéricas. **Em uso: v2** (V008: alerta até 10 centavos; a v1 está `aposentada`) |
 | `fiscal.parametros` | Percentual do pró-labore (CF-08) |
 
-- **Nunca fixe a versão no código.** Leia a versão em uso pelo `status`. A V006 trocou a v1 pela v2 sem mudar a chave; código que procura `versao = 1` quebra.
+- **Nunca fixe a versão no código.** Leia a versão em uso pelo `status`. A V006 trocou a v1 pela v2 e a V008 trocou a v2 pela v3 sem mudar a chave; código que procura uma versão fixa quebra.
 - O caso guarda o `id` da versão de `fechamento.entregaveis` usada (`regra_entregaveis_versao_id`) e **sempre** usa essa versão, mesmo que outra seja publicada depois.
 - Cada conferência guarda o `id` da versão de `fiscal.tolerancia` usada (`regra_versao_id`).
 
@@ -48,6 +48,7 @@ O motor lê, na abertura do caso, a versão **em uso** de cada regra: a única l
 | `filial` | snapshot | booleano |
 | `carteira` | snapshot | texto |
 | `municipio` | snapshot | texto (código IBGE) |
+| `sujeito_fator_r` | snapshot, **opcional** (v4); ausente = `false` | booleano: a empresa do Simples está sujeita ao Fator R e a Rissi controla o pró-labore dela. Só o CF-08 usa |
 | `mes_do_trimestre` | **derivado** da competência: `((mes - 1) % 3) + 1` | 1, 2 ou 3 |
 
 **Condição `quando`** (em entregáveis, dependências, entradas e conferências):
@@ -129,7 +130,10 @@ Comportamento:
 
 Quando grava:
 1. Evento `fato.publicado` (`payload`: `{"fato_id": ...}`).
-2. **Reavaliação:** todo entregável de qualquer caso **aberto** do mesmo `titular_id` que tenha esta chave como entrada resolvida (§7.1, inclusive com `competencia_relativa`) ou como gatilho de pós-validação (§10) é reavaliado.
+2. **Reavaliação (v4: mínimo obrigatório, com idempotência):** todo entregável de qualquer caso **aberto** do mesmo `titular_id` que tenha esta chave como entrada resolvida (§7.1, inclusive com `competencia_relativa`) ou como gatilho de pós-validação (§10) **tem de ser** reavaliado. Esse é o conjunto **mínimo**:
+   - **Reavaliar mais é permitido** (por exemplo, todos os entregáveis de todos os casos abertos do titular), desde que seja **idempotente**: reavaliar um entregável cujo estado, dependências, entradas resolvidas e gatilho não mudaram **não grava nada** (nenhuma transição, evento, conferência, exceção, tarefa nem `version` nova). O verificador cobra isso com fatos sem consumidor (`espera.sem_efeito_nos_casos`, cenários da fase 4).
+   - **Recortar é permitido como otimização**, nunca como requisito. Quem recorta (o spike Python, desde o PR #20) tem de: (a) registrar o entregável para reavaliação **dentro da função única de transição** (§4.1), não em cada caminho que muda estado, para que um caminho novo não possa mudar estado sem pedir reavaliação dos dependentes; (b) manter o teste diferencial recorte × percurso completo (`spikes/python/scripts/diferencial_reavaliacao.py` ou equivalente) passando com 0 divergência, como critério de aceite de toda mudança no motor.
+   - Motivo da escolha (15/10/2026): o percurso completo se corrige sozinho no próximo fato do titular; o recorte, se perder um caminho, deixa o caso parado em silêncio. O volume da Rissi (milhares de casos por mês) não pede o recorte.
 3. Se `efeito = nova_versao` e o fato anterior estava ligado a entregáveis (`entregavel_fato`), aplica a **invalidação** (§11).
 4. Se o `tipo` é um dos fatos do §10.3 (`documento_disponibilizado` em reenvio, `entrega_falhou`, `entrega_confirmada`, `recebimento_pendente`), aplica o **acompanhamento** (§10.3) ao caso daquele titular e competência, **aberto ou encerrado**. Ordem: depois da invalidação e da reavaliação.
 
@@ -219,7 +223,7 @@ Rodam quando o entregável chega a `processado`. São as conferências do item d
 
 ### 9.1 · Fórmulas do spike
 
-Os valores vêm dos **fatos vigentes do próprio caso** (mesmo titular e competência), não só das entradas declaradas. "`apurado[X]`" = fato `tipo = 'apurado'`, `tributo = 'X'`.
+Os valores vêm dos **fatos vigentes do próprio caso** (mesmo titular e competência), não só das entradas declaradas. **Exceção (v4):** o par IRRF da CF-09 lê a folha da competência anterior, que é entrada declarada do E08 (`competencia_relativa: -1`). "`apurado[X]`" = fato `tipo = 'apurado'`, `tributo = 'X'`.
 
 | CF | Entregável | Esperado | Obtido |
 |---|---|---|---|
@@ -227,9 +231,9 @@ Os valores vêm dos **fatos vigentes do próprio caso** (mesmo titular e compet�
 | CF-04 | E03 (SN) | `arred(faturamento_mes.valor × aliquota_mes.payload.aliquota_bp ÷ 10000)` | `apurado[DAS].valor` |
 | CF-05 | E11 | `apurado[T].valor`, T = tributo da guia de entrada do E11 | `guia[T].valor` |
 | CF-06 | E11 | competência do caso | `guia[T].payload.competencia_impressa` (comparação de texto; esperado/obtido em centavos ficam nulos) |
-| CF-07 | E04 | `apurado[DAS].valor` (SN) ou `apurado[IRPJ].valor` (LP) | soma de `divisao_socios.payload.parcelas[].valor_centavos` |
-| CF-08 | E07 (SN) | `arred(faturamento_mes.valor × fiscal.parametros.prolabore_percentual_bp ÷ 10000)` | `prolabore.valor` |
-| CF-09 | E08 | para INSS e FGTS: `folha.payload.inss_centavos` e `folha.payload.fgts_centavos` | `guia[INSS].valor` e `guia[FGTS].valor`; a diferença da conferência é a **maior** das duas. `esperado_centavos` e `obtido_centavos` gravam o par do tributo de maior diferença (empate: INSS) |
+| CF-07 | E04 | **SN:** `apurado[DAS].valor`. **LP (v4), tributo a tributo:** para cada tributo T que aparece em algum fato vigente `apurado` do caso **ou** em alguma parcela, `apurado[T].valor` | **SN:** soma de `divisao_socios.payload.parcelas[].valor_centavos`. **LP:** soma das parcelas com `tributo = T` (nenhuma parcela de T = 0). No LP toda parcela tem de ter `tributo` (texto não vazio); parcela sem `tributo` = operando inválido (§9.2). A diferença da conferência é a **maior** entre os tributos; `esperado_centavos`/`obtido_centavos` gravam o par do tributo de maior diferença (empate: menor tributo em ordem de code point) |
+| CF-08 | E07 (SN sujeito ao Fator R, v4: condição na regra) | `arred(faturamento_mes.valor × fiscal.parametros.prolabore_percentual_bp ÷ 10000)` | `prolabore.valor` |
+| CF-09 | E08 | três pares: INSS = `folha.payload.inss_centavos`; FGTS = `folha.payload.fgts_centavos`; **IRRF (v4)** = `folha[competência − 1].payload.irrf_centavos` (a folha do **mês anterior**: o IRRF retido na folha de M-1 é declarado na DCTFWeb de M) | `guia[INSS].valor`, `guia[FGTS].valor` e **`guia[IRRF].valor`** (da competência do caso); a diferença da conferência é a **maior** das três. `esperado_centavos` e `obtido_centavos` gravam o par do tributo de maior diferença (empate: INSS, depois FGTS, depois IRRF) |
 | CF-12 | E10 | existe `recibo_obrigacao` com o tributo exigido pela entrada | — (ok se existe) |
 
 `arred` = divisão inteira com arredondamento **meio para o par** (banker's rounding), sobre inteiros. Nunca use ponto flutuante.
@@ -252,7 +256,7 @@ Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `
 
 **Idempotência:** se já existe conferência com o mesmo (`cf`, `entregavel_id`, `entrada_hash`), **não grava outra**; reaproveita o resultado.
 
-**Semântica do cálculo (`semantica_calculo`):** a versão da semântica do cálculo faz parte da chave de idempotência da conferência. Ela é um inteiro que **sobe** sempre que uma regra de **cálculo** de conferência muda de forma que o mesmo conjunto de fatos possa dar resultado diferente, para que conferências antigas não sejam reaproveitadas. O valor atual é **2**. O JSON canônico do `entrada_hash` inclui `"semantica_calculo":N` (inteiro, última chave na ordem por code point: `cf`, `fatos_usados`, `regra_versao_id`, `semantica_calculo`) **somente se N > 1**; com N = 1 o JSON é exatamente o canônico original, de modo que linhas legadas continuam válidas. A conferência persiste `semantica_calculo` (coluna `conferencias.conferencia.semantica_calculo`, inteiro `NOT NULL DEFAULT 1`, `CHECK >= 1`, migration V007). Todos os spikes gravam o valor corrente (2) nas conferências novas; linhas antigas valem 1. Histórico: **2** = operando inválido ou ausente vira `divergente` classe `S`, CF-12 sem valores em centavos, int64 estrito. Vetores de teste compartilhados: `contrato/vetores-entrada-hash.json`.
+**Semântica do cálculo (`semantica_calculo`):** a versão da semântica do cálculo faz parte da chave de idempotência da conferência. Ela é um inteiro que **sobe** sempre que uma regra de **cálculo** de conferência muda de forma que o mesmo conjunto de fatos possa dar resultado diferente, para que conferências antigas não sejam reaproveitadas. O valor atual é **3**. O JSON canônico do `entrada_hash` inclui `"semantica_calculo":N` (inteiro, última chave na ordem por code point: `cf`, `fatos_usados`, `regra_versao_id`, `semantica_calculo`) **somente se N > 1**; com N = 1 o JSON é exatamente o canônico original, de modo que linhas legadas continuam válidas. A conferência persiste `semantica_calculo` (coluna `conferencias.conferencia.semantica_calculo`, inteiro `NOT NULL DEFAULT 1`, `CHECK >= 1`, migration V007). Todos os spikes gravam o valor corrente (3) nas conferências novas; linhas antigas valem 1 ou 2. Histórico: **2** = operando inválido ou ausente vira `divergente` classe `S`, CF-12 sem valores em centavos, int64 estrito; **3** (v4) = CF-07 do LP tributo a tributo e par IRRF na CF-09. Vetores de teste compartilhados: `contrato/vetores-entrada-hash.json`.
 
 ### 9.3 · Desfecho
 
@@ -389,3 +393,22 @@ Autenticação; RLS; cofre de segredos; conectores reais (OneFlow, Integra Conta
 | **Regularidade Fiscal** | `documento.disponibilizado` com o `fato_id` da guia: agenda a checagem de pagamento depois do vencimento | Nada. `guia.paga`, guia vencida, diferença paga e CF-17 são dela |
 
 O fechamento **termina no protocolo**. O que acontece depois é acompanhado sem reabrir a competência; reabrir é só para mudança de conteúdo (§11.3).
+
+## 16 · v4 · Manutenção M1 (15/10/2026)
+
+O que mudou da v3 para a v4, e de onde veio. É o **teste comum de manutenção** das três spikes (`docs/regras-do-jogo.md`, critério 8): a mesma mudança pedida às três, medindo o tempo até passar no verificador com `--fase 4`.
+
+| # | Mudança | Onde | Origem |
+|---|---|---|---|
+| M1.1 | Tolerância: 1 a 10 centavos = alerta (`A`, não bloqueia); acima de 10 = severidade do catálogo | `fiscal.tolerancia` v2 (V008), §2 | Reunião de 08/10 (Rafael, Guilherme, Noan). Liberação acima disso só por override da coordenação (§8.1, já existente) |
+| M1.2 | CF-08 só para SN **sujeito ao Fator R** | campo `sujeito_fator_r` no snapshot (§3, contrato), condição na `fechamento.entregaveis` v3 | Reunião de 08/10 |
+| M1.3 | CF-07 do LP tributo a tributo | §9.1, `semantica_calculo` 3 | Reunião de 08/10 ("CF-07 no Presumido cobre todos os tributos"); amostra de 14/10 (PIS diverge de 28 a 61 centavos por truncamento do OneFlow) |
+| M1.4 | CF-09 confere o IRRF da folha do mês anterior com a guia de IRRF do mês | E08 ganha as entradas `folha` (`competencia_relativa: -1`) e `guia[IRRF]` na v3 da regra; §9.1 | Amostra de 14/10: 5 de 5 pares iguais ao centavo na empresa com folha |
+| M1.5 | §6 passo 2 = mínimo obrigatório + idempotência; recorte só como otimização com teste diferencial | §6 | Decisão de 15/10 |
+
+**Regras do adaptador (fora do motor, registradas para quem publica os fatos):**
+- A guia de INSS que o motor recebe é a soma dos códigos da DCTFWeb do mês para segurados: 1082 (empregado) + 1099 (contribuinte individual, pró-labore). O "INSS segurados" do resumo da folha bate com essa soma (amostra de 14/10, 6 de 6).
+- A guia de IRRF é o código 0561 da DCTFWeb do mês. Se a DCTFWeb do mês não tem 0561, o adaptador publica `guia[IRRF]` com `valor_centavos = 0` (a declaração existe e declara zero). Sem isso o E08 nunca fica pronto.
+- O adaptador da folha publica `irrf_centavos` no `payload` da folha de cada mês (IRRF retido sobre salário e pró-labore).
+
+**Limitação conhecida (fora do spike):** na primeira competência de um cliente novo não existe folha do mês anterior; o E08 fica em `aguardando_insumo`. Em produção, isso vira exceção de cadastro ou um fato de folha zerada publicado pela implantação; o spike não trata.

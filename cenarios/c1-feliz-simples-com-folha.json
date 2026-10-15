@@ -2,7 +2,7 @@
   "id": "C1",
   "fase": 1,
   "nome": "Feliz: Simples Nacional com folha e pró-labore",
-  "descricao": "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11 até o protocolo de entrega, encerramento pelo E12 no protocolo (sem esperar pagamento), versão em uso da regra (v2), idempotência de fato e eventos.",
+  "descricao": "Empresa do Simples com folha e pró-labore fecha a competência inteira sem divergência. Testa abertura por regra, prontidão por dependência e entrada, tarefas humanas, conferências CF-01/04/05/06/07/08/09/12, pós-validação do E11 até o protocolo de entrega, encerramento pelo E12 no protocolo (sem esperar pagamento), versão em uso da regra (v3), idempotência de fato e eventos. v4: empresa sujeita ao Fator R (CF-08 roda) e CF-09 com o IRRF da folha do mês anterior.",
   "secoes_semantica": [
     "§5",
     "§6",
@@ -13,8 +13,8 @@
     "§12"
   ],
   "regras_usadas": [
-    "fechamento.entregaveis v2",
-    "fiscal.tolerancia v1",
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
     "fiscal.parametros v1"
   ],
   "titulares": [
@@ -35,7 +35,8 @@
             "tem_taxa_municipal": false,
             "filial": false,
             "carteira": "C-01",
-            "municipio": "3549805"
+            "municipio": "3549805",
+            "sujeito_fator_r": true
           }
         ]
       },
@@ -60,7 +61,8 @@
             "tem_taxa_municipal": false,
             "filial": false,
             "carteira": "C-01",
-            "municipio": "3549805"
+            "municipio": "3549805",
+            "sujeito_fator_r": true
           }
         ]
       },
@@ -306,7 +308,8 @@
             "valor_centavos": 500000,
             "payload": {
               "inss_centavos": 110000,
-              "fgts_centavos": 40000
+              "fgts_centavos": 40000,
+              "irrf_centavos": 52000
             }
           }
         ]
@@ -333,6 +336,26 @@
       },
       "espera": {
         "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "folha do mês anterior (sem caso aberto): o IRRF dela é declarado na DCTFWeb deste mês (v4)",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202608",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 500000,
+        "payload": {
+          "inss_centavos": 110000,
+          "fgts_centavos": 40000,
+          "irrf_centavos": 51500
+        }
+      },
+      "espera": {
+        "efeito": "novo"
       }
     },
     {
@@ -423,6 +446,25 @@
         "tipo": "guia",
         "fonte": "porta_documental",
         "observado_em": "2026-10-01T09:00:00-03:00",
+        "tributo": "IRRF",
+        "valor_centavos": 51500,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T001",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "2026-10-01T09:00:00-03:00",
         "tributo": "DAS",
         "valor_centavos": 600000,
         "payload": {
@@ -488,7 +530,7 @@
             "titular_id": "T001",
             "competencia": "202609",
             "estado": "encerrado",
-            "regra_entregaveis_versao": 2
+            "regra_entregaveis_versao": 3
           }
         ],
         "entregaveis": [
@@ -733,7 +775,7 @@
             "titular_id": "T001",
             "competencia": "202609",
             "nome": "fato.publicado",
-            "quantidade": 12
+            "quantidade": 13
           },
           {
             "titular_id": "T001",

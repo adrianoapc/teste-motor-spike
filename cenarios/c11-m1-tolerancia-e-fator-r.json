@@ -1,0 +1,618 @@
+{
+  "id": "C11",
+  "fase": 4,
+  "nome": "M1: tolerância de 10 centavos e CF-08 só com Fator R",
+  "descricao": "Duas empresas do Simples com pró-labore. Na primeira (sujeita ao Fator R) o OneFlow tem 10 centavos a menos: a CF-01 grava divergência A e o E01 segue validado; a CF-08 roda e confere os 28%. Na segunda (sem o campo sujeito_fator_r, que vale false) faltam 11 centavos: a CF-01 bloqueia (B) até o OneFlow sincronizar; o pró-labore de 15% passa sem CF-08, porque a empresa não está sujeita ao Fator R. Fatos sem consumidor publicados com tarefa e exceção abertas não podem gravar nada (idempotência da reavaliação, §6 passo 2).",
+  "secoes_semantica": [
+    "§3",
+    "§6",
+    "§9.1",
+    "§9.2",
+    "§16"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "fiscal.parametros v1"
+  ],
+  "titulares": [
+    "T011",
+    "T012"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T011",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": true,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805",
+            "sujeito_fator_r": true
+          },
+          {
+            "titular_id": "T012",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": true,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-02",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 2,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T011",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "10 centavos a menos: alerta, não bloqueia",
+      "corpo": {
+        "titular_id": "T011",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 9999990
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T011",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T012",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "11 centavos a menos: bloqueia",
+      "corpo": {
+        "titular_id": "T012",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 9999989
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T012",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "10 centavos passa como alerta; 11 centavos bloqueia",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "pronto"
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "divergente"
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:A"
+            ],
+            "valores": [
+              [
+                10000000,
+                9999990
+              ]
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:B"
+            ],
+            "valores": [
+              [
+                10000000,
+                9999989
+              ]
+            ]
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": []
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E03"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "anotação com tarefa aberta: não pode criar outra tarefa",
+      "corpo": {
+        "titular_id": "T011",
+        "competencia": "202609",
+        "tipo": "anotacao_interna",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "texto": "anotação com tarefa aberta: não pode criar outra tarefa"
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "anotação com exceção aberta: não pode abrir outra exceção nem reconferir",
+      "corpo": {
+        "titular_id": "T012",
+        "competencia": "202609",
+        "tipo": "anotacao_interna",
+        "fonte": "intranet",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "payload": {
+          "texto": "anotação com exceção aberta: não pode abrir outra exceção nem reconferir"
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T011",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 600000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T011",
+      "competencia": "202609",
+      "tipo": "E07",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "valor_centavos": 2800000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "OneFlow sincroniza a nota de 11 centavos",
+      "corpo": {
+        "titular_id": "T012",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 10000000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T012",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 600000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T012",
+      "competencia": "202609",
+      "tipo": "E07",
+      "corpo": {
+        "ator": "analista-c02",
+        "saidas": [
+          {
+            "valor_centavos": 1500000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E07",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "divergente",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E07",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:A"
+            ]
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E03",
+            "cf": "CF-04",
+            "resultados": [
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "tipo": "E07",
+            "cf": "CF-08",
+            "resultados": [
+              "ok:B"
+            ],
+            "valores": [
+              [
+                2800000,
+                2800000
+              ]
+            ],
+            "semantica_calculo": 3
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:B",
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E03",
+            "cf": "CF-04",
+            "resultados": [
+              "ok:B"
+            ]
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "tipo": "E07",
+            "cf": "CF-08",
+            "resultado": "ok",
+            "quantidade": 0
+          }
+        ],
+        "conferencias_total": 6,
+        "excecoes": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": []
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:fato_alterado"
+            ],
+            "classe": "O"
+          }
+        ],
+        "tarefas_abertas": [],
+        "eventos": [
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T011",
+            "competencia": "202609",
+            "nome": "folha.fechada",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "nome": "conferencia.divergente",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T012",
+            "competencia": "202609",
+            "nome": "folha.fechada",
+            "quantidade": 1
+          }
+        ]
+      }
+    }
+  ]
+}
