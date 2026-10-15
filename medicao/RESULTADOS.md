@@ -11,13 +11,13 @@ Seguindo o "Protocolo recomendado para o comparativo" do README raiz. Código do
   `vfm-python:def1a5a` (752350f288d7; base python:3.13-slim). Postgres `postgres:16` (65b16a8b326e), projeto compose próprio
   (`vfmedicao`, porta 55432), migrations V001-V007, `log_statement=all` ligado só no bloco (i).
 - Série estrita: .NET, depois PHP, depois Python; só um spike no ar por vez; o anterior foi derrubado antes do seguinte.
-- Carga média do host (macOS) lida com `uptime` antes de cada bloco: .NET 3,0 a 4,1; PHP 2,9 a 5,7; Python 3,6 a 6,9
+- Carga média do host (macOS) lida com `uptime` antes de cada bloco: .NET 3,03 a 4,14; PHP 2,89 a 5,74; Python 3,62 a 6,43 (coluna de 1 min, conforme a tabela de carga abaixo)
   (os picos ocorrem logo após testes/builds que eu mesmo rodei). Registro completo no fim deste arquivo.
 - **A máquina não estava totalmente quieta.** Havia 11 contêineres alheios (stack `supabase_*`, que eu não podia tocar) no ar
   durante todo o trabalho. `docker stats --no-stream` completo foi registrado só no início (soma de CPU dos alheios
   ~26 % de uma CPU, dominada por analytics 10 %, realtime 6,5 %, kong 6 %) e antes do bloco de SQLs do .NET (~22 %); no fim
   estavam em ~2,7 %. **Falha minha:** nos demais blocos registrei só `uptime` e a lista de contêineres (que não mudou), sem
-  repetir o `docker stats`. A carga média do host nunca ficou abaixo de 2,9 com 10 CPUs. Isso pode contaminar tempos de
+  repetir o `docker stats`. Na rodada 1 a carga média de 1 min antes dos blocos ficou entre 2,89 e 6,43 (5 min: 3,46 a 4,85; 15 min: 3,52 a 4,17), com 10 CPUs; na rodada 2, entre 2,75 e 8,46 (5 min: 2,77 a 7,22; 15 min: 2,67 a 6,27). Isso pode contaminar tempos de
   parede; a contagem de SQLs não é afetada.
 - O cliente (harness e verificador) roda no host macOS e acessa o contêiner pela porta publicada, igual nos 3 spikes.
 
@@ -195,7 +195,7 @@ pró-labore 5.998, taxa 1.436; LP: folha 904, pró-labore 2.523, taxa 556. Cada 
 | PHP 8.4 | **143.3** [140.8–146.4] | [143.3, 146.4, 140.8] | 200 | 10000/0 | 65288 / 24250 | 730029 | 32 / 102 | 248 | 49 / 76 | 297 | False / 0 |
 | Python 3.13 | **74.9** [74.0–105.5] | [105.5, 74.9, 74.0] | 200 | 10000/0 | 65288 / 24250 | 730029 | 43 / 52 | 110 | 45 / 79 | 282 | False / 0 |
 
-Massa (idêntica nos 3, semente 20261006, `gerar_massa_sintetica.py`): SN 7062 (folha 2108, pró-labore 5998, taxa 1436), LP 2938 (folha 904, pró-labore 2523, taxa 556). Requisição: 1746532 bytes.
+Massa (idêntica nos 3, semente 20261006, `gerar_massa_sintetica.py`): SN 7062 (folha 2108, pró-labore 5998, taxa 1436), LP 2938 (folha 904, pró-labore 2523, taxa 556). Requisição: **1.586.528 bytes** (corpo JSON compacto, como o HTTPX 0.28.1 envia). Nota: a versão anterior deste arquivo dizia 1.746.532 bytes, valor calculado com `len(json.dumps(corpo))`, que inclui espaços após `:` e `,`; o corpo enviado não os tem. Corrigido sem reexecutar a medição, regerando o mesmo corpo de forma determinística (semente 20261006).
 
 #### SQLs totais da abertura (log_statement=all, tudo contado; 1 passada por conjunto, banco limpo antes)
 
@@ -221,8 +221,8 @@ Entregáveis por empresa: SN pura 9.245, LP pura 8.245. Tempo da requisição co
   SQL por empresa. No .NET a economia aparece inteira: Δ de -4,28. Não há custo extra de LP em nenhum dos três.
 - **Preparação de conexão** contada como na rodada 1 (.NET `DISCARD ALL` por transação, Python ping vazio do pool por
   transação, PHP um único `set search_path` para a requisição inteira). Isso explica parte da diferença de total entre eles.
-- **Tempos de parede: ler com cautela.** A carga média do host foi de 2,8 a 8,5 durante esta rodada (picos de 7 e 8,5
-  nos blocos de PHP e Python e ao fim), maior que na rodada 1 (2,9 a 6,9). Havia ainda os 11 contêineres `supabase_*`
+- **Tempos de parede: ler com cautela.** A carga média do host foi de 2,75 a 8,46 (1 min) nos blocos registrados desta rodada (picos de 7 e 8,5
+  nos blocos de PHP e Python e ao fim), maior que na rodada 1 (2,89 a 6,43, 1 min). Havia ainda os 11 contêineres `supabase_*`
   alheios no ar. O tempo do .NET com mix (108 a 125 s) ficou mais alto que o dele com 10.000 SN com folha na rodada 1
   (70 s), embora faça menos SQLs por empresa; não investiguei se a causa é a carga do host, as 50 carteiras, o mix ou outra
   coisa. Dentro desta rodada a ordem dos 3 é a mesma da rodada 1 (Python < .NET < PHP). A primeira repetição de .NET e de
@@ -255,3 +255,10 @@ Entregáveis por empresa: SN pura 9.245, LP pura 8.245. Tempo da requisição co
 | Fim | 21:49 | 8,46 / 7,22 / 6,27 |
 
 (As execuções 2 e 3 do diferencial ocorreram entre 20:54 e 21:06 hora local do host; os registros delas estão no mesmo arquivo.)
+
+
+## Leitura honesta: operação isolada vs em lote, e a anomalia do .NET
+
+- **O ranking muda entre operação isolada e lote.** Ao abrir 1 caso, o PHP faz mais SQLs (94) do que o Python (85) e o .NET (79). Na abertura de 10.000 empresas em uma requisição, o PHP faz menos SQLs por empresa (65,99) do que o .NET (68,94) e o Python (69,75). Esses são os números das tabelas (i) e da rodada 2; não são do mesmo cenário.
+- **Causa: HIPÓTESE não provada.** Uma explicação possível é que o memo por requisição seja amortizado em lote, mas isso não foi testado.
+- **Anomalia do .NET não investigada.** O .NET levou 108 a 125 s no mix SN/LP de 10.000 empresas contra ~70 s nas 10.000 SN puras da rodada 1, embora faça menos SQLs por empresa no mix. Carga do host, 50 carteiras, o mix ou outra coisa: **não foi investigado**.

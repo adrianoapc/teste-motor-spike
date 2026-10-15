@@ -364,7 +364,8 @@ def pico(amostras: list[dict[str, Any]], nome: str) -> dict[str, Any]:
 def cmd_abrir(a: argparse.Namespace) -> None:
     empresas = gerar_mix(a.empresas, a.semente) if a.mix else empresas_10k(a.empresas)
     corpo = {"competencia": "202610", "ator": "agenda", "empresas": empresas}
-    tamanho_req = len(json.dumps(corpo))
+    # httpx 0.28.1 serializa json= com separadores compactos e ensure_ascii=False (httpx/_content.py:encode_json)
+    tamanho_req = len(json.dumps(corpo, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
     res = []
     for i in range(1, a.reps + 1):
         limpar(a.db)
