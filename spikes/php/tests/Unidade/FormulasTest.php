@@ -16,12 +16,12 @@ function payloadJson(string $json): mixed
     return json_decode($json, false, flags: JSON_THROW_ON_ERROR);
 }
 
-it('CF-07 devolve fato ausente com parcelas ausentes, não-lista ou entradas malformadas', function (string $json): void {
+it('CF-07 SN devolve fato ausente com parcelas ausentes, não-lista ou entradas malformadas', function (string $json): void {
     $f = new FatosDoCaso([
         fatoF('a', 'apurado', 'DAS', 0),
         fatoF('d', 'divisao_socios', '', null, payloadJson($json)),
     ]);
-    $r = (new Formulas(5000))->cf07($f, 'DAS');
+    $r = (new Formulas(5000))->cf07($f, 'DAS', 'SN');
     expect($r->fatoAusente)->not->toBeNull()
         ->and($r->fatosUsados)->toHaveCount(2);
 })->with([
@@ -34,12 +34,12 @@ it('CF-07 devolve fato ausente com parcelas ausentes, não-lista ou entradas mal
     'uma boa e uma ruim' => ['{"parcelas": [{"valor_centavos": 5}, {"valor_centavos": null}]}'],
 ]);
 
-it('CF-07 soma parcelas válidas', function (): void {
+it('CF-07 SN soma todas as parcelas sem olhar tributo', function (): void {
     $f = new FatosDoCaso([
         fatoF('a', 'apurado', 'DAS', 8),
         fatoF('d', 'divisao_socios', '', null, payloadJson('{"parcelas": [{"valor_centavos": 5}, {"valor_centavos": 3}]}')),
     ]);
-    $r = (new Formulas(5000))->cf07($f, 'DAS');
+    $r = (new Formulas(5000))->cf07($f, 'DAS', 'SN');
     expect($r->fatoAusente)->toBeNull()->and($r->obtidoCentavos)->toBe(8)->and($r->esperadoCentavos)->toBe(8);
 });
 
@@ -90,4 +90,69 @@ it('CF-09 compara diferenças acima de int64 sem empate falso', function (): voi
     ]);
     $r = (new Formulas(5000))->cf09($g);
     expect($r->fatoAusente)->toBeNull()->and($r->esperadoCentavos)->toBe(PHP_INT_MAX)->and($r->obtidoCentavos)->toBe(0);
+});
+
+it('CF-07 LP confere tributo a tributo e grava o par de maior diferença', function (): void {
+    // IRPJ: apurado 160000, parcelas 96000+64000=160000 (dif 0)
+    // CSLL: apurado 144000, parcelas 86400+57600=144000 (dif 0)
+    // PIS:  apurado 13000, parcelas 7780+5181=12961 (dif 39)  <- maior
+    // COFINS: apurado 60000, parcelas 30000+30000=60000 (dif 0)
+    $f = new FatosDoCaso([
+        fatoF('ir', 'apurado', 'IRPJ', 160000),
+        fatoF('cs', 'apurado', 'CSLL', 144000),
+        fatoF('pi', 'apurado', 'PIS', 13000),
+        fatoF('co', 'apurado', 'COFINS', 60000),
+        fatoF('d', 'divisao_socios', '', null, payloadJson(
+            '{"parcelas": ['.
+            '{"tributo": "IRPJ", "valor_centavos": 96000}, {"tributo": "IRPJ", "valor_centavos": 64000},'.
+            '{"tributo": "CSLL", "valor_centavos": 86400}, {"tributo": "CSLL", "valor_centavos": 57600},'.
+            '{"tributo": "PIS", "valor_centavos": 7780}, {"tributo": "PIS", "valor_centavos": 5181},'.
+            '{"tributo": "COFINS", "valor_centavos": 30000}, {"tributo": "COFINS", "valor_centavos": 30000}'.
+            ']}'
+        )),
+    ]);
+    $r = (new Formulas(5000))->cf07($f, 'IRPJ', 'LP');
+    expect($r->fatoAusente)->toBeNull()
+        ->and($r->esperadoCentavos)->toBe(13000)   // PIS, maior diferença
+        ->and($r->obtidoCentavos)->toBe(12961)
+        ->and($r->fatosUsados)->toHaveCount(5);     // 4 apurado + divisao_socios
+});
+
+it('CF-07 LP desempata pelo menor tributo em ordem de code point', function (): void {
+    // CSLL e IRPJ têm a MESMA diferença (100). Empate → menor por code point: CSLL < IRPJ.
+    $f = new FatosDoCaso([
+        fatoF('ir', 'apurado', 'IRPJ', 1000),
+        fatoF('cs', 'apurado', 'CSLL', 2000),
+        fatoF('d', 'divisao_socios', '', null, payloadJson(
+            '{"parcelas": [{"tributo": "IRPJ", "valor_centavos": 900}, {"tributo": "CSLL", "valor_centavos": 1900}]}'
+        )),
+    ]);
+    $r = (new Formulas(5000))->cf07($f, 'IRPJ', 'LP');
+    expect($r->fatoAusente)->toBeNull()
+        ->and($r->esperadoCentavos)->toBe(2000)   // CSLL
+        ->and($r->obtidoCentavos)->toBe(1900);
+});
+
+it('CF-07 LP: parcela sem tributo é operando inválido (classe S)', function (): void {
+    $f = new FatosDoCaso([
+        fatoF('ir', 'apurado', 'IRPJ', 100000),
+        fatoF('d', 'divisao_socios', '', null, payloadJson(
+            '{"parcelas": [{"tributo": "IRPJ", "valor_centavos": 100000}, {"valor_centavos": 60000}]}'
+        )),
+    ]);
+    $r = (new Formulas(5000))->cf07($f, 'IRPJ', 'LP');
+    expect($r->fatoAusente)->not->toBeNull();
+});
+
+it('CF-07 LP: tributo nas parcelas sem apurado no caso é dado ausente (classe S)', function (): void {
+    // ISS aparece nas parcelas mas não há apurado[ISS] no caso.
+    $f = new FatosDoCaso([
+        fatoF('ir', 'apurado', 'IRPJ', 160000),
+        fatoF('d', 'divisao_socios', '', null, payloadJson(
+            '{"parcelas": [{"tributo": "IRPJ", "valor_centavos": 160000}, {"tributo": "ISS", "valor_centavos": 5000}]}'
+        )),
+    ]);
+    $r = (new Formulas(5000))->cf07($f, 'IRPJ', 'LP');
+    expect($r->fatoAusente)->not->toBeNull()
+        ->and($r->fatoAusente)->toContain('apurado[ISS]');
 });

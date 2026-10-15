@@ -31,4 +31,22 @@ final readonly class FatosDoCaso
     {
         return $this->porChave[$tipo.'|'.$tributo] ?? null;
     }
+
+    /**
+     * Tributos (não vazios) presentes nos fatos vigentes de um tipo (CF-07 LP, §9.1:
+     * "tributos = apurados do caso ∪ tributos das parcelas").
+     *
+     * @return list<string>
+     */
+    public function tributosDe(string $tipo): array
+    {
+        $tributos = [];
+        foreach ($this->porChave as $chave => $fato) {
+            if ($fato->tipo === $tipo && $fato->tributo !== '') {
+                $tributos[] = $fato->tributo;
+            }
+        }
+
+        return $tributos;
+    }
 }
