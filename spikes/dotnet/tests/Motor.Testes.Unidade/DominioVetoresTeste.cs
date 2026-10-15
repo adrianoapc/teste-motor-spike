@@ -111,6 +111,159 @@ public class DominioVetoresTeste
         Assert.Equal("202609", dif.GetProperty("esperada").GetString());
     }
 
+    // ----- CF-07 LP tributo a tributo (§9.1 v4, task 21) -----
+    private static FatoVigente Fato(string tipo, string tributo, long? valor, string payloadJson = "{}")
+        => new(Guid.NewGuid(), "T014", Competencia.Analisar("202608"), tipo, tributo, 1, valor,
+            JsonDocument.Parse(payloadJson).RootElement.Clone(), "hash");
+
+    private static ContextoCalculo CtxLp(ItemEntregavel? item = null)
+        => new(Competencia.Analisar("202608"), item!,
+            Contexto.DeSnapshot(JsonDocument.Parse("{\"regime\":\"LP\"}").RootElement.Clone(), 2), "IRPJ", null);
+
+    [Fact]
+    public void Cf07_lp_par_do_tributo_de_maior_diferenca()
+    {
+        // IRPJ bate (160000=96000+64000); CSLL 5 abaixo (144000 vs 86400+57595=143995);
+        // PIS 39 abaixo (13000 vs 12961); COFINS bate (60000). Maior diferença = PIS (39).
+        var fatos = new[]
+        {
+            Fato("apurado", "IRPJ", 160000), Fato("apurado", "CSLL", 144000),
+            Fato("apurado", "PIS", 13000), Fato("apurado", "COFINS", 60000),
+            Fato("divisao_socios", "", null, "{\"parcelas\":[" +
+                "{\"socio\":\"S1\",\"tributo\":\"IRPJ\",\"valor_centavos\":96000}," +
+                "{\"socio\":\"S2\",\"tributo\":\"IRPJ\",\"valor_centavos\":64000}," +
+                "{\"socio\":\"S1\",\"tributo\":\"CSLL\",\"valor_centavos\":86400}," +
+                "{\"socio\":\"S2\",\"tributo\":\"CSLL\",\"valor_centavos\":57595}," +
+                "{\"socio\":\"S1\",\"tributo\":\"PIS\",\"valor_centavos\":12961}," +
+                "{\"socio\":\"S1\",\"tributo\":\"COFINS\",\"valor_centavos\":60000}]}"),
+        };
+        var calc = CalculadoraConferencias.Calcular("CF-07", CtxLp(), fatos);
+        Assert.Null(calc.FatoAusente);
+        Assert.Null(calc.OperandoInvalido);
+        Assert.Equal(13000, calc.Esperado);   // par do PIS, maior diferença (39)
+        Assert.Equal(12961, calc.Obtido);
+    }
+
+    [Fact]
+    public void Cf07_lp_empate_pega_menor_tributo_por_code_point()
+    {
+        // CSLL e IRPJ divergem 100 cada; empate => menor code point: CSLL < IRPJ.
+        var fatos = new[]
+        {
+            Fato("apurado", "IRPJ", 160000), Fato("apurado", "CSLL", 144000),
+            Fato("divisao_socios", "", null, "{\"parcelas\":[" +
+                "{\"tributo\":\"IRPJ\",\"valor_centavos\":159900}," +
+                "{\"tributo\":\"CSLL\",\"valor_centavos\":143900}]}"),
+        };
+        var calc = CalculadoraConferencias.Calcular("CF-07", CtxLp(), fatos);
+        Assert.Equal(144000, calc.Esperado); // CSLL (empate, menor por code point)
+        Assert.Equal(143900, calc.Obtido);
+    }
+
+    [Fact]
+    public void Cf07_lp_parcela_sem_tributo_e_operando_invalido()
+    {
+        var fatos = new[]
+        {
+            Fato("apurado", "IRPJ", 160000),
+            Fato("divisao_socios", "", null, "{\"parcelas\":[" +
+                "{\"socio\":\"S1\",\"tributo\":\"IRPJ\",\"valor_centavos\":100000}," +
+                "{\"socio\":\"S2\",\"valor_centavos\":60000}]}"),
+        };
+        var calc = CalculadoraConferencias.Calcular("CF-07", CtxLp(), fatos);
+        Assert.NotNull(calc.OperandoInvalido);
+    }
+
+    [Fact]
+    public void Cf07_lp_tributo_sem_apurado_e_dado_ausente()
+    {
+        // parcela de ISS sem apurado[ISS] no caso => dado ausente (classe S).
+        var fatos = new[]
+        {
+            Fato("apurado", "IRPJ", 160000),
+            Fato("divisao_socios", "", null, "{\"parcelas\":[" +
+                "{\"tributo\":\"IRPJ\",\"valor_centavos\":160000}," +
+                "{\"tributo\":\"ISS\",\"valor_centavos\":5000}]}"),
+        };
+        var calc = CalculadoraConferencias.Calcular("CF-07", CtxLp(), fatos);
+        Assert.NotNull(calc.FatoAusente);
+        Assert.Contains("ISS", calc.FatoAusente);
+    }
+
+    [Fact]
+    public void Cf07_sn_continua_agregado()
+    {
+        var ctxSn = new ContextoCalculo(Competencia.Analisar("202608"), null!,
+            Contexto.DeSnapshot(JsonDocument.Parse("{\"regime\":\"SN\"}").RootElement.Clone(), 2), "DAS", null);
+        var fatos = new[]
+        {
+            Fato("apurado", "DAS", 600000),
+            Fato("divisao_socios", "", null, "{\"parcelas\":[" +
+                "{\"socio\":\"S1\",\"valor_centavos\":360000},{\"socio\":\"S2\",\"valor_centavos\":240000}]}"),
+        };
+        var calc = CalculadoraConferencias.Calcular("CF-07", ctxSn, fatos);
+        Assert.Equal(600000, calc.Esperado);
+        Assert.Equal(600000, calc.Obtido); // soma de todas as parcelas, sem olhar tributo
+    }
+
+    // ----- CF-09 três pares INSS/FGTS/IRRF (§9.1 v4, task 22) -----
+    // INSS/FGTS vêm da folha do mês (nos fatos); IRRF vem da folha do mês anterior (contexto).
+    private static ContextoCalculo CtxCf09(FatoVigente? folhaAnterior)
+        => new(Competencia.Analisar("202609"), null!,
+            Contexto.DeSnapshot(JsonDocument.Parse("{\"regime\":\"SN\",\"tem_folha\":true}").RootElement.Clone(), 3),
+            "DAS", null, folhaAnterior);
+
+    private static FatoVigente Guia(string tributo, long valor)
+        => new(Guid.NewGuid(), "T017", Competencia.Analisar("202609"), "guia", tributo, 1, valor,
+            JsonDocument.Parse("{}").RootElement.Clone(), "hash");
+
+    [Fact]
+    public void Cf09_tres_pares_grava_o_de_maior_diferenca()
+    {
+        // folha do mês: INSS 88000, FGTS 32000. folha anterior: irrf 26000. guia IRRF 25000 (1000 abaixo).
+        // INSS/FGTS batem; IRRF é a maior diferença.
+        var folhaMes = Fato("folha", "", 400000, "{\"inss_centavos\":88000,\"fgts_centavos\":32000}");
+        var folhaAnt = Fato("folha", "", 400000, "{\"irrf_centavos\":26000}");
+        var calc = CalculadoraConferencias.Calcular("CF-09", CtxCf09(folhaAnt),
+            new[] { folhaMes, Guia("INSS", 88000), Guia("FGTS", 32000), Guia("IRRF", 25000) });
+        Assert.Null(calc.FatoAusente);
+        Assert.Equal(26000, calc.Esperado); // par do IRRF
+        Assert.Equal(25000, calc.Obtido);
+        Assert.Equal(5, calc.FatosUsados.Count); // folhaMes + folhaAnt + 3 guias
+    }
+
+    [Fact]
+    public void Cf09_empate_pega_inss_depois_fgts_depois_irrf()
+    {
+        // Três diferenças iguais (1000): empate => INSS.
+        var folhaMes = Fato("folha", "", 400000, "{\"inss_centavos\":89000,\"fgts_centavos\":33000}");
+        var folhaAnt = Fato("folha", "", 400000, "{\"irrf_centavos\":27000}");
+        var calc = CalculadoraConferencias.Calcular("CF-09", CtxCf09(folhaAnt),
+            new[] { folhaMes, Guia("INSS", 88000), Guia("FGTS", 32000), Guia("IRRF", 26000) });
+        Assert.Equal(89000, calc.Esperado); // INSS vence o empate
+        Assert.Equal(88000, calc.Obtido);
+    }
+
+    [Fact]
+    public void Cf09_folha_anterior_sem_irrf_e_dado_ausente()
+    {
+        var folhaMes = Fato("folha", "", 400000, "{\"inss_centavos\":88000,\"fgts_centavos\":32000}");
+        var folhaAnt = Fato("folha", "", 400000, "{}"); // sem irrf_centavos
+        var calc = CalculadoraConferencias.Calcular("CF-09", CtxCf09(folhaAnt),
+            new[] { folhaMes, Guia("INSS", 88000), Guia("FGTS", 32000), Guia("IRRF", 0) });
+        Assert.NotNull(calc.FatoAusente);
+        Assert.Contains("irrf", calc.FatoAusente);
+    }
+
+    [Fact]
+    public void Cf09_folha_anterior_ausente_e_dado_ausente()
+    {
+        var folhaMes = Fato("folha", "", 400000, "{\"inss_centavos\":88000,\"fgts_centavos\":32000}");
+        var calc = CalculadoraConferencias.Calcular("CF-09", CtxCf09(null),
+            new[] { folhaMes, Guia("INSS", 88000), Guia("FGTS", 32000), Guia("IRRF", 25000) });
+        Assert.Equal("folha[]", calc.FatoAusente);
+    }
+
     // ----- Competência: somar meses, virada de ano (req 5.1) -----
     [Theory]
     [InlineData("202601", -1, "202512")]

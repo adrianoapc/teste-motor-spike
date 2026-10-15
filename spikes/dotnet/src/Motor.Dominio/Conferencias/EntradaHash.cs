@@ -13,9 +13,10 @@ public readonly record struct FatoUsado(Guid FatoId, int Versao);
 public static class EntradaHash
 {
     /// <summary>Versão atual da semântica do cálculo das conferências. Incrementar sempre que uma
-    /// fórmula/classificação mudar o resultado para os mesmos fatos (v2 = operandos inválidos e fatos retidos).
+    /// fórmula/classificação mudar o resultado para os mesmos fatos (v2 = operandos inválidos e fatos retidos;
+    /// v3 = CF-07 do LP tributo a tributo e par IRRF da CF-09, §16 M1.3/M1.4).
     /// É persistida em <c>conferencia.semantica_calculo</c> e entra no hash como campo canônico próprio.</summary>
-    public const int SemanticaCalculo = 2;
+    public const int SemanticaCalculo = 3;
 
     public static string Calcular(string cf, IEnumerable<FatoUsado> fatos, Guid regraVersaoId, int semanticaCalculo = 1)
     {

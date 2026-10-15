@@ -13,8 +13,8 @@ public class RevisaoPosMergeTeste
 {
     private static JsonElement J(string s) => JsonDocument.Parse(s).RootElement.Clone();
     private static readonly Competencia C = Competencia.Analisar("202609");
-    private static ContextoCalculo Ctx(string? tributoGuia = "DAS", long? prolaboreBp = 6000)
-        => new(C, default!, Contexto.DeSnapshot(J("{\"regime\":\"SN\"}"), 3), tributoGuia, prolaboreBp);
+    private static ContextoCalculo Ctx(string? tributoGuia = "DAS", long? prolaboreBp = 6000, FatoVigente? folha = null)
+        => new(C, default!, Contexto.DeSnapshot(J("{\"regime\":\"SN\"}"), 3), tributoGuia, prolaboreBp, folha);
     private static FatoVigente F(string tipo, string trib, long? valor, string payload = "{}")
         => new(Guid.NewGuid(), "T001", C, tipo, trib, 1, valor, J(payload), "h");
     private static CalculoConferencia Calc(string cf, params FatoVigente[] fatos)
@@ -81,18 +81,23 @@ public class RevisaoPosMergeTeste
     [Fact]
     public void Cf09_folha_malformada_vira_operando_invalido()
     {
-        var c = Calc("CF-09", F("folha", "", null, "{\"inss_centavos\":1.5,\"fgts_centavos\":2}"),
-            F("guia", "INSS", 1), F("guia", "FGTS", 2));
+        // inss_centavos fracionário na folha do mês (presente e inválido) => operando inválido.
+        var folhaMes = F("folha", "", null, "{\"inss_centavos\":1.5,\"fgts_centavos\":2}");
+        var folhaAnt = F("folha", "", null, "{\"irrf_centavos\":3}");
+        var c = CalculadoraConferencias.Calcular("CF-09", Ctx(folha: folhaAnt),
+            new[] { folhaMes, F("guia", "INSS", 1), F("guia", "FGTS", 2), F("guia", "IRRF", 3) });
         Assert.NotNull(c.OperandoInvalido);
     }
 
     [Fact]
     public void Cf09_diferenca_extrema_nao_estoura()
     {
-        var c = Calc("CF-09", F("folha", "", null, "{\"inss_centavos\":0,\"fgts_centavos\":0}"),
-            F("guia", "INSS", long.MinValue), F("guia", "FGTS", 0));
+        var folhaMes = F("folha", "", null, "{\"inss_centavos\":0,\"fgts_centavos\":0}");
+        var folhaAnt = F("folha", "", null, "{\"irrf_centavos\":0}");
+        var c = CalculadoraConferencias.Calcular("CF-09", Ctx(folha: folhaAnt),
+            new[] { folhaMes, F("guia", "INSS", long.MinValue), F("guia", "FGTS", 0), F("guia", "IRRF", 0) });
         Assert.Null(c.OperandoInvalido);
-        Assert.Equal(long.MinValue, c.Obtido);
+        Assert.Equal(long.MinValue, c.Obtido); // par do INSS (maior diferença, Int128 não estoura)
     }
 
     [Fact]
@@ -184,10 +189,13 @@ public class RevisaoPosMergeTeste
     {
         var regra = Guid.NewGuid();
         var fatos = new[] { new FatoUsado(Guid.NewGuid(), 3) };
-        // linha persistida = (cf, fatos_usados, regra_versao_id real, semantica_calculo)
+        // linha persistida = (cf, fatos_usados, regra_versao_id real, semantica_calculo corrente)
         var persistido = EntradaHash.Calcular("CF-07", fatos, regra, EntradaHash.SemanticaCalculo);
-        Assert.Equal(persistido, EntradaHash.Calcular("CF-07", fatos, regra, 2));
+        // reproduz passando explicitamente a semântica corrente
+        Assert.Equal(persistido, EntradaHash.Calcular("CF-07", fatos, regra, EntradaHash.SemanticaCalculo));
+        // a semântica corrente (3) difere do canônico sem campo (default 1) e das versões anteriores
         Assert.NotEqual(persistido, EntradaHash.Calcular("CF-07", fatos, regra));
+        Assert.NotEqual(persistido, EntradaHash.Calcular("CF-07", fatos, regra, 2));
         // semântica 1 (linhas legadas, default da coluna) reproduz o canônico original
         Assert.Equal(EntradaHash.Calcular("CF-07", fatos, regra, 1), EntradaHash.Calcular("CF-07", fatos, regra));
     }

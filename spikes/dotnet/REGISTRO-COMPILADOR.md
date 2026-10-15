@@ -12,6 +12,7 @@ Cada vez que o compilador C# (com `TreatWarningsAsErrors=true`) barrou um erro
 | 2026-10-06 | `tests/Motor.Testes.Unidade/DominioVetoresTeste.cs` | CS0103: `Contexto`/`Condicao` não existem no contexto (8×) | `using Motor.Dominio.Regras` faltando no teste |
 | 2026-10-06 | `src/Motor.Api/Program.cs` | CS0103: `Validacao` não existe no contexto (7×) | `using Motor.Api` faltando no `Program.cs` top-level |
 | 2026-10-08 | `src/Motor.Aplicacao/MotorServico.cs` | CS1061: `JsonElement` não tem `.Value` (2×) | review Codex P1: `ConteudoPorIdAsync` devolve `JsonElement?`; após `?? throw` o valor já é `JsonElement`, `.Value` sobra |
+| 2026-10-15 | `tests/Motor.Testes.Unidade/RevisaoPosMergeTeste.cs` | CS1501: nenhuma sobrecarga de `Calcular` aceita 5 argumentos (2×) | fase 4: CF-09 passou a receber `ContextoCalculo` + a lista de fatos; os testes chamavam `Calcular(cf, ctx, f1, f2, f3)` em vez de `Calcular(cf, ctx, new[]{...})` |
 
 Observações:
 
