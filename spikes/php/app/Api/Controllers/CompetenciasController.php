@@ -40,7 +40,7 @@ final readonly class CompetenciasController
             }
             foreach ($bruto['empresas'] as $empresaBruta) {
                 if (is_array($empresaBruta)) {
-                    CorpoEstrito::exigirChaves($empresaBruta, ['titular_id', 'regime', 'tem_folha', 'tem_prolabore', 'tem_taxa_municipal', 'filial', 'carteira', 'municipio'], 'Empresa');
+                    CorpoEstrito::exigirChaves($empresaBruta, ['titular_id', 'regime', 'tem_folha', 'tem_prolabore', 'tem_taxa_municipal', 'filial', 'carteira', 'municipio', 'sujeito_fator_r'], 'Empresa');
                 }
             }
         }
@@ -58,6 +58,7 @@ final readonly class CompetenciasController
             'empresas.*.filial' => ['required', self::booleanoNativo()],
             'empresas.*.carteira' => ['present', 'string', 'min:1'],
             'empresas.*.municipio' => ['present', 'string', 'min:1'],
+            'empresas.*.sujeito_fator_r' => ['sometimes', self::booleanoNativo()],
         ]);
 
         /** @var string $competencia */
@@ -86,10 +87,11 @@ final readonly class CompetenciasController
      */
     private static function empresa(array $e): Empresa
     {
-        /** @var array{titular_id: string, regime: 'SN'|'LP', tem_folha: bool, tem_prolabore: bool, tem_taxa_municipal: bool, filial: bool, carteira: string, municipio: string} $e */
+        /** @var array{titular_id: string, regime: 'SN'|'LP', tem_folha: bool, tem_prolabore: bool, tem_taxa_municipal: bool, filial: bool, carteira: string, municipio: string, sujeito_fator_r?: bool} $e */
         return new Empresa(
             $e['titular_id'], $e['regime'], $e['tem_folha'], $e['tem_prolabore'],
             $e['tem_taxa_municipal'], $e['filial'], $e['carteira'], $e['municipio'],
+            $e['sujeito_fator_r'] ?? false,
         );
     }
 

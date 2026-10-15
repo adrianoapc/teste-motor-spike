@@ -118,9 +118,23 @@ final readonly class Formulas
         );
     }
 
-    /** CF-07 (E04): esperado = apurado[DAS ou IRPJ].valor; obtido = soma(divisao_socios.payload.parcelas[].valor_centavos). */
-    public function cf07(FatosDoCaso $f, string $tributoApuracao): ResultadoFormula
+    /**
+     * CF-07 (E04).
+     * SN: esperado = apurado[DAS].valor; obtido = soma de TODAS as parcelas (sem olhar tributo).
+     * LP (v4, §9.1): tributo a tributo. Tributos = apurados do caso ∪ tributos das parcelas.
+     *   Para cada T: esperado = apurado[T].valor, obtido = soma das parcelas com tributo = T (nenhuma = 0).
+     *   Toda parcela precisa de `tributo` não vazio (senão operando inválido, classe S); tributo sem
+     *   apurado no caso é dado ausente (classe S). A conferência grava o par do tributo de MAIOR
+     *   diferença (empate: menor tributo por code point).
+     *
+     * @param  'SN'|'LP'  $regime
+     */
+    public function cf07(FatosDoCaso $f, string $tributoApuracao, string $regime): ResultadoFormula
     {
+        if ($regime === 'LP') {
+            return $this->cf07Lp($f);
+        }
+
         $apurado = $f->de('apurado', $tributoApuracao);
         $divisao = $f->de('divisao_socios');
         $usados = $this->usadosExistentes($apurado, $divisao);
@@ -139,6 +153,64 @@ final readonly class Formulas
         }
 
         return new ResultadoFormula($apurado->valorCentavos, $soma, $usados);
+    }
+
+    /** CF-07 do Lucro Presumido, tributo a tributo (v4, §9.1). */
+    private function cf07Lp(FatosDoCaso $f): ResultadoFormula
+    {
+        $divisao = $f->de('divisao_socios');
+        // Fatos apurado vigentes do caso: entram nos usados e definem os tributos esperados.
+        $tributosApurado = $f->tributosDe('apurado');
+        $apurados = [];
+        foreach ($tributosApurado as $t) {
+            $apurados[$t] = $f->de('apurado', $t);
+        }
+        $usados = $this->usadosExistentes($divisao, ...array_values($apurados));
+
+        if ($divisao === null) {
+            return ResultadoFormula::fatoAusente('divisao_socios[]', $usados);
+        }
+
+        // Soma das parcelas por tributo; null => alguma parcela sem `tributo` (texto não vazio) ou valor inválido.
+        $somaPorTributo = $this->somaParcelasPorTributo($divisao);
+        if ($somaPorTributo === null) {
+            return ResultadoFormula::fatoAusente('divisao_socios.payload.parcelas[].tributo', $usados);
+        }
+
+        // Tributos a conferir = apurados do caso ∪ tributos das parcelas.
+        $tributos = array_values(array_unique(array_merge($tributosApurado, array_keys($somaPorTributo))));
+        if ($tributos === []) {
+            return ResultadoFormula::fatoAusente('divisao_socios.payload.parcelas[].valor_centavos', $usados);
+        }
+        sort($tributos, SORT_STRING); // ordem de code point, para o desempate determinístico
+
+        $melhorEsperado = null;
+        $melhorObtido = null;
+        $melhorDif = null;
+        foreach ($tributos as $t) {
+            $apurado = $apurados[$t] ?? null;
+            // Tributo sem apurado no caso (só apareceu nas parcelas) = dado ausente, classe S.
+            if ($apurado === null) {
+                return ResultadoFormula::fatoAusente("apurado[{$t}]", $usados);
+            }
+            if ($apurado->valorCentavos === null) {
+                return ResultadoFormula::fatoAusente("apurado[{$t}].valor", $usados);
+            }
+            $esperado = $apurado->valorCentavos;
+            $obtido = $somaPorTributo[$t] ?? 0; // nenhuma parcela de T => 0
+            $dif = Dinheiro::diferencaExata($esperado, $obtido);
+            // Primeiro tributo, ou diferença estritamente maior: tributos já em ordem de code point,
+            // então o primeiro a atingir o máximo (empate) é o menor tributo.
+            if ($melhorDif === null || Dinheiro::compararDiferencas($dif, $melhorDif) > 0) {
+                $melhorEsperado = $esperado;
+                $melhorObtido = $obtido;
+                $melhorDif = $dif;
+            }
+        }
+
+        /** @var int $melhorEsperado */
+        /** @var int $melhorObtido */
+        return new ResultadoFormula($melhorEsperado, $melhorObtido, $usados);
     }
 
     /** CF-08 (E07, SN): esperado = arred(faturamento_mes.valor × prolabore_percentual_bp ÷ 10000); obtido = prolabore.valor. */
@@ -168,15 +240,21 @@ final readonly class Formulas
     }
 
     /**
-     * CF-09 (E08): para INSS e FGTS: esperado = folha.payload.<tributo>_centavos; obtido = guia[tributo].valor.
-     * A diferença é a MAIOR das duas; esperado/obtido gravam o par do tributo de maior diferença (empate: INSS).
+     * CF-09 (E08): três pares (v4, §9.1).
+     *   INSS: esperado = folha.payload.inss_centavos; obtido = guia[INSS].valor.
+     *   FGTS: esperado = folha.payload.fgts_centavos; obtido = guia[FGTS].valor.
+     *   IRRF: esperado = folha[competência − 1].payload.irrf_centavos; obtido = guia[IRRF].valor.
+     * A diferença é a MAIOR das três; esperado/obtido gravam o par do tributo de maior diferença
+     * (empate: INSS, depois FGTS, depois IRRF).
      */
     public function cf09(FatosDoCaso $f): ResultadoFormula
     {
         $folha = $f->de('folha');
+        $folhaAnterior = $f->folhaMesAnterior();
         $guiaInss = $f->de('guia', 'INSS');
         $guiaFgts = $f->de('guia', 'FGTS');
-        $usados = $this->usadosExistentes($folha, $guiaInss, $guiaFgts);
+        $guiaIrrf = $f->de('guia', 'IRRF');
+        $usados = $this->usadosExistentes($folha, $folhaAnterior, $guiaInss, $guiaFgts, $guiaIrrf);
         if ($folha === null) {
             return ResultadoFormula::fatoAusente('folha[]', $usados);
         }
@@ -186,32 +264,55 @@ final readonly class Formulas
         if ($guiaFgts === null) {
             return ResultadoFormula::fatoAusente('guia[FGTS]', $usados);
         }
+        if ($guiaIrrf === null) {
+            return ResultadoFormula::fatoAusente('guia[IRRF]', $usados);
+        }
+        if ($folhaAnterior === null) {
+            return ResultadoFormula::fatoAusente('folha[-1]', $usados);
+        }
         $espInss = $this->inteiroDoPayload($folha, 'inss_centavos');
         $espFgts = $this->inteiroDoPayload($folha, 'fgts_centavos');
+        $espIrrf = $this->inteiroDoPayload($folhaAnterior, 'irrf_centavos');
         if ($espInss === null) {
             return ResultadoFormula::fatoAusente('folha.payload.inss_centavos', $usados);
         }
         if ($espFgts === null) {
             return ResultadoFormula::fatoAusente('folha.payload.fgts_centavos', $usados);
         }
+        if ($espIrrf === null) {
+            return ResultadoFormula::fatoAusente('folha[-1].payload.irrf_centavos', $usados);
+        }
         $obtInss = $guiaInss->valorCentavos;
         $obtFgts = $guiaFgts->valorCentavos;
+        $obtIrrf = $guiaIrrf->valorCentavos;
         if ($obtInss === null) {
             return ResultadoFormula::fatoAusente('guia[INSS].valor', $usados);
         }
         if ($obtFgts === null) {
             return ResultadoFormula::fatoAusente('guia[FGTS].valor', $usados);
         }
+        if ($obtIrrf === null) {
+            return ResultadoFormula::fatoAusente('guia[IRRF].valor', $usados);
+        }
+
+        // Par do tributo de maior diferença (comparação exata, mesmo acima de int64).
+        // Empate: INSS, depois FGTS, depois IRRF — por isso só substituo com diferença ESTRITAMENTE maior,
+        // avaliando na ordem INSS → FGTS → IRRF.
         $difInss = Dinheiro::diferencaExata($espInss, $obtInss);
         $difFgts = Dinheiro::diferencaExata($espFgts, $obtFgts);
+        $difIrrf = Dinheiro::diferencaExata($espIrrf, $obtIrrf);
 
-        // Par do tributo de maior diferença (comparação exata, mesmo acima de int64); empate → INSS.
-        if (Dinheiro::compararDiferencas($difFgts, $difInss) > 0) {
+        $esperado = $espInss;
+        $obtido = $obtInss;
+        $melhorDif = $difInss;
+        if (Dinheiro::compararDiferencas($difFgts, $melhorDif) > 0) {
             $esperado = $espFgts;
             $obtido = $obtFgts;
-        } else {
-            $esperado = $espInss;
-            $obtido = $obtInss;
+            $melhorDif = $difFgts;
+        }
+        if (Dinheiro::compararDiferencas($difIrrf, $melhorDif) > 0) {
+            $esperado = $espIrrf;
+            $obtido = $obtIrrf;
         }
 
         return new ResultadoFormula($esperado, $obtido, $usados);
@@ -259,6 +360,39 @@ final readonly class Formulas
         }
 
         return $soma;
+    }
+
+    /**
+     * Soma das parcelas agrupada por `tributo` (CF-07 LP, §9.1). Devolve null se `parcelas` falta,
+     * não é lista, ou alguma parcela não tem `tributo` texto não vazio, tem `valor_centavos` inválido,
+     * ou a soma de um tributo estoura int64 — qualquer um é operando inválido (classe S).
+     *
+     * @return array<string, int>|null
+     */
+    private function somaParcelasPorTributo(Fato $divisao): ?array
+    {
+        $payload = $divisao->payload;
+        if (! is_object($payload) || ! isset($payload->parcelas) || ! is_array($payload->parcelas)) {
+            return null;
+        }
+        $somas = [];
+        foreach ($payload->parcelas as $parcela) {
+            if (! is_object($parcela) || ! isset($parcela->valor_centavos) || ! is_int($parcela->valor_centavos)) {
+                return null;
+            }
+            if (! isset($parcela->tributo) || ! is_string($parcela->tributo) || $parcela->tributo === '') {
+                return null; // parcela sem tributo = operando inválido
+            }
+            $t = $parcela->tributo;
+            $atual = $somas[$t] ?? 0;
+            if (($parcela->valor_centavos > 0 && $atual > PHP_INT_MAX - $parcela->valor_centavos)
+                || ($parcela->valor_centavos < 0 && $atual < PHP_INT_MIN - $parcela->valor_centavos)) {
+                return null;
+            }
+            $somas[$t] = $atual + $parcela->valor_centavos;
+        }
+
+        return $somas;
     }
 
     private function inteiroDoPayload(Fato $fato, string $campo): ?int

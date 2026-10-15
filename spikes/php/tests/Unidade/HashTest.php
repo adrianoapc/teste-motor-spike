@@ -131,6 +131,6 @@ it('entrada_hash bate com os 9 vetores compartilhados (canônico e sha256), com 
     }
 });
 
-it('a constante de semântica do cálculo é 2 (§9.2)', function (): void {
-    expect(HashConferencia::SEMANTICA_CALCULO)->toBe(2);
+it('a constante de semântica do cálculo é 3 (§9.2, v4/M1)', function (): void {
+    expect(HashConferencia::SEMANTICA_CALCULO)->toBe(3);
 });

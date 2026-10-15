@@ -4,6 +4,7 @@ storage/phpstan/
 storage/phpunit/
 storage/framework/cache/*
 storage/logs/*
+bootstrap/cache/*.php
 .git/
 .env
 *.md

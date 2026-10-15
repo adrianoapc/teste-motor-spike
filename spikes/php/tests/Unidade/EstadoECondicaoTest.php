@@ -51,3 +51,16 @@ it('distingue booleano de ausência', function (): void {
     expect(Condicao::casa([['tem_taxa_municipal' => true]], $ctx))->toBeFalse()
         ->and(Condicao::casa([['tem_taxa_municipal' => false]], $ctx))->toBeTrue();
 });
+
+it('casa a condição do CF-08 pelo sujeito_fator_r (v4, M1)', function (): void {
+    // quando da regra v3: [{ "regime": "SN", "sujeito_fator_r": true }]
+    $quando = [['regime' => 'SN', 'sujeito_fator_r' => true]];
+
+    $sujeito = Contexto::de(['regime' => 'SN', 'sujeito_fator_r' => true], new Competencia('202609'));
+    $naoSujeito = Contexto::de(['regime' => 'SN', 'sujeito_fator_r' => false], new Competencia('202609'));
+    $lp = Contexto::de(['regime' => 'LP', 'sujeito_fator_r' => true], new Competencia('202609'));
+
+    expect(Condicao::casa($quando, $sujeito))->toBeTrue()
+        ->and(Condicao::casa($quando, $naoSujeito))->toBeFalse()
+        ->and(Condicao::casa($quando, $lp))->toBeFalse();
+});

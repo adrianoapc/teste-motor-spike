@@ -112,28 +112,28 @@ Antes da tarefa 11: `git merge origin/main`, para trazer correções da base fei
 
 Antes da tarefa 19: `git merge origin/main` (traz a V008, o contrato 1.3.0, a semântica v4 e os cenários C11 a C13) e rodar as migrações (`docker compose run --rm migrar`). Anotar a hora de início em `METRICAS.md` (seção Manutenção M1). Ler `docs/semantica-do-motor.md` §16 inteiro antes de mudar código.
 
-- [ ] 19. Regressão com as regras novas
+- [x] 19. Regressão com as regras novas
   - Rodar `--todos cenarios --fase 3 --limpar` sem mudar código e registrar em `METRICAS.md` quais cenários quebraram e por quê (é a medida de impacto da mudança de regra).
   - _Requisitos: 21.2_
 
-- [ ] 20. Contrato e contexto
+- [x] 20. Contrato e contexto
   - Aceitar `sujeito_fator_r` opcional (padrão `false`) e levar ao contexto do caso (§3). A condição do CF-08 vem da regra v3; não escrever a regra no código.
   - Verificador: `--cenario cenarios/c11-m1-tolerancia-e-fator-r.json`.
   - _Requisitos: 21.1, 21.2_
 
-- [ ] 21. CF-07 do Presumido tributo a tributo
+- [x] 21. CF-07 do Presumido tributo a tributo
   - §9.1: tributos = apurados do caso ∪ tributos das parcelas; par de maior diferença; parcela sem tributo e tributo sem apurado = dado ausente (classe S). `semantica_calculo = 3`.
   - Testes unitários da fórmula (sem banco), incluindo empate e os dois casos de dado ausente.
   - Verificador: `--cenario cenarios/c12-m1-cf07-presumido-por-tributo.json`, depois C8 e C5.
   - _Requisitos: 21.3, 21.5_
 
-- [ ] 22. CF-09 com o IRRF da folha do mês anterior
+- [x] 22. CF-09 com o IRRF da folha do mês anterior
   - §9.1: terceiro par com `folha[competência − 1].payload.irrf_centavos` × `guia[IRRF].valor`. A entrada `folha` com `competencia_relativa: -1` já vem da regra v3; a invalidação da folha do mês anterior precisa atingir o E08 deste mês (§11.1).
   - Testes unitários do par de maior diferença com três tributos.
   - Verificador: `--cenario cenarios/c13-m1-irrf-folha-mes-anterior.json`, depois C1 e C2.
   - _Requisitos: 21.4, 21.5, 21.6_
 
-- [ ] 23. Fechamento da fase 4
+- [x] 23. Fechamento da fase 4
   - `--todos cenarios --fase 4 --limpar --relatorio resultado-fase4-php.json` com 13/13, só esta spike no ar.
   - `METRICAS.md` (seção Manutenção M1, com hora de fim), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 21.7, 22_

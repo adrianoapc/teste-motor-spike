@@ -64,7 +64,7 @@ final readonly class Conferidor
             'CF-04' => $formulas->cf04($fatos),
             'CF-05' => $formulas->cf05($fatos, $tributoGuia),
             'CF-06' => $formulas->cf06($fatos, $tributoGuia, $caso->competencia->valor),
-            'CF-07' => $formulas->cf07($fatos, $tributoGuia),
+            'CF-07' => $formulas->cf07($fatos, $tributoGuia, $this->regimeDoCaso($caso)),
             'CF-08' => $formulas->cf08($fatos),
             'CF-09' => $formulas->cf09($fatos),
             'CF-12' => $formulas->cf12($fatos, $this->tributoDoRecibo($caso, $item)),
@@ -89,6 +89,19 @@ final readonly class Conferidor
             'fechamento.entregaveis', $caso->regraEntregaveisVersaoId,
             "item {$item->tipo} roda CF-12 mas não declara entrada recibo_obrigacao para este contexto",
         );
+    }
+
+    /**
+     * Regime do caso (SN|LP) lido do contexto/snapshot. Define o cálculo da CF-07 (§9.1 v4):
+     * SN soma todas as parcelas contra apurado[DAS]; LP confere tributo a tributo.
+     *
+     * @return 'SN'|'LP'
+     */
+    private function regimeDoCaso(Caso $caso): string
+    {
+        $regime = $caso->contexto()->valor('regime');
+
+        return $regime === 'LP' ? 'LP' : 'SN';
     }
 
     private function gravar(

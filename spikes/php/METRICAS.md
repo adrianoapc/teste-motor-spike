@@ -105,6 +105,71 @@ Modelo em `docs/regras-do-jogo.md` §4. Fase 1 (cenários C1 e C7).
 
 ---
 
+## Manutenção M1 (fase 4 — cenários C11, C12, C13 + regressão C1–C10, C6)
+
+- **Hora de início (tarefa 19):** 2026-10-15 03:49 UTC (00:49 -03) — relógio do banco (`select now()` em `spike_php`).
+- **Hora de fim (13/13):** 2026-10-15 04:22 UTC (01:22 -03) — relógio do banco. **Tempo de relógio: ~33 min.**
+- Branch: `m1/spike-php`, a partir de `origin/main` `3ef6f45` (PR #27: V008, contrato 1.3.0, semântica v4, cenários C11–C13).
+
+### Resumo da manutenção M1
+
+| Medida | Valor |
+|---|---|
+| Tempo de relógio (tarefa 19 → 13/13) | ~33 min |
+| Retrabalhos (verificador rodado e falhou, exigindo correção) | 1 — C11 falhou com `semantica_calculo [2]` esperado `3` depois do primeiro corte da tarefa 20; corrigido no mesmo passo bumpando a constante |
+| Intervenções humanas | 0 |
+| Erros barrados pelo PHPStan antes de teste | 0 (todas as análises limpas de primeira; nenhuma linha nova em `REGISTRO-COMPILADOR.md`) |
+| Arquivos de código/teste alterados | 12 (`git diff --stat origin/main -- spikes/php/app spikes/php/tests spikes/php/.dockerignore`) |
+| Linhas | +394 −27 |
+| Testes ao fim | 191 passando (835 asserções); Pint sem alteração; PHPStan `max` sem erro |
+| `--todos cenarios --fase 4 --limpar` | **13/13** (relatório em `resultado-fase4-php.json`) |
+
+`git diff --stat` da fase (código + testes):
+
+```
+ spikes/php/.dockerignore                           |   1 +
+ app/Api/Controllers/CompetenciasController.php     |   6 +-
+ app/Aplicacao/Conferencias/Conferidor.php          |  15 +-
+ app/Aplicacao/Conferencias/FatosDoCaso.php         |  27 +++-
+ app/Aplicacao/Conferencias/Formulas.php            | 154 ++++++++++++++++--
+ app/Aplicacao/Fechamento/AvaliarCaso.php           |   5 +-
+ app/Dominio/Conferencias/HashConferencia.php       |   5 +-
+ app/Dominio/Fechamento/Empresa.php                 |  21 +++
+ tests/Unidade/EmpresaTest.php                      |  51 +++++++
+ tests/Unidade/EstadoECondicaoTest.php              |  13 ++
+ tests/Unidade/FormulasTest.php                     | 119 ++++++++++++--
+ tests/Unidade/HashTest.php                         |   4 +-
+ 12 files changed, 394 insertions(+), 27 deletions(-)
+```
+
+**Ambiente da execução:** o relatório 13/13 foi medido com os contêineres `spike_dotnet` e `spike_python` de outras sessões também no ar (bancos separados `spike_dotnet`/`spike_python`; não afetam a correção do `spike_php`, só disputam o Postgres compartilhado). Como esta fase mede **tempo e retrabalho até passar**, não desempenho, isso não compromete o resultado; a medida de escala (fase 3) e a comparação entre spikes continuam em `medicao/RESULTADOS.md`.
+
+### Tarefa 19 — regressão com as regras novas (sem mudar código)
+
+Rodado `--todos cenarios --fase 3 --limpar` com o código v3 inalterado contra o banco já na V008 (regras `fechamento.entregaveis` v3 e `fiscal.tolerancia` v2 `provisoria`/em uso).
+
+**Resultado: 9/10. Único cenário quebrado: C1.**
+
+| Cenário | Resultado | Causa |
+|---|---|---|
+| C1 (fase 1) | **FALHOU** (122 checagens, 55 falhas) | `POST /competencias/abrir` passo 1 → `422 corpo_invalido: "propriedade não declarada em Empresa: sujeito_fator_r"`. O cenário C1 foi atualizado na M1 para enviar o campo novo `sujeito_fator_r`; o DTO `Empresa` v3 do código ainda recusa qualquer campo não declarado, então o caso T001/202609 nunca é criado e as 54 checagens seguintes caem em cascata ("caso/entregável não existe", conferências e eventos a zero). |
+| C2–C5, C7–C10, C6 | PASSOU | Não enviam `sujeito_fator_r`. O código v3 lê as regras pelo `status`, então as versões novas (tolerância v2, entregáveis v3) já são as "em uso"; a lógica de cálculo v3 (CF-07 só SN, CF-09 dois pares, tolerância sem faixa de alerta, Fator R) ainda não é exercida por esses cenários. |
+
+**Medida de impacto:** a única regressão da mudança de contrato (M1.2/M1.5) é a rejeição do campo `sujeito_fator_r`. As mudanças de **cálculo** (CF-07 LP tributo a tributo, CF-09 com IRRF M-1, tolerância com faixa de alerta, condição Fator R no CF-08) não aparecem como regressão aqui porque só os cenários da fase 4 (C11, C12, C13) e o C1 (que ganhou o campo) as exercitam — C11/12/13 não entram no `--fase 3`. É o esperado: a fase 4 corrige C1 (tarefa 20) e faz C11–C13 passarem (tarefas 20–22).
+
+### Tarefas 20–23 — as mudanças
+
+| Tarefa | Mudança | Verificador | Resultado |
+|---|---|---|---|
+| 20 | `Empresa` aceita `sujeito_fator_r` opcional (padrão `false`), propaga ao `Contexto`; a condição do CF-08 vem da regra v3 (`casa()`, nada no código). Bump de `HashConferencia::SEMANTICA_CALCULO` 2→3 (req 21.5, exigido já pelo CF-08 do C11). | C11 | 1/1 |
+| 21 | CF-07 do LP tributo a tributo: tributos = apurados ∪ parcela-tributos; par de maior diferença (empate: menor por code point); parcela sem `tributo` = operando inválido (classe S); tributo sem apurado = dado ausente (classe S). SN inalterado. | C12, C8, C5 | 1/1 cada |
+| 22 | CF-09 ganha o par IRRF: `folha[competência−1].payload.irrf_centavos` × `guia[IRRF].valor`; maior das três diferenças (empate INSS>FGTS>IRRF). A folha de M-1 é lida por `RepositorioFato::vigente(competência−1)` e injetada no `FatosDoCaso`; a invalidação cross-competência já atinge o E08 do mês (§11.1). | C13, C1, C2 | 1/1 cada |
+| 23 | Fechamento: `--todos cenarios --fase 4 --limpar --relatorio resultado-fase4-php.json`. Idempotência (§6 passo 2 v4) coberta pelas checagens `espera.sem_efeito_nos_casos` dos cenários da fase 4, que passam sem nenhuma mudança no motor (o PHP já faz percurso completo idempotente). | `--fase 4` | **13/13** |
+
+A idempotência (req 21.6) não exigiu código novo: o `PublicarFato` já só grava transição/evento/conferência/exceção/tarefa/`version` quando algo muda (hash igual = `sem_mudanca` sem gravação; prontidão/conferência idempotentes por chave), então um fato sem consumidor não produz efeito — exatamente o que `espera.sem_efeito_nos_casos` cobra.
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.
