@@ -5,6 +5,7 @@ Só fala HTTP com a API do spike e lê o log do Postgres (log_statement=all) e o
 Nada aqui depende da linguagem da aplicação. Subcomandos:
 
   ops     SQLs por operação (conjunto fixo de operações sobre 1 empresa SN com folha), N repetições
+  sqls-abertura  SQLs totais (log_statement=all) de UMA abertura: mix SN/LP, só-SN e só-LP (custo marginal)
   c6      cenário C6 isolado, N repetições (chama o verificador comum)
   abrir   uma única requisição POST /competencias/abrir com 10.000 empresas, com amostragem de
           docker stats a cada 5 s
@@ -283,6 +284,51 @@ def empresas_10k(n: int) -> list[dict[str, Any]]:
              "municipio": "3549805"} for i in range(n)]
 
 
+SEMENTE_MIX = 20261006
+# proporções padrão de massa/gerar_massa_sintetica.py (mesma ordem das chamadas ao gerador aleatório)
+PCT = {"sn": 0.70, "folha": 0.30, "prolabore": 0.85, "taxa": 0.20}
+
+
+def gerar_mix(n: int, semente: int = SEMENTE_MIX, pct_sn: float = PCT["sn"], prefixo: str = "S",
+              carteiras: int = 50) -> list[dict[str, Any]]:
+    """Mesmo algoritmo de massa/gerar_massa_sintetica.py:gerar (empresas), determinístico pela semente.
+    Com pct_sn=1.0 ou 0.0 sai massa pura de SN ou de LP, com as mesmas flags/carteiras do mix."""
+    import random
+    rnd = random.Random(semente)
+    out = []
+    for i in range(1, n + 1):
+        out.append({
+            "titular_id": f"{prefixo}{i:05d}",
+            "regime": "SN" if rnd.random() < pct_sn else "LP",
+            "tem_folha": rnd.random() < PCT["folha"],
+            "tem_prolabore": rnd.random() < PCT["prolabore"],
+            "tem_taxa_municipal": rnd.random() < PCT["taxa"],
+            "filial": False,
+            "carteira": f"C-{rnd.randint(1, carteiras):02d}",
+            "municipio": "3549805",
+        })
+    return out
+
+
+def perfil(empresas: list[dict[str, Any]]) -> dict[str, Any]:
+    r: dict[str, Any] = {"total": len(empresas)}
+    for reg in ("SN", "LP"):
+        s = [e for e in empresas if e["regime"] == reg]
+        r[reg] = {"n": len(s), "folha": sum(e["tem_folha"] for e in s), "prolabore": sum(e["tem_prolabore"] for e in s),
+                  "taxa": sum(e["tem_taxa_municipal"] for e in s)}
+    return r
+
+
+def entregaveis_por_regime(dsn: str, empresas: list[dict[str, Any]]) -> dict[str, int]:
+    reg = {e["titular_id"]: e["regime"] for e in empresas}
+    tot = {"SN": 0, "LP": 0}
+    with conn_harness(dsn) as c:
+        for tit, n in c.execute("SELECT k.titular_id, count(e.id) FROM fechamento.caso_competencia k "
+                                "LEFT JOIN fechamento.entregavel e ON e.caso_id = k.id GROUP BY 1").fetchall():
+            tot[reg[tit]] += n
+    return tot
+
+
 def amostrar_stats(containers: list[str], parar: threading.Event, saida: list[dict[str, Any]]) -> None:
     t0 = time.time()
     while not parar.is_set():
@@ -316,7 +362,8 @@ def pico(amostras: list[dict[str, Any]], nome: str) -> dict[str, Any]:
 
 
 def cmd_abrir(a: argparse.Namespace) -> None:
-    corpo = {"competencia": "202610", "ator": "agenda", "empresas": empresas_10k(a.empresas)}
+    empresas = gerar_mix(a.empresas, a.semente) if a.mix else empresas_10k(a.empresas)
+    corpo = {"competencia": "202610", "ator": "agenda", "empresas": empresas}
     tamanho_req = len(json.dumps(corpo))
     res = []
     for i in range(1, a.reps + 1):
@@ -328,6 +375,8 @@ def cmd_abrir(a: argparse.Namespace) -> None:
         th.start()
         t0 = time.perf_counter()
         info: dict[str, Any] = {"rep": i, "empresas": a.empresas, "tamanho_requisicao_bytes": tamanho_req}
+        if a.mix:
+            info["perfil"] = perfil(empresas)
         try:
             r = cli.post("/competencias/abrir", json=corpo)
             info.update(status=r.status_code, tamanho_resposta_bytes=len(r.content))
@@ -352,6 +401,8 @@ def cmd_abrir(a: argparse.Namespace) -> None:
         with conn_harness(a.db) as c:
             info["casos_no_banco"] = c.execute("SELECT count(*) FROM fechamento.caso_competencia").fetchone()[0]  # type: ignore[index]
             info["entregaveis_no_banco"] = c.execute("SELECT count(*) FROM fechamento.entregavel").fetchone()[0]  # type: ignore[index]
+        if a.mix:
+            info["entregaveis_por_regime"] = entregaveis_por_regime(a.db, empresas)
         insp = json.loads(sh("docker", "inspect", a.app_container))[0]["State"]
         info["app_oom_killed"] = insp["OOMKilled"]
         info["app_restarts"] = json.loads(sh("docker", "inspect", a.app_container))[0]["RestartCount"]
@@ -367,10 +418,68 @@ def cmd_abrir(a: argparse.Namespace) -> None:
     Path(a.out).write_text(json.dumps({"label": a.label, "reps": res}, ensure_ascii=False, indent=1))
 
 
+def cmd_sqls_abertura(a: argparse.Namespace) -> None:
+    """SQLs totais de UMA requisição de abertura (log_statement=all) para: mix, SN puras, LP puras."""
+    dsn_admin = re.sub(r"/[^/]+$", "/postgres", a.db)
+    dbname = a.db.rsplit("/", 1)[1]
+    conjuntos = {
+        f"mix_{a.empresas}": gerar_mix(a.empresas, a.semente),
+        f"sn_puras_{a.puras}": gerar_mix(a.puras, a.semente, 1.0, "N"),
+        f"lp_puras_{a.puras}": gerar_mix(a.puras, a.semente, 0.0, "L"),
+    }
+    cli = httpx.Client(base_url=a.api, timeout=httpx.Timeout(a.timeout))
+    res: dict[str, Any] = {}
+    configurar_log(dsn_admin, True)
+    try:
+        for nome, emp in conjuntos.items():
+            limpar(a.db)
+            assert cli.get("/health").status_code == 200
+            uid = f"{int(time.time() * 1000)}"  # marcas únicas por execução (o log do Postgres é compartilhado)
+            ini, fim = f"MARCA_INI_{nome}_{uid}", f"MARCA_FIM_{nome}_{uid}"
+            with conn_harness(a.db) as c:
+                c.execute(f"SELECT '{ini}'")
+            t0 = time.perf_counter()
+            r = cli.post("/competencias/abrir", json={"competencia": "202610", "ator": "agenda", "empresas": emp})
+            dt = time.perf_counter() - t0
+            ok = r.status_code == 200
+            time.sleep(2)
+            with conn_harness(a.db) as c:
+                c.execute(f"SELECT '{fim}'")
+            time.sleep(1.5)
+            n, cls, dentro = 0, {}, False
+            proc = subprocess.Popen(["docker", "logs", a.pg_container], stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, errors="replace")
+            assert proc.stdout is not None
+            for ln in proc.stdout:
+                if ini in ln and "statement" in ln:
+                    dentro = True
+                    continue
+                if fim in ln and "statement" in ln:
+                    break
+                if not dentro:
+                    continue
+                m = RE_LOG.match(ln.rstrip("\n"))
+                if not m or m["db"] != dbname or m["user"] != "spike" or m["app"] == "harness":
+                    continue
+                n += 1
+                k = classe(m["sql"])
+                cls[k] = cls.get(k, 0) + 1
+            proc.kill()
+            res[nome] = {"status": r.status_code, "empresas": len(emp), "perfil": perfil(emp), "sqls": n,
+                         "sqls_por_empresa": round(n / len(emp), 2), "por_classe": cls,
+                         "tempo_s_com_log": round(dt, 1), "ok": ok,
+                         "entregaveis_por_regime": entregaveis_por_regime(a.db, emp) if ok else None}
+            print(nome, {k: v for k, v in res[nome].items() if k != "perfil"}, flush=True)
+    finally:
+        configurar_log(dsn_admin, False)
+        limpar(a.db)
+    Path(a.out).write_text(json.dumps({"label": a.label, "conjuntos": res}, ensure_ascii=False, indent=1))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    for nome, fn in (("ops", cmd_ops), ("c6", cmd_c6), ("abrir", cmd_abrir)):
+    for nome, fn in (("ops", cmd_ops), ("c6", cmd_c6), ("abrir", cmd_abrir), ("sqls-abertura", cmd_sqls_abertura)):
         p = sp.add_parser(nome)
         p.add_argument("--api", required=True)
         p.add_argument("--db", required=True, help="DSN do banco do spike (postgresql://...)")
@@ -383,9 +492,15 @@ def main() -> None:
         if nome == "c6":
             p.add_argument("--verificador", required=True)
             p.add_argument("--cenario", required=True)
-        if nome == "abrir":
+        if nome in ("abrir", "sqls-abertura"):
             p.add_argument("--empresas", type=int, default=10000)
             p.add_argument("--timeout", type=float, default=1800)
+            p.add_argument("--semente", type=int, default=SEMENTE_MIX)
+        if nome == "abrir":
+            p.add_argument("--mix", action="store_true",
+                           help="mix SN/LP do gerador de massa (70%% SN, folha 30%%, pró-labore 85%%, taxa 20%%)")
+        if nome == "sqls-abertura":
+            p.add_argument("--puras", type=int, default=1000, help="tamanho dos conjuntos só-SN e só-LP")
         p.set_defaults(fn=fn)
     a = ap.parse_args()
     a.fn(a)

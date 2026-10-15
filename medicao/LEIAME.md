@@ -55,3 +55,23 @@ conferência, tarefa, exceção ou fila muda.
 
 Abertura de 10.000 empresas: titulares `M00000`..`M09999`, competência `202610`, todas SN com folha e pró-labore, carteira
 `C-01`..`C-20` em rodízio, município `3549805`.
+
+## Rodada 2: mix SN/LP e SQLs da abertura
+
+Novos itens do harness:
+
+```sh
+# abertura com o mix do gerador de massa (semente 20261006; 70% SN; folha 30%; pró-labore 85%; taxa 20%), N=3
+python medicao/sql_por_operacao.py abrir --mix --empresas 10000 --api ... --db ... \
+  --app-container vfmedicao-spike-dotnet-1 --label dotnet --reps 3 --out mix-dotnet.json
+# SQLs totais (log_statement=all) de UMA requisição: mix 10.000, 1.000 SN puras e 1.000 LP puras
+python medicao/sql_por_operacao.py sqls-abertura --api ... --db ... --label dotnet --out sqls-dotnet.json
+```
+
+`--mix` usa `gerar_mix`, cópia do algoritmo de `massa/gerar_massa_sintetica.py:gerar` (mesma ordem de chamadas ao gerador
+aleatório; verificado igual à saída do gerador do repositório): titulares `S00001`.., competência `202610`, `filial=false`,
+50 carteiras, município `3549805`. Com `--semente` e `--empresas` o resultado é idêntico entre linguagens. Em
+`sqls-abertura` os conjuntos puros usam a mesma semente com `pct_sn` 1.0 (titulares `N#####`) e 0.0 (`L#####`), logo com as
+mesmas flags e carteiras do mix. Sem `--mix`, `abrir` mantém o comportamento da rodada 1 (10.000 SN com folha).
+O diferencial do Python roda direto do repositório: `MOTOR_DB=... python spikes/python/scripts/diferencial_reavaliacao.py 150 150`
+(usa as sementes 0..149; **faz TRUNCATE** do banco de `MOTOR_DB`).
