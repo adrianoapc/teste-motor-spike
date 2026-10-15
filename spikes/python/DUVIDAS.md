@@ -238,6 +238,6 @@ cópia temporária: `import psycopg` e `import fastapi` em `dominio`, `import mo
 `aplicacao` e `import psycopg` em `aplicacao` quebram os contratos e fazem teste e comando
 falharem (exit 1); sem violação, tudo volta a passar.
 
-## D15 — Reavaliação ampla x §6.2: ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
+## D15 — Ambiguidade na §6.2: piso ou exato
 
-O Python reavalia por sementes (§6.2 literal, D11), em desacordo com a linha "Reavaliação após fato" do `design.md` (superconjunto). Evidência: `scripts/diferencial_reavaliacao.py`, 450 sequências, 0 divergência. Divergência aberta: decisão do dono da spec.
+O Python implementa a leitura EXATA: reavalia por sementes (D11), em desacordo com a interpretação "superconjunto" do `design.md`, que não tem autoridade sobre a spec. Evidência: `scripts/diferencial_reavaliacao.py`, 450 sequências, 0 divergência. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.

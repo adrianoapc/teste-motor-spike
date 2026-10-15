@@ -111,18 +111,23 @@ Transicionar(E, para, motivo, causado_por, ator):           # §4.1
 
 ## Decisões fixas (não reabrir)
 
-> **Nota:** a linha "Reavaliação após fato" desta tabela deixou de ser fixa: está **em aberto** (conflita com `docs/semantica-do-motor.md` §6 passo 2). Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
+> **Nota:** a decisão "Reavaliação após fato" saiu desta tabela: a §6 passo 2 da spec é ambígua (piso ou exato) e o design não tem autoridade para decidir. Ver "Interpretações em aberto" logo abaixo e `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
 
 | Tema | Decisão |
 |---|---|
 | Processamento nesta fase | Síncrono, dentro da requisição. `/admin/fila` devolve `{"pendentes":0,"com_erro":0}` |
-| Reavaliação após fato | Todos os casos **abertos** do titular (superconjunto seguro de §6.2) (texto original; o código atual deste spike segue a §6.2 com recorte por sementes, em desacordo com esta linha, desde o PR #20; ver D11 em `spikes/python/DUVIDAS.md`) ⚠ EM ABERTO: conflita com docs/semantica-do-motor.md §6 passo 2; ver .kiro/steering/divergencia-reavaliacao-spec-vs-design.md |
 | `observado_em` das saídas de tarefa | Instante atual do servidor |
 | Ordem de avaliação | Entregáveis em ordem de `tipo` (E01, E02, …) dentro de cada volta |
 | Erros | Corpo `{"erro": "<codigo>", "mensagem": "<texto>"}`; códigos curtos em snake_case |
 | Versão da regra | Sempre a versão **em uso** (`status IN ('provisoria','ativa')`), lida na abertura e guardada no caso. Nunca `versao = 1` no código (v3: a V006 publicou a v2) |
 | Estado `pago` | Aposentado na v3. O código não deve ter nenhum caminho para ele |
 | Hora | Sempre do banco (`now()`, `clock_timestamp()`) para gravação; nunca do relógio local para ordenar transições |
+
+## Interpretações em aberto (sem autoridade sobre a spec)
+
+| Tema | Interpretação | 
+|---|---|
+| Reavaliação após fato | Todos os casos **abertos** do titular (superconjunto seguro de §6.2). *Texto original; o código atual deste spike segue a leitura EXATA (recorte por sementes) desde o PR #20, em desacordo com esta linha; ver D11 em `spikes/python/DUVIDAS.md`.* ⚠ interpretação do §6 passo 2 (piso x exato em aberto); ver .kiro/steering/divergencia-reavaliacao-spec-vs-design.md |
 
 ## Fase 2 · acréscimos ao fluxo
 

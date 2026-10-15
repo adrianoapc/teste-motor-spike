@@ -44,4 +44,4 @@ Arquivos obrigatórios em cada spike:
 
 ## Decisões em aberto
 
-- **Reavaliação após fato (spec §6 passo 2 x design dos spikes):** divergência aberta, requer decisão do dono da spec. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`. Não trate a linha "Reavaliação após fato" dos `design.md` como fixa.
+- **Reavaliação após fato: ambiguidade na spec (§6 passo 2: piso ou exato?).** A spec prevalece (`product.md`, regra 1); o design não decide. Requer decisão do dono da spec e correção da §6.2. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`. Não trate a linha "Reavaliação após fato" dos `design.md` como fixa.
