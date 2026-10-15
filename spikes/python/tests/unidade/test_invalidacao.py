@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from motor.aplicacao.motor_fechamento import _invalidar
+from motor.aplicacao.motor_fechamento import _Pendencias
 from motor.aplicacao.registros import Caso, Entregavel
 
 
@@ -99,13 +100,16 @@ def test_invalidacao_cascata_para_estados_invalidaveis() -> None:
         deps={"B": ["A"], "C": ["B"]},
         fato_para_entregaveis={"f-old": ["A"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
     assert a.estado == "invalidado"
     assert b.estado == "invalidado"
     assert c.estado == "invalidado"
     assert uow.transicoes == [
         ("A", "invalidado"), ("B", "invalidado"), ("C", "invalidado"),
     ]
+    # A função única de transição registrou os invalidados para reavaliação (§6 passo 2 v4).
+    assert pend.entregaveis == {("caso-1", "A"), ("caso-1", "B"), ("caso-1", "C")}
 
 
 def test_invalidacao_disponibilizado_vira_substituicao() -> None:
@@ -116,7 +120,8 @@ def test_invalidacao_disponibilizado_vira_substituicao() -> None:
         deps={},
         fato_para_entregaveis={"f-old": ["E11"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
     assert e11.estado == "disponibilizado"
     assert ("E11", "substituicao") in uow.excecoes
 
@@ -129,7 +134,8 @@ def test_invalidacao_caso_encerrado_abre_competencia_encerrada() -> None:
         deps={},
         fato_para_entregaveis={"f-old": ["E01"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
     assert e.estado == "validado"
     assert (None, "competencia_encerrada") in uow.excecoes
 
@@ -142,7 +148,8 @@ def test_invalidacao_exclui_entregavel_sendo_concluido() -> None:
         deps={},
         fato_para_entregaveis={"f-old": ["A"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id="A")  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id="A")  # type: ignore[arg-type]
     assert a.estado == "processado"
     assert uow.transicoes == []
 
@@ -155,7 +162,8 @@ def test_invalidacao_de_divergente_resolve_excecoes_cf() -> None:
         deps={},
         fato_para_entregaveis={"f-old": ["A"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
     assert a.estado == "invalidado"
     assert "A" in uow.excecoes_cf_resolvidas
 
@@ -169,6 +177,7 @@ def test_invalidacao_cada_entregavel_no_maximo_uma_vez() -> None:
         deps={"B": ["A"], "C": ["A"], "D": ["B", "C"]},
         fato_para_entregaveis={"f-old": ["A"]},
     )
-    _invalidar(uow, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
+    pend = _Pendencias()
+    _invalidar(uow, pend, "f-old", "f-new", excluir_entregavel_id=None)  # type: ignore[arg-type]
     transicoes_d = [t for t in uow.transicoes if t[0] == "D"]
     assert transicoes_d == [("D", "invalidado")]

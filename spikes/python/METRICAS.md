@@ -164,6 +164,27 @@ idempotente, recorte registrado na transição única).
 
 **Impacto da mudança de regra, medido:** só o C1 regride, e por um único motivo (o campo novo no contrato). As demais mudanças M1 são aditivas e só aparecem nos cenários C11–C13.
 
+## Tarefa 23 — recorte registrado na função única de transição (§6 passo 2 v4)
+
+O registro do entregável para reavaliação deixou de ser repetido em cada caminho que muda
+estado (conclusão de tarefa, override, invalidação, desfecho de conferência) e passou a ser um
+efeito da **função única de transição** `_transicionar` (grava o estado e, no mesmo lugar,
+registra `(caso_id, tipo)` em `_Pendencias`). Teste de arquitetura
+`test_recorte_registrado_na_transicao_unica` (AST): `.transicionar` do repositório só é chamado
+de dentro de `_transicionar`; nenhum outro caminho muda estado sem pedir reavaliação.
+
+Critério de aceite — `scripts/diferencial_reavaliacao.py 150 150` (recorte × percurso completo,
++ completo × completo para separar divergência de não determinismo), contra `spike_python`:
+
+```
+transicoes por estado de destino (modo recorte): {'aguardando_insumo': 4765,
+  'disponibilizado': 19, 'divergente': 913, 'encerrado': 18, 'invalidado': 1598,
+  'ok': 832, 'processado': 2835, 'pronto': 3276, 'validado': 2408}
+150 sequencias x 150 operacoes: 0 problema(s)
+```
+
+**0 divergência e 0 não determinismo** em 150 × 150 operações.
+
 ## Retrabalho e intervenções
 _(a preencher ao fim da fase)_
 

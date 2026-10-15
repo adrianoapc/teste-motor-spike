@@ -285,7 +285,7 @@ def test_divergencia_emite_conferencia_id_e_excecao_id() -> None:
         transicoes.append((para, por_id))
 
     uow.transicionar = transicionar  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert ("conferencia.divergente", {"conferencia_id": "conf-1"}) in uow.eventos
     assert ("excecao.aberta", {"excecao_id": "exc-CF-01"}) in uow.eventos
     assert transicoes == [("divergente", "conf-1")]
@@ -318,7 +318,7 @@ def test_excecao_de_fato_ausente_herda_classe_s_da_conferencia() -> None:
         )],
     )
     uow.transicionar = lambda *a, **k: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == ["CF-01"]
     assert uow.classes_excecao == ["S"]  # catálogo diz "D"; a conferência computou "S"
 
@@ -380,7 +380,7 @@ def test_conferencia_reaproveitada_com_override_nao_bloqueia_nem_abre_excecao() 
     transicoes: list[str] = []
     uow.transicionar = lambda ent, para, *a, **k: transicoes.append(para)  # type: ignore[attr-defined]
     uow.evento_publicado_do_tipo = lambda t: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == []
     assert transicoes == ["validado"]
 
@@ -447,7 +447,7 @@ def test_conferencia_com_resultado_fora_do_int64_levanta_valor_fora_do_intervalo
         )],
     )
     with pytest.raises(ValorForaDoIntervalo):
-        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+        mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
 
 
 def _fv(tipo: str, tributo: str = "", valor: int | None = 100,
@@ -610,7 +610,7 @@ def test_desfecho_automatico_da_conferencia_grava_sempre_o_ator_sistema() -> Non
                 saida=None, conferencias=conferencias,
             )],
         )
-        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+        mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
 
     rodar([{"cf": "CF-01"}])  # fato ausente: divergente B
     rodar([])  # sem conferências: validado

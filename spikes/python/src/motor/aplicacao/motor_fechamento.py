@@ -145,11 +145,10 @@ def publicar_fato(
 
     pend = _Pendencias() if pendencias is None else pendencias
     pend.fatos.append((competencia, tipo, tributo))
-    # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR).
+    # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR). A função única
+    # de transição registra em `pend` quem foi a invalidado e os dependentes.
     if efeito == "nova_versao" and vigente is not None:
-        pend.entregaveis.update(
-            _invalidar(uow, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
-        )
+        _invalidar(uow, pend, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
 
     if pendencias is None:
         # §11.4 passo 3: reavaliação do que este fato afeta nos casos abertos do titular.
@@ -203,11 +202,11 @@ def concluir_tarefa(
             uow.ligar_fato(ent.id, fv.id, "saida")
 
     tarefa_id = uow.concluir_tarefa_aberta(ent.id)
-    uow.transicionar(
-        ent, E.PROCESSADO, "tarefa_concluida", "tarefa", tarefa_id, ator, regra.versao_id
+    _transicionar(
+        uow, pend, ent, E.PROCESSADO, "tarefa_concluida", "tarefa", tarefa_id, ator,
+        regra.versao_id,
     )
-    _conferir_entregavel(uow, caso, ent, regra)
-    pend.entregaveis.add((caso.id, ent.tipo))  # mudou de estado fora da avaliação
+    _conferir_entregavel(uow, pend, caso, ent, regra)
 
     _reavaliar_titular(uow, caso.titular_id, pend)
 
@@ -263,10 +262,9 @@ def override_conferencia(
 
     pend = _Pendencias()
     if not uow.ha_divergente_b_sem_override(ent.id, exceto_cf=cf):
-        uow.transicionar(
-            ent, E.VALIDADO, "override", "conferencia", conf_id, ator, regra.versao_id
+        _transicionar(
+            uow, pend, ent, E.VALIDADO, "override", "conferencia", conf_id, ator, regra.versao_id
         )
-        pend.entregaveis.add((caso.id, ent.tipo))  # mudou de estado fora da avaliação
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
@@ -276,6 +274,32 @@ def override_conferencia(
     atual = uow.buscar_entregavel(caso.id, tipo)
     assert atual is not None
     return atual
+
+
+# =============================================================================
+# Função ÚNICA de transição (§4.1, §6 passo 2 v4)
+# =============================================================================
+def _transicionar(
+    uow: UnidadeDeTrabalho,
+    pend: _Pendencias,
+    ent: Entregavel,
+    para: str,
+    motivo: str,
+    por_tipo: str | None,
+    por_id: str | None,
+    ator: str,
+    regra_versao_id: str,
+) -> None:
+    """Único ponto que grava `fechamento.entregavel.estado` (via `uow.transicionar`) e, no
+    MESMO lugar, registra o entregável para reavaliação dos dependentes (§6 passo 2, v4).
+
+    Assim nenhum caminho pode mudar estado sem pedir reavaliação: o recorte por sementes não
+    depende de cada chamador lembrar de registrar a pendência. O teste de arquitetura
+    `test_recorte_registrado_na_transicao_unica` garante que `uow.transicionar` só é chamado
+    aqui.
+    """
+    uow.transicionar(ent, para, motivo, por_tipo, por_id, ator, regra_versao_id)
+    pend.entregaveis.add((ent.caso_id, ent.tipo))
 
 
 # =============================================================================
@@ -295,6 +319,11 @@ def avaliar_caso(
     completo). Termina quando a fila esvazia, o mesmo ponto fixo do percurso completo.
     """
     ctx = contexto_do_caso(caso)
+    # Pendência local: as transições DENTRO da avaliação também passam pela função única e
+    # registram aqui. A fila abaixo já propaga os dependentes neste mesmo caso; esta pend não
+    # é lida fora, serve só para que `_transicionar` tenha onde registrar (nenhum caminho
+    # transiciona sem registrar — ver `_transicionar`).
+    pend = _Pendencias()
     fila = None if sementes is None else set(sementes)
     while True:
         mudou = False
@@ -309,7 +338,7 @@ def avaliar_caso(
                 if ent.tipo not in fila:
                     continue
                 fila.discard(ent.tipo)
-            if _passo(uow, caso, ent, item, regra, ctx):
+            if _passo(uow, pend, caso, ent, item, regra, ctx):
                 mudou = True
                 if fila is not None:
                     fila.add(ent.tipo)
@@ -350,6 +379,7 @@ def _sementes_do_caso(caso: Caso, regra: RegraEntregaveis, pend: _Pendencias) ->
 
 def _passo(
     uow: UnidadeDeTrabalho,
+    pend: _Pendencias,
     caso: Caso,
     ent: Entregavel,
     item: ItemEntregavel,
@@ -360,7 +390,7 @@ def _passo(
     rv = regra.versao_id
 
     def tr(para: str, motivo: str, por_tipo: str | None, por_id: str | None) -> None:
-        uow.transicionar(ent, para, motivo, por_tipo, por_id, ATOR_SISTEMA, rv)
+        _transicionar(uow, pend, ent, para, motivo, por_tipo, por_id, ATOR_SISTEMA, rv)
 
     if estado in (E.AGUARDANDO_INSUMO, E.INVALIDADO):
         if _pronto(uow, caso, ent, item, ctx):
@@ -376,7 +406,7 @@ def _passo(
 
     if estado == E.PRONTO and item.executor == "sistema":
         tr(E.PROCESSADO, "processamento_sistema", "comando", None)
-        _conferir_entregavel(uow, caso, ent, regra)
+        _conferir_entregavel(uow, pend, caso, ent, regra)
         return True
 
     if estado == E.VALIDADO:
@@ -467,14 +497,15 @@ _INVALIDAVEIS = frozenset(
 
 def _invalidar(
     uow: UnidadeDeTrabalho,
+    pend: _Pendencias,
     fato_anterior_id: str,
     fato_novo_id: str,
     excluir_entregavel_id: str | None,
-) -> list[tuple[str, str]]:
+) -> None:
     """Invalidação por nova versão de fato já usado (§11).
 
-    Devolve (caso_id, tipo) dos entregáveis que foram a `invalidado`, para a reavaliação.
-
+    Os entregáveis que vão a `invalidado` são registrados em `pend` pela função única de
+    transição (`_transicionar`), que também pede a reavaliação dos dependentes.
 
     Sementes = entregáveis ligados à versão ANTERIOR do fato, menos o
     entregável sendo concluído (§8 item 4). Aplica a tabela por estado (§11.2),
@@ -482,7 +513,6 @@ def _invalidar(
     tratado no máximo uma vez (§11.1).
     """
     sementes = uow.entregaveis_com_fato(fato_anterior_id)
-    invalidados: list[tuple[str, str]] = []
     visitados: set[str] = set()
     if excluir_entregavel_id is not None:
         visitados.add(excluir_entregavel_id)
@@ -505,17 +535,16 @@ def _invalidar(
                 uow.gravar_evento("excecao.aberta", caso.id, None, {"excecao_id": nova})
             continue
         for ent in sorted(ents, key=lambda e: e.tipo):
-            _invalidar_entregavel(uow, caso, ent, fato_novo_id, visitados, invalidados)
-    return invalidados
+            _invalidar_entregavel(uow, pend, caso, ent, fato_novo_id, visitados)
 
 
 def _invalidar_entregavel(
     uow: UnidadeDeTrabalho,
+    pend: _Pendencias,
     caso: Caso,
     ent: Entregavel,
     fato_novo_id: str,
     visitados: set[str],
-    invalidados: list[tuple[str, str]],
 ) -> None:
     """Aplica a tabela §11.2 a um entregável e cascateia pelos dependentes."""
     if ent.id in visitados:
@@ -526,18 +555,17 @@ def _invalidar_entregavel(
 
     if estado in _INVALIDAVEIS:
         era_divergente = estado == E.DIVERGENTE
-        uow.transicionar(
-            ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, ATOR_SISTEMA,
+        _transicionar(
+            uow, pend, ent, E.INVALIDADO, "fato_alterado", "fato", fato_novo_id, ATOR_SISTEMA,
             caso.regra_entregaveis_versao_id,
         )
-        invalidados.append((caso.id, ent.tipo))
         uow.gravar_evento("entregavel.invalidado", caso.id, ent.id, {"entregavel_id": ent.id})
         uow.cancelar_tarefa_aberta(ent.id)
         if era_divergente:
             uow.resolver_excecoes(ent.id, "CF-", None, "fato_alterado")
         # Cascata: só a partir de quem foi para invalidado.
         for dep in uow.dependentes_de(caso.id, ent.id):
-            _invalidar_entregavel(uow, caso, dep, fato_novo_id, visitados, invalidados)
+            _invalidar_entregavel(uow, pend, caso, dep, fato_novo_id, visitados)
     elif estado == E.DISPONIBILIZADO:
         # Documento já protocolado precisa ser substituído (§11.2).
         nova = uow.abrir_excecao_unica(caso.id, ent.id, "substituicao", "O", caso.carteira)
@@ -652,7 +680,8 @@ def _fato_gatilho(
 
 
 def _conferir_entregavel(
-    uow: UnidadeDeTrabalho, caso: Caso, ent: Entregavel, regra: RegraEntregaveis
+    uow: UnidadeDeTrabalho, pend: _Pendencias, caso: Caso, ent: Entregavel,
+    regra: RegraEntregaveis,
 ) -> None:
     """Roda as conferências do item (quando casa) e aplica o desfecho (§9.3)."""
     item = regra.por_tipo[ent.tipo]
@@ -684,12 +713,13 @@ def _conferir_entregavel(
                 uow.gravar_evento("excecao.aberta", caso.id, ent.id, {"excecao_id": nova})
 
     if alguma_b_divergente:
-        uow.transicionar(
-            ent, E.DIVERGENTE, "conferencia_divergente", "conferencia",
-            ultima_conferencia_id, ATOR_SISTEMA, rv
+        _transicionar(
+            uow, pend, ent, E.DIVERGENTE, "conferencia_divergente", "conferencia",
+            ultima_conferencia_id, ATOR_SISTEMA, rv,
         )
     else:
-        uow.transicionar(ent, E.VALIDADO, "conferencias_ok", "comando", None, ATOR_SISTEMA, rv)
+        _transicionar(uow, pend, ent, E.VALIDADO, "conferencias_ok", "comando", None,
+                      ATOR_SISTEMA, rv)
         evento = uow.evento_publicado_do_tipo(ent.tipo)
         if evento is not None:
             uow.gravar_evento(evento, caso.id, ent.id, {"entregavel_id": ent.id})
