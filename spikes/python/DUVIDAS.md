@@ -237,3 +237,7 @@ roda o `lint-imports` do mesmo ambiente e exige exit 0, os 3 nomes de contrato c
 cópia temporária: `import psycopg` e `import fastapi` em `dominio`, `import motor.api` em
 `aplicacao` e `import psycopg` em `aplicacao` quebram os contratos e fazem teste e comando
 falharem (exit 1); sem violação, tudo volta a passar.
+
+## D15 — Ambiguidade na §6.2: piso ou exato
+
+O Python implementa a leitura EXATA: reavalia por sementes (D11), em desacordo com a interpretação "superconjunto" do `design.md`, que não tem autoridade sobre a spec. Evidência: `scripts/diferencial_reavaliacao.py`, 450 sequências, 0 divergência. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.

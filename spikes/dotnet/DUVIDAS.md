@@ -202,3 +202,7 @@ recusam `%00` no caminho antes do handler: resposta real 400, não 422. A checag
 é alcançável por HTTP; por isso não há teste de integração para ela (a decisão "400 vs 422" fica com o Kestrel).
 Vetores: fixture com 54 (22 aceitos, 32 rejeitados); o campo `campos_texto` sobrescreve o campo do envelope em
 `Vetor.CorpoFato()`.
+
+### 15. Ambiguidade na §6.2: piso ou exato
+
+O .NET implementa a leitura PISO: reavalia todos os entregáveis de todos os casos abertos do titular a cada fato (`MotorServico`/`AvaliarCaso`). A §6 passo 2 diz o que deve ser reavaliado, sem "apenas". Sem diferencial equivalente ao do Python. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
