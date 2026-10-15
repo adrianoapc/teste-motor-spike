@@ -6,9 +6,12 @@ import pytest
 from motor.dominio.competencia import Competencia
 from motor.dominio.condicao import casa
 from motor.dominio.conferencias import (
+    DadoAusente,
+    cf07_lp_par_de_maior_diferenca,
     classificar_numerica,
     esperado_das_simples,
     esperado_prolabore,
+    par_de_maior_diferenca,
     soma_parcelas,
 )
 from motor.dominio.dinheiro import arred_meio_par
@@ -174,3 +177,73 @@ def test_classificar_numerica_tolerancia_padrao() -> None:
     assert classificar_numerica(600000, 600000, 0, 100, "B") == ("ok", "B", 0)
     assert classificar_numerica(600000, 600050, 0, 100, "B") == ("divergente", "A", 50)
     assert classificar_numerica(600000, 600200, 0, 100, "B") == ("divergente", "B", 200)
+
+
+# -- CF-07 do Lucro Presumido, tributo a tributo (req 21.3, M1.3, §9.1 v4) ----
+def _p(tributo: str, valor: int, socio: str = "S1") -> dict[str, object]:
+    return {"socio": socio, "tributo": tributo, "valor_centavos": valor}
+
+
+def test_cf07_lp_par_de_maior_diferenca_escolhe_o_pis() -> None:
+    # Amostra de 14/10: IRPJ/CSLL/COFINS batem; o PIS trunca e fica 39 abaixo (13000 vs 12961).
+    apurados = {"IRPJ": 160000, "CSLL": 144000, "PIS": 13000, "COFINS": 60000}
+    parcelas = [
+        _p("IRPJ", 100000), _p("IRPJ", 60000, "S2"),
+        _p("CSLL", 90000), _p("CSLL", 54000, "S2"),
+        _p("PIS", 8000), _p("PIS", 4961, "S2"),
+        _p("COFINS", 40000), _p("COFINS", 20000, "S2"),
+    ]
+    assert cf07_lp_par_de_maior_diferenca(apurados, parcelas) == ("PIS", 13000, 12961)
+
+
+def test_cf07_lp_empate_resolve_pelo_menor_tributo_em_code_point() -> None:
+    # CSLL e PIS empatam na diferença (ambos 100 abaixo); vence CSLL (code point menor).
+    apurados = {"CSLL": 1000, "PIS": 2000}
+    parcelas = [_p("CSLL", 900), _p("PIS", 1900)]
+    assert cf07_lp_par_de_maior_diferenca(apurados, parcelas) == ("CSLL", 1000, 900)
+
+
+def test_cf07_lp_tributo_sem_apurado_e_dado_ausente() -> None:
+    # Parcela de ISS sem apurado[ISS] no caso → dado ausente (classe S).
+    apurados = {"IRPJ": 160000}
+    parcelas = [_p("IRPJ", 160000), _p("ISS", 5000)]
+    with pytest.raises(DadoAusente) as e:
+        cf07_lp_par_de_maior_diferenca(apurados, parcelas)
+    assert "apurado[ISS]" in e.value.chave
+
+
+def test_cf07_lp_parcela_sem_tributo_e_dado_ausente() -> None:
+    # Parcela sem `tributo` (texto não vazio) no LP → dado ausente (classe S).
+    apurados = {"IRPJ": 160000}
+    parcelas = [_p("IRPJ", 100000), {"socio": "S2", "valor_centavos": 60000}]
+    with pytest.raises(DadoAusente) as e:
+        cf07_lp_par_de_maior_diferenca(apurados, parcelas)
+    assert "sem tributo" in e.value.chave
+
+
+def test_cf07_lp_tributo_apurado_sem_parcela_vale_zero() -> None:
+    # Tributo apurado sem nenhuma parcela: obtido = 0 (diferença = o apurado inteiro).
+    apurados = {"IRPJ": 160000, "CSLL": 50000}
+    parcelas = [_p("IRPJ", 160000)]
+    assert cf07_lp_par_de_maior_diferenca(apurados, parcelas) == ("CSLL", 50000, 0)
+
+
+# -- CF-09 com três pares INSS/FGTS/IRRF (req 21.4, M1.4, §9.1 v4) ------------
+def test_cf09_par_de_maior_diferenca_escolhe_o_irrf() -> None:
+    # INSS bate; FGTS 0; IRRF 1000 abaixo → o par do IRRF é o de maior diferença.
+    pares = [(88000, 88000), (50000, 50000), (26000, 25000)]  # INSS, FGTS, IRRF
+    assert par_de_maior_diferenca(pares) == (26000, 25000)
+
+
+def test_cf09_empate_resolve_na_ordem_inss_fgts_irrf() -> None:
+    # Três com a mesma diferença (100): vence o primeiro na ordem dada (INSS).
+    pares = [(1000, 900), (2000, 1900), (3000, 2900)]
+    assert par_de_maior_diferenca(pares) == (1000, 900)
+    # Se só FGTS e IRRF empatam e INSS bate, vence FGTS (o anterior ao IRRF).
+    pares2 = [(1000, 1000), (2000, 1900), (3000, 2900)]
+    assert par_de_maior_diferenca(pares2) == (2000, 1900)
+
+
+def test_cf09_todos_batem_devolve_o_primeiro() -> None:
+    pares = [(88000, 88000), (50000, 50000), (26000, 26000)]
+    assert par_de_maior_diferenca(pares) == (88000, 88000)

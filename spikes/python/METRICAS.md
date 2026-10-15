@@ -140,6 +140,95 @@ descartar conexão morta sozinho.
 
 ---
 
+# Manutenção M1 — semântica v4 (teste comum de manutenção)
+
+Branch `m1/spike-python` a partir de `main` (`3ef6f45`, já com V008, contrato 1.3.0,
+semântica v4 e os cenários C11–C13). A mesma mudança foi pedida às três spikes; o que se
+mede é o tempo e o retrabalho até passar no verificador com `--fase 4` (`docs/regras-do-jogo.md`,
+critério 8). Mudanças pedidas: M1.1 (tolerância 1–10 = alerta A), M1.2 (CF-08 só SN com Fator R),
+M1.3 (CF-07 do LP tributo a tributo), M1.4 (CF-09 confere IRRF da folha M−1), M1.5 (reavaliação
+idempotente, recorte registrado na transição única).
+
+- **Início da tarefa 19:** 2026-10-15 00:54 -03 (03:54 UTC)
+- **Fim (13/13):** 2026-10-15 01:26 -03 (04:26 UTC) — ~32 min de relógio.
+- **Verificador final:** `--todos cenarios --fase 4 --limpar --relatorio resultado-fase4-python.json`,
+  só esta spike no ar (dotnet e php parados), **`RESULTADO: todos passaram (13/13)`**
+  (C1–C13; regressão das fases 1–3 incluída). Relatório em
+  `spikes/python/resultado-fase4-python.json`.
+
+## Tarefa 19 — regressão com as regras novas, sem mudar código
+
+`--todos cenarios --fase 3 --limpar` contra o código da fase 3 (sem nenhuma mudança M1):
+**`RESULTADO: há falhas (9/10)`**.
+
+| Cenário | Resultado | Por quê |
+|---|---|---|
+| C1 | **FALHOU** (55 de 122) | O C1 novo manda `sujeito_fator_r` no `abrir_competencias`; o código ainda rejeita campo não declarado → `422 corpo_invalido` ("Extra inputs are not permitted"). O caso nunca abre, então **todas** as 55 falhas descem desse único ponto (caso/entregáveis inexistentes, 404 nas conclusões, conferências/eventos zerados). É exatamente a mudança M1.2 (tarefa 20). |
+| C2–C10 | PASSOU (0 falha) | Nenhum deles exercita as mudanças M1 na `--fase 3`: a tolerância nova (M1.1), o CF-07 por tributo (M1.3), o CF-09 do IRRF M−1 (M1.4) e o `semantica_calculo = 3` (M1.5) só aparecem nos cenários C11–C13, que são `--fase 4`. A `fechamento.entregaveis` v3 (V008) ainda não muda o comportamento desses casos porque o código lê a versão em uso pelo `status` desde a fase 2. |
+
+**Impacto da mudança de regra, medido:** só o C1 regride, e por um único motivo (o campo novo no contrato). As demais mudanças M1 são aditivas e só aparecem nos cenários C11–C13.
+
+## Tarefa 23 — recorte registrado na função única de transição (§6 passo 2 v4)
+
+O registro do entregável para reavaliação deixou de ser repetido em cada caminho que muda
+estado (conclusão de tarefa, override, invalidação, desfecho de conferência) e passou a ser um
+efeito da **função única de transição** `_transicionar` (grava o estado e, no mesmo lugar,
+registra `(caso_id, tipo)` em `_Pendencias`). Teste de arquitetura
+`test_recorte_registrado_na_transicao_unica` (AST): `.transicionar` do repositório só é chamado
+de dentro de `_transicionar`; nenhum outro caminho muda estado sem pedir reavaliação.
+
+Critério de aceite — `scripts/diferencial_reavaliacao.py 150 150` (recorte × percurso completo,
++ completo × completo para separar divergência de não determinismo), contra `spike_python`:
+
+```
+transicoes por estado de destino (modo recorte): {'aguardando_insumo': 4765,
+  'disponibilizado': 19, 'divergente': 913, 'encerrado': 18, 'invalidado': 1598,
+  'ok': 832, 'processado': 2835, 'pronto': 3276, 'validado': 2408}
+150 sequencias x 150 operacoes: 0 problema(s)
+```
+
+**0 divergência e 0 não determinismo** em 150 × 150 operações.
+
+## Retrabalho e intervenções
+
+- **Intervenções humanas:** 0. A fase correu de ponta a ponta sem decisão de produto nem
+  desbloqueio manual — a semântica v4 (§16, §6 passo 2) já estava resolvida antes de começar.
+- **Retrabalho de código (idas e voltas no verificador):** 1 rodada extra, na tarefa 20. A
+  primeira execução do C11 passou em 133 de 134 checagens; faltava `semantica_calculo = 3`
+  (M1.5), que a conferência ainda gravava como 2. Bumpado o `SEMANTICA_CALCULO` de 2→3 e o C11
+  fechou 134/134. As tarefas 21, 22 e 23 passaram no verificador do cenário na primeira
+  execução após a implementação.
+- **Testes existentes ajustados pela mudança de semântica** (não é retrabalho de defeito, é a
+  própria manutenção): `test_vetores_entrada_hash` (semântica atual 2→3),
+  `test_semantica_calculo` (docstring), `test_revisao_codex::test_cf07_*` (CF-07 do LP deixou de
+  somar tudo contra o apurado da guia e passou a conferir tributo a tributo),
+  `test_invalidacao` e os `_conferir_entregavel`/`_invalidar` dos testes (nova assinatura com
+  `pend`, pela função única de transição).
+
+## Impacto (git diff --stat da fase, main..m1/spike-python)
+
+Código e testes (sem o relatório gerado): **11 arquivos, +364 / −63 linhas**.
+
+| Arquivo | Linhas |
+|---|---|
+| `src/motor/api/modelos.py` | +3 |
+| `src/motor/aplicacao/conferencia.py` | +63/− (CF-07 LP e CF-09 IRRF) |
+| `src/motor/aplicacao/motor_fechamento.py` | +90/−… (função única de transição) |
+| `src/motor/dominio/conferencias.py` | +78 (fórmulas puras M1) |
+| testes (6 arquivos) | +126 líquidas |
+
+Por tarefa (fonte): t20 contrato+semantica_calculo; t21 CF-07 LP; t22 CF-09 IRRF; t23 refatoração
+da transição única (o maior toque em `motor_fechamento.py`).
+
+## Erros barrados pelo mypy antes de teste
+
+**Nenhum nesta fase.** `mypy --strict src` (sem `# type: ignore`) passou em toda execução, antes
+de cada rodada de testes — nenhuma linha nova em `REGISTRO-COMPILADOR.md`. As falhas encontradas
+durante a fase foram de **teste** (comportamento), não de tipo, e estão contabilizadas em
+"Retrabalho" acima.
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`, depois do merge do PR #5. Os valores da fase 3 acima (inclusive 49,2 s) ficam como histórico.

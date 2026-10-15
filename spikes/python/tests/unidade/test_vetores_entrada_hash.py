@@ -50,8 +50,11 @@ def test_funcao_entrada_hash_bate_com_o_vetor(v: dict[str, Any]) -> None:
     )
 
 
-def test_semantica_atual_e_2_e_muda_o_hash_em_relacao_a_legada() -> None:
-    assert SEMANTICA_CALCULO == 2
+def test_semantica_atual_e_3_e_muda_o_hash_em_relacao_as_anteriores() -> None:
+    # v4 / Manutenção M1: a semântica do cálculo das conferências passou a 3 (§16).
+    assert SEMANTICA_CALCULO == 3
     fatos = [{"fato_id": "a", "versao": 1}]
     assert entrada_hash("CF-01", fatos, "r", 1) != entrada_hash("CF-01", fatos, "r", 2)
+    assert entrada_hash("CF-01", fatos, "r", 2) != entrada_hash("CF-01", fatos, "r", 3)
+    assert entrada_hash("CF-01", fatos, "r", 1) != entrada_hash("CF-01", fatos, "r", 3)
     assert entrada_hash("CF-01", fatos, "r") == entrada_hash("CF-01", fatos, "r", 1)

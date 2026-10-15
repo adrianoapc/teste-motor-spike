@@ -241,3 +241,49 @@ falharem (exit 1); sem violação, tudo volta a passar.
 ## D15 — Ambiguidade na §6.2: piso ou exato
 
 O Python implementa a leitura EXATA: reavalia por sementes (D11), em desacordo com a interpretação "superconjunto" do `design.md`, que não tem autoridade sobre a spec. Evidência: `scripts/diferencial_reavaliacao.py`, 450 sequências, 0 divergência. Ver `.kiro/steering/divergencia-reavaliacao-spec-vs-design.md`.
+
+
+## D16 — Manutenção M1 (fase 4, semântica v4 §16)
+
+Fase 4 na branch `m1/spike-python` a partir de `main` (`3ef6f45`, já com V008, contrato 1.3.0,
+semântica v4 e C11–C13). Decisões tomadas, todas lastreadas na semântica — nada inventado:
+
+- **M1.2 `sujeito_fator_r`:** campo opcional no corpo de `abrir_competencias`
+  (`StrictBool = False`, §3/contrato 1.3.0). Entra no snapshot do caso como qualquer outro campo
+  (o snapshot já é `{**empresa}`), logo chega ao contexto e alimenta o `quando` do CF-08 na
+  regra v3. **A condição do CF-08 não está no código** — vem de
+  `[{"regime":"SN","sujeito_fator_r":true}]` na `fechamento.entregaveis` v3. `extra="forbid"`
+  segue valendo para qualquer outro campo não declarado (422).
+
+- **M1.3 CF-07 do LP tributo a tributo (§9.1):** nova função pura
+  `cf07_lp_par_de_maior_diferenca(apurados, parcelas)`. Tributos = apurados vigentes do caso ∪
+  tributos das parcelas; esperado = `apurado[T]`, obtido = soma das parcelas com `tributo=T`
+  (nenhuma = 0); grava o par de **maior diferença**, empate pelo menor tributo em code point.
+  Parcela sem `tributo` e tributo de parcela sem `apurado` no caso = **dado ausente, classe S**
+  (exceção `DadoAusente` no domínio, traduzida para o `_FatoAusente` da aplicação). O ramo SN
+  (soma única contra `apurado[DAS]`) não muda. A classe `S` do desfecho divergente da CF-07 vem
+  do catálogo (`conferencia_tipo.classe_padrao = 'S'` para CF-07), não de regra no código.
+
+- **M1.4 CF-09 com três pares (§9.1):** INSS e FGTS continuam da folha do mês; o par **IRRF**
+  lê `folha[competência−1].payload.irrf_centavos` (folha do mês anterior, competência possivelmente
+  sem caso aberto) via `uow.fato_vigente(titular, comp−1, "folha", "")`, contra
+  `guia[IRRF].valor` do mês. A conferência grava o par de **maior diferença** das três; empate
+  na ordem INSS, FGTS, IRRF (helper puro `par_de_maior_diferenca`, que recebe os pares já
+  nessa ordem). Folha M−1 sem `irrf_centavos` = dado ausente, classe S. A invalidação da folha
+  M−1 atinge o E08 do mês porque o E08 liga a folha M−1 em `entregavel_fato` (§11.1) — não foi
+  preciso código novo de propagação cross-competência.
+
+- **M1.5 `semantica_calculo` 2→3:** a semântica do cálculo de conferência mudou (CF-07/CF-09),
+  então o inteiro sobe para 3 (único no domínio, `conferencias.SEMANTICA_CALCULO`), entra no
+  `entrada_hash` e é persistido. Linhas legadas valem 1/2 e não colidem.
+
+- **M1.5 recorte na função única de transição (§6 passo 2 v4, só Python):** o registro do
+  entregável para reavaliação virou efeito de `_transicionar` (única função que chama
+  `uow.transicionar`), em vez de um `pend.entregaveis.add(...)` repetido em cada caminho
+  (conclusão, override, invalidação, desfecho de conferência). Teste de arquitetura por AST
+  (`test_recorte_registrado_na_transicao_unica`) garante que nada chama `.transicionar` fora
+  dela. Critério de aceite mantido: `scripts/diferencial_reavaliacao.py 150 150` = 0 divergência
+  e 0 não determinismo (saída em `METRICAS.md`, seção Manutenção M1).
+
+**Erro na base comum:** nenhum encontrado. V008/contrato 1.3.0/semântica v4/C11–C13 estavam
+coerentes; a spike não precisou parar (`docs/regras-do-jogo.md` §1).

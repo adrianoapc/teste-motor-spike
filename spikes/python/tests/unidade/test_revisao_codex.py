@@ -285,7 +285,7 @@ def test_divergencia_emite_conferencia_id_e_excecao_id() -> None:
         transicoes.append((para, por_id))
 
     uow.transicionar = transicionar  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert ("conferencia.divergente", {"conferencia_id": "conf-1"}) in uow.eventos
     assert ("excecao.aberta", {"excecao_id": "exc-CF-01"}) in uow.eventos
     assert transicoes == [("divergente", "conf-1")]
@@ -318,7 +318,7 @@ def test_excecao_de_fato_ausente_herda_classe_s_da_conferencia() -> None:
         )],
     )
     uow.transicionar = lambda *a, **k: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == ["CF-01"]
     assert uow.classes_excecao == ["S"]  # catálogo diz "D"; a conferência computou "S"
 
@@ -380,7 +380,7 @@ def test_conferencia_reaproveitada_com_override_nao_bloqueia_nem_abre_excecao() 
     transicoes: list[str] = []
     uow.transicionar = lambda ent, para, *a, **k: transicoes.append(para)  # type: ignore[attr-defined]
     uow.evento_publicado_do_tipo = lambda t: None  # type: ignore[attr-defined]
-    mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+    mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
     assert uow.excecoes == []
     assert transicoes == ["validado"]
 
@@ -447,7 +447,7 @@ def test_conferencia_com_resultado_fora_do_int64_levanta_valor_fora_do_intervalo
         )],
     )
     with pytest.raises(ValorForaDoIntervalo):
-        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+        mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
 
 
 def _fv(tipo: str, tributo: str = "", valor: int | None = 100,
@@ -546,14 +546,27 @@ def test_cf05_usa_o_tributo_da_guia_declarado_na_regra() -> None:
     assert resultado == "ok"
 
 
-def test_cf07_usa_o_tributo_da_guia_do_item_de_entrega() -> None:
+def test_cf07_lp_confere_tributo_a_tributo_e_valida_quando_cada_tributo_bate() -> None:
+    # v4 (M1.3): CF-07 do LP é tributo a tributo. Com apurado[IRPJ] = soma das parcelas de
+    # IRPJ, o par de maior diferença é 0 → ok. (Antes, LP somava tudo contra o apurado da guia.)
+    uow = _Fake(caso=_caso("LP"))
+    uow.fatos_caso = [
+        _fv("apurado", "IRPJ", valor=300),
+        _fv("divisao_socios", payload={"parcelas": [{"tributo": "IRPJ", "valor_centavos": 300}]}),
+    ]
+    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
+    assert resultado == "ok"
+
+
+def test_cf07_lp_parcela_sem_tributo_e_dado_ausente_classe_s() -> None:
+    # No LP toda parcela precisa de `tributo`; sem ele é operando inválido (§9.2) → classe S.
     uow = _Fake(caso=_caso("LP"))
     uow.fatos_caso = [
         _fv("apurado", "IRPJ", valor=300),
         _fv("divisao_socios", payload={"parcelas": [{"valor_centavos": 300}]}),
     ]
-    resultado, _, _, _, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
-    assert resultado == "ok"
+    resultado, _, _, classe, _ = conferir(uow, uow.caso, _ent("E04"), "CF-07", _REGRA)  # type: ignore[arg-type]
+    assert (resultado, classe) == ("divergente", "S")
 
 
 def test_regra_sem_a_entrada_exigida_vira_insumo_ausente_classe_s() -> None:
@@ -597,7 +610,7 @@ def test_desfecho_automatico_da_conferencia_grava_sempre_o_ator_sistema() -> Non
                 saida=None, conferencias=conferencias,
             )],
         )
-        mf._conferir_entregavel(uow, uow.caso, _e11(), regra)  # type: ignore[arg-type]
+        mf._conferir_entregavel(uow, mf._Pendencias(), uow.caso, _e11(), regra)  # type: ignore[arg-type]
 
     rodar([{"cf": "CF-01"}])  # fato ausente: divergente B
     rodar([])  # sem conferências: validado

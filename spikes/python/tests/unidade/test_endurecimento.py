@@ -61,6 +61,27 @@ def test_empresa_booleano_verdadeiro_passa() -> None:
     assert Empresa(**_EMPRESA).tem_folha is True
 
 
+def test_sujeito_fator_r_ausente_vira_false() -> None:
+    # M1.2: campo opcional; ausente = false (§3, contrato 1.3.0).
+    assert Empresa(**_EMPRESA).sujeito_fator_r is False
+
+
+def test_sujeito_fator_r_aceito_quando_presente() -> None:
+    assert Empresa(**{**_EMPRESA, "sujeito_fator_r": True}).sujeito_fator_r is True
+
+
+@pytest.mark.parametrize("ruim", [1, 0, "yes", "true", "false", None])
+def test_sujeito_fator_r_e_booleano_estrito(ruim: object) -> None:
+    with pytest.raises(ValidationError):
+        Empresa(**{**_EMPRESA, "sujeito_fator_r": ruim})
+
+
+def test_empresa_continua_recusando_campo_desconhecido() -> None:
+    # extra="forbid" segue valendo para qualquer campo não declarado além do novo.
+    with pytest.raises(ValidationError):
+        Empresa(**{**_EMPRESA, "campo_inexistente": True})
+
+
 @pytest.mark.parametrize("ruim", [
     1788256800, 1788256800.5, "2026-09-01", "2026-09-01T10:00:00", "2026-09-01 10:00:00Z",
     "2026-09-01T10:00:00+0300", None, True,

@@ -1,4 +1,5 @@
-"""Banco real: a conferência grava semantica_calculo=2 e não reaproveita linha legada (§9.2).
+"""Banco real: a conferência grava semantica_calculo = SEMANTICA_CALCULO (3 na v4) e não
+reaproveita linha legada (§9.2).
 
 Precisa de MOTOR_DB com a migration V007 aplicada; senão pula. Tudo roda numa transação que
 termina em rollback (nada fica no banco).
