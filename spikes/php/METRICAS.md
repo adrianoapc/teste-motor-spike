@@ -105,6 +105,27 @@ Modelo em `docs/regras-do-jogo.md` §4. Fase 1 (cenários C1 e C7).
 
 ---
 
+## Manutenção M1 (fase 4 — cenários C11, C12, C13 + regressão C1–C10, C6)
+
+- **Hora de início (tarefa 19):** 2026-10-15 03:49 UTC (00:49 -03) — relógio do banco (`select now()` em `spike_php`).
+- **Hora de fim (13/13):** _(a preencher ao chegar em 13/13)_
+- Branch: `m1/spike-php`, a partir de `origin/main` `3ef6f45` (PR #27: V008, contrato 1.3.0, semântica v4, cenários C11–C13).
+
+### Tarefa 19 — regressão com as regras novas (sem mudar código)
+
+Rodado `--todos cenarios --fase 3 --limpar` com o código v3 inalterado contra o banco já na V008 (regras `fechamento.entregaveis` v3 e `fiscal.tolerancia` v2 `provisoria`/em uso).
+
+**Resultado: 9/10. Único cenário quebrado: C1.**
+
+| Cenário | Resultado | Causa |
+|---|---|---|
+| C1 (fase 1) | **FALHOU** (122 checagens, 55 falhas) | `POST /competencias/abrir` passo 1 → `422 corpo_invalido: "propriedade não declarada em Empresa: sujeito_fator_r"`. O cenário C1 foi atualizado na M1 para enviar o campo novo `sujeito_fator_r`; o DTO `Empresa` v3 do código ainda recusa qualquer campo não declarado, então o caso T001/202609 nunca é criado e as 54 checagens seguintes caem em cascata ("caso/entregável não existe", conferências e eventos a zero). |
+| C2–C5, C7–C10, C6 | PASSOU | Não enviam `sujeito_fator_r`. O código v3 lê as regras pelo `status`, então as versões novas (tolerância v2, entregáveis v3) já são as "em uso"; a lógica de cálculo v3 (CF-07 só SN, CF-09 dois pares, tolerância sem faixa de alerta, Fator R) ainda não é exercida por esses cenários. |
+
+**Medida de impacto:** a única regressão da mudança de contrato (M1.2/M1.5) é a rejeição do campo `sujeito_fator_r`. As mudanças de **cálculo** (CF-07 LP tributo a tributo, CF-09 com IRRF M-1, tolerância com faixa de alerta, condição Fator R no CF-08) não aparecem como regressão aqui porque só os cenários da fase 4 (C11, C12, C13) e o C1 (que ganhou o campo) as exercitam — C11/12/13 não entram no `--fase 3`. É o esperado: a fase 4 corrige C1 (tarefa 20) e faz C11–C13 passarem (tarefas 20–22).
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.
