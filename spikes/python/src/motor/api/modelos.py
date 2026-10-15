@@ -26,6 +26,9 @@ class Empresa(BaseModel):
     filial: StrictBool
     carteira: str = Field(min_length=1)
     municipio: str = Field(min_length=1)
+    # M1.2 (contrato 1.3.0, §3): opcional; ausente = false. Entra no snapshot do caso e
+    # alimenta a condição `quando` do CF-08 na regra v3 (não hardcode no motor).
+    sujeito_fator_r: StrictBool = False
 
 
 class AbrirCompetenciasRequest(BaseModel):

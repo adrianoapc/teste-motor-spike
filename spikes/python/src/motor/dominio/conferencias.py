@@ -10,7 +10,9 @@ from motor.dominio.dinheiro import arred_meio_par
 # Versão da semântica do cálculo das conferências (semântica §9.2). Entra na chave de
 # idempotência (entrada_hash, só se > 1) e é persistida em conferencias.conferencia. Linhas
 # legadas valem 1 e nunca colidem com as novas. Mudar a fórmula/classificação => incrementar.
-SEMANTICA_CALCULO = 2
+# v4 / Manutenção M1 (§16): CF-07 do LP passa a conferir tributo a tributo e CF-09 ganha o
+# terceiro par (IRRF da folha M−1). Como a semântica do cálculo mudou, incrementa de 2 → 3.
+SEMANTICA_CALCULO = 3
 
 
 def esperado_das_simples(faturamento_centavos: int, aliquota_bp: int) -> int:
