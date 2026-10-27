@@ -1,0 +1,187 @@
+{
+  "id": "C23",
+  "fase": 4.5,
+  "nome": "M2: troca de campos_hash no contrato",
+  "descricao": "A comparação de hash é sempre feita sob o contrato ativo: o motor recalcula o hash da vigente a partir do payload gravado. Tirar um campo do hash nunca gera versão nem cascata, e nenhum fato gravado é alterado. Fatos novos registram a versão do contrato em uso.",
+  "secoes_semantica": [
+    "§6.1",
+    "§6.3",
+    "§6.4"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)",
+    "contratos de teste notas_oneflow v2 e v3"
+  ],
+  "titulares": [
+    "T023"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T023",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-05",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "ativar_contrato",
+      "arquivo": "notas_oneflow-v2-com-quantidade.json",
+      "descricao": "contrato de teste: quantidade_notas entra no hash"
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T023",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000,
+        "payload": {
+          "quantidade_notas": 10
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "com quantidade_notas no hash, mudar a quantidade é versão nova",
+      "corpo": {
+        "titular_id": "T023",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000,
+        "payload": {
+          "quantidade_notas": 11
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "ativar_contrato",
+      "arquivo": "notas_oneflow-v3-sem-quantidade.json",
+      "descricao": "contrato v3: quantidade_notas sai do hash"
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "sob o contrato ativo, a vigente é recalculada sem quantidade: nada mudou",
+      "corpo": {
+        "titular_id": "T023",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000,
+        "payload": {
+          "quantidade_notas": 12
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "valor diferente: versão nova, gravada com o contrato v3",
+      "corpo": {
+        "titular_id": "T023",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5100000,
+        "payload": {
+          "quantidade_notas": 12
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T023",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          }
+        ],
+        "fatos": [
+          {
+            "titular_id": "T023",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versoes": 3
+          }
+        ],
+        "vigentes": [
+          {
+            "titular_id": "T023",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versao": 3,
+            "valor_centavos": 5100000,
+            "tipo_versao": 3
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T023",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "nova_versao",
+              "sem_mudanca",
+              "nova_versao"
+            ]
+          }
+        ],
+        "excecoes_total": 0
+      }
+    }
+  ]
+}

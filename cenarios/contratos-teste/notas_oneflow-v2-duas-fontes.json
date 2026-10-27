@@ -1,0 +1,28 @@
+{
+  "tipo": "notas_oneflow",
+  "descricao": "Contrato de TESTE (só cenários; o verificador restaura o repositório antes de cada cenário)",
+  "versao": {
+    "versao": 2,
+    "estado": "ativa",
+    "esquema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    },
+    "qualificador": {
+      "usa": false,
+      "valores": []
+    },
+    "valor_centavos": "obrigatorio",
+    "campos_hash": [],
+    "ordenar_arrays": {},
+    "fontes_permitidas": [
+      "oneflow",
+      "oneflow_api"
+    ],
+    "sensibilidade": "interna",
+    "retencao": null
+  }
+}

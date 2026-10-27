@@ -179,3 +179,38 @@ RegistrarOverride(caso, tipo, corpo):                  # §8.1
 - Medir antes de otimizar. Os pontos prováveis: uma transação por empresa na abertura, leituras repetidas de catálogo e regra (podem ser lidas uma vez por requisição), e a reavaliação de todos os casos do titular a cada fato.
 - Fila assíncrona (`eventos.fila`) só se a medida mostrar necessidade (requisito 19.4).
 
+## Fase 4.5 · acréscimos (semântica v5)
+
+| Peça | Onde | Observação |
+|---|---|---|
+| Contrato do tipo | `fatos` (aplicação + infraestrutura) | Lido do banco (`fatos.tipo_fato_versao`, `estado = 'ativa'`) **a cada publicação**. Nada de cache entre requisições: o verificador troca contratos no meio dos cenários C22 e C23 |
+| Validação | `fatos` (aplicação) | Ordem do §6.2. JSON Schema com `jsonschema` (`Draft202012Validator`). Mapear `required` → `obrigatorio`, `type` → `tipo`, o resto → `esquema`; caminho `payload.a[0].b`. Juntar **todas** as violações antes de responder |
+| Hash v2 | `dominio` (funções puras) | `projetar → normalizar → ordenar → canonico → sha256`. NFC: `unicodedata.normalize('NFC', s)`. O canônico é o da v4, sem mudança |
+| Efeitos | `fatos` (aplicação) | Tabela do §6.4. `hV` recalculado sob o contrato ativo; `observado_em` comparado como instante. `obsoleto` e `conflito_fonte` não gravam em `fatos.fato` |
+| Recebimento | `fatos` (infraestrutura) | Uma linha por publicação válida, também para saídas de `/concluir`. Só inserção (gatilho da V009) |
+| Idempotência | `fatos` (aplicação) | Depois da validação e sob a trava do titular: busca `fatos.recebimento` por (`fonte`, `chave_idempotencia`) |
+| Trava | infraestrutura (psycopg) | `pg_advisory_xact_lock(hashtextextended('titular|' || titular_id, 0))` como primeiro comando da transação; a chave em texto é a mesma nas três spikes |
+
+Fluxo de `PublicarFato` na v5:
+
+```
+validar forma (v4)                                  → 422 corpo_invalido
+contrato = ativo(tipo)          senão               → 422 tipo_desconhecido
+fonte ∈ contrato.fontes_permitidas  senão           → 403 fonte_nao_autorizada
+violações(qualificador, valor, esquema) ≠ ∅          → 422 payload_invalido + violacoes
+BEGIN
+  trava(titular)
+  se chave_idempotencia e recebimento(fonte, chave) existe → devolve a 1ª resposta, repetido = true
+  h  = hash_v2(payload, valor, contrato)
+  V  = vigente(chave)
+  se V: hV = hash_v2(V.payload, V.valor, contrato)
+     h = hV                                  → recebimento(sem_mudanca, V)
+     obs < V.obs                             → recebimento(obsoleto, V)
+     obs = V.obs e fonte = V.fonte           → recebimento(conflito_fonte, V); exceção conflito_fonte (caso aberto)
+  grava fato (versão, tipo_versao) + recebimento(novo | nova_versao)
+  §6 passos 1 a 4 da v4 (evento, reavaliação, invalidação, acompanhamento)
+COMMIT
+```
+
+**Específico do Python:** a reavaliação recortada continua registrada na função única de transição, e `scripts/diferencial_reavaliacao.py` tem de passar com 0 divergência também com a trava e os efeitos novos (registrar a saída na seção Manutenção M2).
+

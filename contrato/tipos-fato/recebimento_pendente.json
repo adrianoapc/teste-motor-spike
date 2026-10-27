@@ -1,0 +1,48 @@
+{
+  "tipo": "recebimento_pendente",
+  "descricao": "Documento disponibilizado sem leitura",
+  "area_dona": "entrega",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "dias_sem_leitura": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "dias_sem_leitura"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": true,
+        "valores": [
+          "DAS",
+          "INSS",
+          "FGTS",
+          "IRRF",
+          "IRPJ",
+          "CSLL",
+          "PIS",
+          "COFINS"
+        ]
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "dias_sem_leitura"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "agendador"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

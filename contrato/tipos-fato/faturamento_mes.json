@@ -1,0 +1,30 @@
+{
+  "tipo": "faturamento_mes",
+  "descricao": "Faturamento do mês informado pela Intranet",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": false,
+        "valores": []
+      },
+      "valor_centavos": "obrigatorio",
+      "campos_hash": [],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "intranet"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

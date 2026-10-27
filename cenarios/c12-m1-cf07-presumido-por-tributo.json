@@ -70,7 +70,7 @@
         "competencia": "202608",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -84,7 +84,7 @@
         "competencia": "202608",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -131,7 +131,7 @@
         "competencia": "202608",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -145,7 +145,7 @@
         "competencia": "202608",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -180,7 +180,7 @@
         "competencia": "202608",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -194,7 +194,7 @@
         "competencia": "202608",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -230,7 +230,7 @@
         "competencia": "202608",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {
@@ -288,7 +288,7 @@
         "competencia": "202608",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {
@@ -316,7 +316,7 @@
         "competencia": "202608",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {
@@ -471,7 +471,7 @@
         "competencia": "202608",
         "tipo": "anotacao_interna",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "texto": "anotação com o E04 divergente: nada muda"
         }
@@ -489,7 +489,7 @@
         "competencia": "202608",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {

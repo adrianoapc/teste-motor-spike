@@ -1,0 +1,490 @@
+{
+  "id": "C20",
+  "fase": 4.5,
+  "nome": "M2: contrato de fato na entrada",
+  "descricao": "Publicações fora do contrato ativo do tipo são rejeitadas sem gravar nada (nem fato, nem recebimento, nem evento): campo obrigatório ausente, tributo fora da lista, tributo ausente ou proibido, valor_centavos proibido ou ausente, número como texto, formato fora do esquema, tipo sem contrato e fonte não autorizada. A saída de uma tarefa passa pela mesma validação e, se falha, a tarefa continua aberta. Depois, as versões válidas entram normalmente.",
+  "secoes_semantica": [
+    "§6.1",
+    "§6.2",
+    "§8"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)"
+  ],
+  "titulares": [
+    "T020"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T020",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-02",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "guia sem competencia_impressa",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "INSS",
+        "valor_centavos": 88000,
+        "payload": {
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "payload.competencia_impressa",
+            "regra": "obrigatorio"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "tributo fora da lista do contrato",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "ISS",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "tributo",
+            "regra": "fora_da_lista"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "guia sem tributo",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "tributo",
+            "regra": "obrigatorio"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "tipo sem qualificador recebe tributo",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "tributo",
+            "regra": "proibido"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "alíquota com valor_centavos",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "valor_centavos": 100,
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "valor_centavos",
+            "regra": "proibido"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "faturamento sem valor",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "valor_centavos",
+            "regra": "obrigatorio"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "número como texto",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "$agora",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": "88000",
+          "fgts_centavos": 32000
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "payload.inss_centavos",
+            "regra": "tipo"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "competência impressa fora do formato",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "INSS",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "09/2026"
+        }
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "payload.competencia_impressa",
+            "regra": "esquema"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "tipo sem contrato ativo",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "boleto_avulso",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 1000
+      },
+      "espera": {
+        "status": 422,
+        "erro": "tipo_desconhecido",
+        "nada_gravado": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "fonte fora de fontes_permitidas",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "status": 403,
+        "erro": "fonte_nao_autorizada",
+        "nada_gravado": true
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T020",
+      "competencia": "202609",
+      "tipo": "E06",
+      "descricao": "saída da tarefa fora do contrato (folha sem fgts_centavos): rejeita o pedido inteiro",
+      "corpo": {
+        "ator": "dp-c02",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "saidas[0].payload.fgts_centavos",
+            "regra": "obrigatorio"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "nada gravado; a tarefa do E06 segue aberta",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "pronto",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto"
+            ]
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "E06"
+          }
+        ],
+        "fatos_total": [
+          {
+            "tipo": "guia",
+            "tributo": "INSS",
+            "quantidade": 0
+          },
+          {
+            "tipo": "folha",
+            "quantidade": 0
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 0
+          },
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "faturamento_mes",
+            "tributo": "",
+            "total": 0
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "a mesma guia, válida",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "INSS",
+        "valor_centavos": 88000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T020",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c02",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          }
+        ],
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "versoes": 1
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "efeitos": [
+              "novo"
+            ]
+          },
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "efeitos": [
+              "novo"
+            ]
+          }
+        ],
+        "vigentes": [
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "tipo_versao": 1
+          },
+          {
+            "titular_id": "T020",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "tipo_versao": 1
+          }
+        ]
+      }
+    }
+  ]
+}

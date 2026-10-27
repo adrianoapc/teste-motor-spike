@@ -1,0 +1,39 @@
+{
+  "tipo": "anotacao_interna",
+  "descricao": "Anotação livre da operação (nenhuma regra consome)",
+  "area_dona": "operacao",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "texto": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "texto"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": false,
+        "valores": []
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "texto"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "intranet"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

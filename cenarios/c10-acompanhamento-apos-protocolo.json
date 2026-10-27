@@ -51,7 +51,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 6000000
       },
       "espera": {
@@ -65,7 +65,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 6000000
       },
       "espera": {
@@ -79,7 +79,7 @@
         "competencia": "202609",
         "tipo": "aliquota_mes",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "aliquota_bp": 600
         }
@@ -116,7 +116,7 @@
         "competencia": "202609",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {
@@ -137,7 +137,7 @@
         "competencia": "202609",
         "tipo": "recibo_obrigacao",
         "fonte": "integra",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "PGDAS-D",
         "payload": {
           "numero_recibo": "R-0010"
@@ -154,7 +154,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "valor_centavos": 360000,
         "payload": {
@@ -177,7 +177,7 @@
         "competencia": "202609",
         "tipo": "recebimento_pendente",
         "fonte": "agendador",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "dias_sem_leitura": 0
@@ -226,7 +226,7 @@
         "competencia": "202609",
         "tipo": "documento_disponibilizado",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "email"
@@ -305,7 +305,7 @@
         "competencia": "202609",
         "tipo": "entrega_falhou",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "email",
@@ -324,7 +324,7 @@
         "competencia": "202609",
         "tipo": "entrega_falhou",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "email",
@@ -401,7 +401,7 @@
         "competencia": "202609",
         "tipo": "recebimento_pendente",
         "fonte": "agendador",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "dias_sem_leitura": 5
@@ -451,7 +451,7 @@
         "competencia": "202609",
         "tipo": "documento_disponibilizado",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "app"
@@ -513,7 +513,7 @@
         "competencia": "202609",
         "tipo": "entrega_confirmada",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "app",
@@ -532,7 +532,7 @@
         "competencia": "202609",
         "tipo": "recebimento_pendente",
         "fonte": "agendador",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "dias_sem_leitura": 10

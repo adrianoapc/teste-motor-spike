@@ -1,0 +1,1918 @@
+{
+  "id": "C21",
+  "fase": 4.5,
+  "nome": "M2: concorrência por titular",
+  "descricao": "Cinco empresas do Simples com folha. Os insumos de cada uma chegam embaralhados e em paralelo (20 de cada vez), com três versões de notas e de guia de INSS observadas em instantes diferentes e cinco envios da mesma guia de FGTS com a mesma chave de idempotência. Em qualquer ordem de chegada, a vigente é a observação mais nova, a chave de idempotência grava um só recebimento e o estado final é o da execução em série. Rodar três vezes seguidas sem nenhuma falha.",
+  "secoes_semantica": [
+    "§6.4",
+    "§6.5",
+    "§13"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)"
+  ],
+  "titulares": [
+    "T021A",
+    "T021B",
+    "T021C",
+    "T021D",
+    "T021E"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T021A",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T021B",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T021C",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T021D",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T021E",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-04",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 5,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021A",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c04",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021B",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c04",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021C",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c04",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021D",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c04",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021E",
+      "competencia": "202609",
+      "tipo": "E06",
+      "corpo": {
+        "ator": "dp-c04",
+        "saidas": [
+          {
+            "valor_centavos": 400000,
+            "payload": {
+              "inss_centavos": 88000,
+              "fgts_centavos": 32000,
+              "irrf_centavos": 30000
+            }
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "90 publicações de 5 titulares, embaralhadas, 20 em paralelo",
+      "semente": 20261027,
+      "concorrencia": 20,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "faturamento_mes",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:00:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:01:00-03:00",
+          "valor_centavos": 4900000
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:02:00-03:00",
+          "valor_centavos": 4950000
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:03:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "aliquota_mes",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:04:00-03:00",
+          "payload": {
+            "aliquota_bp": 600
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "divisao_socios",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:05:00-03:00",
+          "payload": {
+            "parcelas": [
+              {
+                "socio": "S1",
+                "valor_centavos": 180000
+              },
+              {
+                "socio": "S2",
+                "valor_centavos": 120000
+              }
+            ]
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "recibo_obrigacao",
+          "fonte": "integra",
+          "observado_em": "2026-10-01T10:06:00-03:00",
+          "tributo": "PGDAS-D",
+          "payload": {
+            "numero_recibo": "R-T021A"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:07:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 80000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:08:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 85000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:09:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 88000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:11:00-03:00",
+          "tributo": "IRRF",
+          "valor_centavos": 25000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:12:00-03:00",
+          "tributo": "DAS",
+          "valor_centavos": 300000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021A",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021A",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021A",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021A",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021A",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021A",
+          "competencia": "202608",
+          "tipo": "folha",
+          "fonte": "dp",
+          "observado_em": "2026-10-01T10:13:00-03:00",
+          "valor_centavos": 400000,
+          "payload": {
+            "inss_centavos": 88000,
+            "fgts_centavos": 32000,
+            "irrf_centavos": 25000
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "faturamento_mes",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:00:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:01:00-03:00",
+          "valor_centavos": 4900000
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:02:00-03:00",
+          "valor_centavos": 4950000
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:03:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "aliquota_mes",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:04:00-03:00",
+          "payload": {
+            "aliquota_bp": 600
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "divisao_socios",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:05:00-03:00",
+          "payload": {
+            "parcelas": [
+              {
+                "socio": "S1",
+                "valor_centavos": 180000
+              },
+              {
+                "socio": "S2",
+                "valor_centavos": 120000
+              }
+            ]
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "recibo_obrigacao",
+          "fonte": "integra",
+          "observado_em": "2026-10-01T10:06:00-03:00",
+          "tributo": "PGDAS-D",
+          "payload": {
+            "numero_recibo": "R-T021B"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:07:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 80000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:08:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 85000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:09:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 88000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:11:00-03:00",
+          "tributo": "IRRF",
+          "valor_centavos": 25000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:12:00-03:00",
+          "tributo": "DAS",
+          "valor_centavos": 300000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021B",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021B",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021B",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021B",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021B",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202608",
+          "tipo": "folha",
+          "fonte": "dp",
+          "observado_em": "2026-10-01T10:13:00-03:00",
+          "valor_centavos": 400000,
+          "payload": {
+            "inss_centavos": 88000,
+            "fgts_centavos": 32000,
+            "irrf_centavos": 25000
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "faturamento_mes",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:00:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:01:00-03:00",
+          "valor_centavos": 4900000
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:02:00-03:00",
+          "valor_centavos": 4950000
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:03:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "aliquota_mes",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:04:00-03:00",
+          "payload": {
+            "aliquota_bp": 600
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "divisao_socios",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:05:00-03:00",
+          "payload": {
+            "parcelas": [
+              {
+                "socio": "S1",
+                "valor_centavos": 180000
+              },
+              {
+                "socio": "S2",
+                "valor_centavos": 120000
+              }
+            ]
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "recibo_obrigacao",
+          "fonte": "integra",
+          "observado_em": "2026-10-01T10:06:00-03:00",
+          "tributo": "PGDAS-D",
+          "payload": {
+            "numero_recibo": "R-T021C"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:07:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 80000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:08:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 85000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:09:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 88000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:11:00-03:00",
+          "tributo": "IRRF",
+          "valor_centavos": 25000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:12:00-03:00",
+          "tributo": "DAS",
+          "valor_centavos": 300000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021C",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021C",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021C",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021C",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021C",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202608",
+          "tipo": "folha",
+          "fonte": "dp",
+          "observado_em": "2026-10-01T10:13:00-03:00",
+          "valor_centavos": 400000,
+          "payload": {
+            "inss_centavos": 88000,
+            "fgts_centavos": 32000,
+            "irrf_centavos": 25000
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "faturamento_mes",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:00:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:01:00-03:00",
+          "valor_centavos": 4900000
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:02:00-03:00",
+          "valor_centavos": 4950000
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:03:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "aliquota_mes",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:04:00-03:00",
+          "payload": {
+            "aliquota_bp": 600
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "divisao_socios",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:05:00-03:00",
+          "payload": {
+            "parcelas": [
+              {
+                "socio": "S1",
+                "valor_centavos": 180000
+              },
+              {
+                "socio": "S2",
+                "valor_centavos": 120000
+              }
+            ]
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "recibo_obrigacao",
+          "fonte": "integra",
+          "observado_em": "2026-10-01T10:06:00-03:00",
+          "tributo": "PGDAS-D",
+          "payload": {
+            "numero_recibo": "R-T021D"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:07:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 80000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:08:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 85000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:09:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 88000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:11:00-03:00",
+          "tributo": "IRRF",
+          "valor_centavos": 25000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:12:00-03:00",
+          "tributo": "DAS",
+          "valor_centavos": 300000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021D",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021D",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021D",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021D",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021D",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202608",
+          "tipo": "folha",
+          "fonte": "dp",
+          "observado_em": "2026-10-01T10:13:00-03:00",
+          "valor_centavos": 400000,
+          "payload": {
+            "inss_centavos": 88000,
+            "fgts_centavos": 32000,
+            "irrf_centavos": 25000
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "faturamento_mes",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:00:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:01:00-03:00",
+          "valor_centavos": 4900000
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:02:00-03:00",
+          "valor_centavos": 4950000
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "notas_oneflow",
+          "fonte": "oneflow",
+          "observado_em": "2026-10-01T10:03:00-03:00",
+          "valor_centavos": 5000000
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "aliquota_mes",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:04:00-03:00",
+          "payload": {
+            "aliquota_bp": 600
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "divisao_socios",
+          "fonte": "calculo",
+          "observado_em": "2026-10-01T10:05:00-03:00",
+          "payload": {
+            "parcelas": [
+              {
+                "socio": "S1",
+                "valor_centavos": 180000
+              },
+              {
+                "socio": "S2",
+                "valor_centavos": 120000
+              }
+            ]
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "recibo_obrigacao",
+          "fonte": "integra",
+          "observado_em": "2026-10-01T10:06:00-03:00",
+          "tributo": "PGDAS-D",
+          "payload": {
+            "numero_recibo": "R-T021E"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:07:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 80000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:08:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 85000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:09:00-03:00",
+          "tributo": "INSS",
+          "valor_centavos": 88000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:11:00-03:00",
+          "tributo": "IRRF",
+          "valor_centavos": 25000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:12:00-03:00",
+          "tributo": "DAS",
+          "valor_centavos": 300000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021E",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021E",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021E",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021E",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "guia",
+          "fonte": "porta_documental",
+          "observado_em": "2026-10-01T10:10:00-03:00",
+          "chave_idempotencia": "fgts-T021E",
+          "tributo": "FGTS",
+          "valor_centavos": 32000,
+          "payload": {
+            "competencia_impressa": "202609",
+            "vencimento": "2026-10-20"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202608",
+          "tipo": "folha",
+          "fonte": "dp",
+          "observado_em": "2026-10-01T10:13:00-03:00",
+          "valor_centavos": 400000,
+          "payload": {
+            "inss_centavos": 88000,
+            "fgts_centavos": 32000,
+            "irrf_centavos": 25000
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao",
+          "sem_mudanca",
+          "obsoleto"
+        ]
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021A",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021B",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021C",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021D",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T021E",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final: igual à execução em série, em todos os titulares",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E06",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E08",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "vigentes": [
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "valor_centavos": 5000000
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "valor_centavos": 88000
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "valor_centavos": 5000000
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "valor_centavos": 88000
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "valor_centavos": 5000000
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "valor_centavos": 88000
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "valor_centavos": 5000000
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "valor_centavos": 88000
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "valor_centavos": 5000000
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "valor_centavos": 88000
+          }
+        ],
+        "fatos": [
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "versoes": 1
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "contagem": {
+              "novo": 1
+            }
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "total": 3
+          },
+          {
+            "titular_id": "T021A",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 3
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "contagem": {
+              "novo": 1
+            }
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "total": 3
+          },
+          {
+            "titular_id": "T021B",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 3
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "contagem": {
+              "novo": 1
+            }
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "total": 3
+          },
+          {
+            "titular_id": "T021C",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 3
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "contagem": {
+              "novo": 1
+            }
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "total": 3
+          },
+          {
+            "titular_id": "T021D",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 3
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "FGTS",
+            "contagem": {
+              "novo": 1
+            }
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "total": 3
+          },
+          {
+            "titular_id": "T021E",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "INSS",
+            "total": 3
+          }
+        ]
+      }
+    }
+  ]
+}

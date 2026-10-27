@@ -1,0 +1,65 @@
+{
+  "tipo": "divisao_socios",
+  "descricao": "Divisão do lucro/pró-labore entre sócios",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "parcelas": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "socio": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tributo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "valor_centavos": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "socio",
+                "valor_centavos"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "parcelas"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": false,
+        "valores": []
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "parcelas"
+      ],
+      "ordenar_arrays": {
+        "parcelas": [
+          "socio",
+          "tributo"
+        ]
+      },
+      "fontes_permitidas": [
+        "calculo"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

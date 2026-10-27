@@ -1,0 +1,56 @@
+{
+  "tipo": "guia",
+  "descricao": "Guia de recolhimento extraída do documento",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "competencia_impressa": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$"
+          },
+          "vencimento": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          }
+        },
+        "required": [
+          "competencia_impressa"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": true,
+        "valores": [
+          "DAS",
+          "INSS",
+          "FGTS",
+          "IRRF",
+          "IRPJ",
+          "CSLL",
+          "PIS",
+          "COFINS"
+        ]
+      },
+      "valor_centavos": "obrigatorio",
+      "campos_hash": [
+        "competencia_impressa",
+        "vencimento"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "porta_documental"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

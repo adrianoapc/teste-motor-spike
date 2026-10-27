@@ -104,7 +104,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "INSS",
         "valor_centavos": 88000,
         "payload": {
@@ -123,7 +123,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "FGTS",
         "valor_centavos": 32000,
         "payload": {
@@ -143,7 +143,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRRF",
         "valor_centavos": 25000,
         "payload": {
@@ -187,7 +187,7 @@
         "competencia": "202608",
         "tipo": "folha",
         "fonte": "dp",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 400000,
         "payload": {
           "inss_centavos": 88000,
@@ -242,7 +242,7 @@
         "competencia": "202609",
         "tipo": "anotacao_interna",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "texto": "anotação com o E08 validado: nada muda"
         }
@@ -260,7 +260,7 @@
         "competencia": "202608",
         "tipo": "folha",
         "fonte": "dp",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 400000,
         "payload": {
           "inss_centavos": 88000,
@@ -331,7 +331,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRRF",
         "valor_centavos": 26000,
         "payload": {
@@ -350,7 +350,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "INSS",
         "valor_centavos": 88000,
         "payload": {
@@ -369,7 +369,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "FGTS",
         "valor_centavos": 32000,
         "payload": {
@@ -388,7 +388,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRRF",
         "valor_centavos": 0,
         "payload": {
@@ -408,7 +408,7 @@
         "competencia": "202608",
         "tipo": "folha",
         "fonte": "dp",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 400000,
         "payload": {
           "inss_centavos": 88000,

@@ -1,0 +1,42 @@
+{
+  "tipo": "recibo_obrigacao",
+  "descricao": "Recibo de entrega de obrigação acessória",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "numero_recibo": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "numero_recibo"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": true,
+        "valores": [
+          "PGDAS-D",
+          "DCTFWEB"
+        ]
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "numero_recibo"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "integra"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

@@ -210,6 +210,28 @@ Tudo das fases 2 e 3 abaixo.
 1. `METRICAS.md` DEVE ganhar a seção "Manutenção M1": tempo de relógio do início da tarefa 19 até 13/13, retrabalhos, intervenções humanas, arquivos e linhas alterados (`git diff --stat` da fase), erros barrados por o compilador antes de teste.
 2. `DUVIDAS.md` DEVE registrar as decisões da fase 4; erro na base comum é registrado e a spike para (`docs/regras-do-jogo.md` §1).
 
+## Fase 4.5 · manutenção M2 (segundo teste comum de manutenção)
+
+**Escopo:** cenários **C19 a C23** (`"fase": 4.5`) e regressão de C1 a C13. Semântica **v5** (`docs/semantica-do-motor.md`): §6.1 a §6.5, §8 passo 3a, §9.4, §13 e §17. Migração **V009**; contrato HTTP **1.4.0**; contratos em `contrato/tipos-fato/`; vetores em `contrato/vetores-hash-v2.json`.
+
+### Requisito 23 · Contrato de fato, hash v2, recebimento e concorrência
+
+1. QUANDO `--fase 4` rodar sobre a base nova, sem mudar código, ENTÃO O SISTEMA DEVE continuar em 13/13 (os cenários antigos só mudaram o `observado_em`). *Verificador:* `--todos cenarios --fase 4 --limpar`.
+2. QUANDO um fato chegar em `POST /fatos`, ENTÃO O SISTEMA DEVE validá-lo contra o contrato **ativo** do tipo, lido do banco a cada publicação, na ordem do §6.2 (forma, `tipo_desconhecido` 422, `fonte_nao_autorizada` 403, `payload_invalido` 422 com **todas** as `violacoes` no formato do §6.2) e, em erro, NÃO DEVE gravar nada. *Verificador:* C20.
+3. QUANDO `/concluir` receber saídas, ENTÃO O SISTEMA DEVE validar cada uma contra o contrato de `saida.tipo` com fonte `tarefa` (§8 passo 3a, `campo` prefixado com `saidas[i].`) antes de gravar qualquer uma; em erro a tarefa continua aberta. *Verificador:* C20.
+4. O SISTEMA DEVE calcular o hash v2 (§6.3: projetar, normalizar, ordenar, canônico da v4) e passar em **todos** os vetores de `contrato/vetores-hash-v2.json` (inclusive os pares `iguais`) e continuar passando nos de `contrato/vetores-hash.json`, em testes unitários sem banco.
+5. O SISTEMA DEVE comparar o hash recebido com o da vigente **recalculado sob o contrato ativo** a partir do `payload` e do `valor_centavos` gravados, nunca com a coluna `hash` gravada, e NÃO DEVE fazer `UPDATE` em `fatos.fato`. *Verificador:* C19, C23.
+6. O SISTEMA DEVE decidir o efeito pela tabela do §6.4 (`novo`, `sem_mudanca`, `nova_versao`, `obsoleto`, `conflito_fonte`), gravar `tipo_versao` no fato e uma linha em `fatos.recebimento` para **toda** publicação válida (inclusive saídas de tarefa), e abrir a exceção `conflito_fonte` (classe S, sem entregável, abertura única por caso aberto). *Verificador:* C22, INV-16, INV-17, INV-18.
+7. QUANDO chegar `chave_idempotencia` já recebida da mesma fonte, ENTÃO O SISTEMA DEVE devolver o mesmo `efeito`, `fato_id` e `versao` da primeira vez, com `repetido: true`, sem gravar nada (§6.5). *Verificador:* C21.
+8. O SISTEMA DEVE serializar as mutações de um mesmo titular com `pg_advisory_xact_lock(hashtextextended('titular|' || titular_id, 0))` como primeira coisa da transação em `PublicarFato`, `ConcluirTarefa`, `RegistrarOverride` e em cada transação de `AbrirCompetencias` (§13), sem bloquear titulares diferentes. *Teste de integração da pilha + verificador:* C21.
+9. QUANDO C21 rodar três vezes seguidas, ENTÃO todas as execuções DEVEM passar, sem intermitência.
+10. *Verificador:* `python verificador/verificador.py --api http://localhost:8081 --db postgresql://spike:spike@localhost:5432/spike_dotnet --todos cenarios --fase 4.5 --limpar --relatorio resultado-fase45-dotnet.json` DEVE terminar com **18/18**, com INV-1 a INV-18.
+
+### Requisito 24 · Entrega da fase 4.5
+
+1. `METRICAS.md` DEVE ganhar a seção "Manutenção M2" (modelo em `docs/regras-do-jogo.md` §4): tempo de relógio do início da tarefa 25 até 18/18, retrabalhos, intervenções humanas, `git diff --stat` da fase, erros barrados por o compilador antes de teste, C6 antes e depois da trava, e o resultado das três execuções do C21.
+2. `DUVIDAS.md` DEVE registrar as decisões da fase 4.5; erro na base comum é registrado e a spike para (`docs/regras-do-jogo.md` §1).
+
 ### Fora do escopo (todas as fases)
 
-Reabertura de competência encerrada; resolução das exceções `substituicao` e `competencia_encerrada`; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.
+Reabertura de competência encerrada; resolução das exceções `substituicao`, `competencia_encerrada` e `conflito_fonte`; precedência entre fontes; fila de mortos; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.

@@ -1,0 +1,30 @@
+{
+  "tipo": "taxa_municipal",
+  "descricao": "Taxa municipal do mês (ou dispensa)",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": false,
+        "valores": []
+      },
+      "valor_centavos": "opcional",
+      "campos_hash": [],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "intranet"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

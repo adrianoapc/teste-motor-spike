@@ -47,7 +47,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 5000000
       },
       "espera": {
@@ -62,7 +62,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 4995000
       },
       "espera": {
@@ -76,7 +76,7 @@
         "competencia": "202609",
         "tipo": "aliquota_mes",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "aliquota_bp": 600
         }
@@ -287,7 +287,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 5000000
       },
       "espera": {

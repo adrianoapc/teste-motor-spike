@@ -1,0 +1,625 @@
+{
+  "id": "C19",
+  "fase": 4.5,
+  "nome": "M2: hash normalizado",
+  "descricao": "Simples sem folha. Republicações que só mudam o que não importa não viram versão: parcelas em outra ordem (ordenar_arrays), campos de rastro fora de campos_hash (documento_id, extrator_versao), espaços e tabulação nas pontas, Unicode decomposto, null igual a ausente. Nenhuma delas grava efeito nos casos. O controle (vencimento da guia, que está no hash) é versão nova e invalida o E11 liberado, que revalida e segue até o protocolo. Toda publicação deixa recebimento.",
+  "secoes_semantica": [
+    "§6.1",
+    "§6.3",
+    "§6.4",
+    "§11.2"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)"
+  ],
+  "titulares": [
+    "T019"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T019",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-01",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T019",
+      "competencia": "202609",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 180000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 120000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "$agora",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-T019"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20",
+          "documento_id": "doc-1",
+          "extrator_versao": "x-1.0"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "E11 liberado",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "mesmas parcelas em outra ordem (ordenar_arrays)",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S2",
+              "valor_centavos": 120000
+            },
+            {
+              "socio": "S1",
+              "valor_centavos": 180000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "mesma guia relida por outro extrator: rastro fora do hash",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-20",
+          "documento_id": "doc-2",
+          "extrator_versao": "x-1.1"
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "espaço e tabulação nas pontas",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "$agora",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "  R-T019\t"
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "anotação (nenhuma regra consome)",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "anotacao_interna",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "payload": {
+          "texto": "Revisão  feita\npor Ana"
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "mesmo texto em Unicode decomposto (NFC) e com espaços diferentes",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "anotacao_interna",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "payload": {
+          "texto": "Revisão feita por Ana "
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "folha sem irrf_centavos (empresa sem folha: ninguém consome)",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "$agora",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000
+        }
+      },
+      "espera": {
+        "efeito": "novo",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "irrf_centavos: null é o mesmo que ausente",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "$agora",
+        "valor_centavos": 400000,
+        "payload": {
+          "inss_centavos": 88000,
+          "fgts_centavos": 32000,
+          "irrf_centavos": null
+        }
+      },
+      "espera": {
+        "efeito": "sem_mudanca",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "controle: vencimento está no hash, então é versão nova",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202609",
+          "vencimento": "2026-10-21",
+          "documento_id": "doc-3"
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "controle invalidou e revalidou o E11",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "liberado"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T019",
+        "competencia": "202609",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "app"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E03",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E04",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E10",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E11",
+            "estado": "disponibilizado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "invalidado",
+              "pronto",
+              "processado",
+              "validado",
+              "liberado",
+              "disponibilizado"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "E12",
+            "estado": "encerrado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado",
+              "encerrado"
+            ]
+          }
+        ],
+        "excecoes_abertas": 0,
+        "tarefas_abertas": [],
+        "fatos": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "divisao_socios",
+            "tributo": "",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "versoes": 2
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "recibo_obrigacao",
+            "tributo": "PGDAS-D",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "anotacao_interna",
+            "tributo": "",
+            "versoes": 1
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "versoes": 1
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "divisao_socios",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "sem_mudanca"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "efeitos": [
+              "novo",
+              "sem_mudanca",
+              "nova_versao"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "recibo_obrigacao",
+            "tributo": "PGDAS-D",
+            "efeitos": [
+              "novo",
+              "sem_mudanca"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "anotacao_interna",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "sem_mudanca"
+            ]
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "folha",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "sem_mudanca"
+            ]
+          }
+        ],
+        "vigentes": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "tipo": "guia",
+            "tributo": "DAS",
+            "versao": 2,
+            "tipo_versao": 1
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "nome": "documento.disponibilizado",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T019",
+            "competencia": "202609",
+            "nome": "fechamento.concluido",
+            "quantidade": 1
+          }
+        ]
+      }
+    }
+  ]
+}
