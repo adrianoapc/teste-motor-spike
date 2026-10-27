@@ -49,7 +49,7 @@
         "competencia": "202608",
         "tipo": "folha",
         "fonte": "dp",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 400000,
         "payload": {
           "inss_centavos": 88000,
@@ -68,7 +68,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 8000000
       },
       "espera": {
@@ -82,7 +82,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 8000000
       },
       "espera": {
@@ -96,7 +96,7 @@
         "competencia": "202609",
         "tipo": "aliquota_mes",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "aliquota_bp": 600
         }
@@ -154,7 +154,7 @@
         "competencia": "202609",
         "tipo": "divisao_socios",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "parcelas": [
             {
@@ -179,7 +179,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "INSS",
         "valor_centavos": 88000,
         "payload": {
@@ -198,7 +198,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "FGTS",
         "valor_centavos": 32000,
         "payload": {
@@ -218,7 +218,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRRF",
         "valor_centavos": 0,
         "payload": {
@@ -237,7 +237,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "valor_centavos": 480000,
         "payload": {
@@ -256,7 +256,7 @@
         "competencia": "202609",
         "tipo": "documento_disponibilizado",
         "fonte": "entrega",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "DAS",
         "payload": {
           "canal": "nibo"
@@ -330,7 +330,7 @@
         "competencia": "202609",
         "tipo": "folha",
         "fonte": "dp",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 400000,
         "payload": {
           "inss_centavos": 92400,
@@ -469,7 +469,7 @@
         "competencia": "202609",
         "tipo": "guia",
         "fonte": "porta_documental",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "INSS",
         "valor_centavos": 92400,
         "payload": {
@@ -489,7 +489,7 @@
         "competencia": "202609",
         "tipo": "recibo_obrigacao",
         "fonte": "integra",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "PGDAS-D",
         "payload": {
           "numero_recibo": "R-0003"

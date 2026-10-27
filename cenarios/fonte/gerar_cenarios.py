@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 SAIDA = Path(__file__).resolve().parent.parent
-OBS = "2026-10-01T09:00:00-03:00"
+# v5 (§6.4): observado_em decide a ordem entre versões de uma chave, e a saída de tarefa (§8) usa o
+# relógio do servidor. Por isso, por padrão, o cenário pede ao verificador o instante do envio
+# ("$agora"), que fica na mesma linha do tempo das tarefas. Instantes fixos só onde o cenário testa
+# ordem (C21, C22), e só em chaves que nenhuma tarefa produz.
+AGORA = "$agora"
 SEQ4 = ["aguardando_insumo", "pronto", "processado", "validado"]
 E11_PROT = SEQ4 + ["liberado", "disponibilizado"]
 E12_ENC = SEQ4 + ["encerrado"]
@@ -39,8 +43,12 @@ def abrir(comp: str, *empresas: dict[str, Any], criados: int | None = None, exis
 
 
 def fato(tit: str, comp: str, tipo: str, valor: int | None = None, tributo: str = "", payload: dict[str, Any] | None = None,
-         fonte: str = "spike", efeito: str = "novo", descricao: str | None = None, sem_efeito: bool = False) -> dict[str, Any]:
-    corpo: dict[str, Any] = {"titular_id": tit, "competencia": comp, "tipo": tipo, "fonte": fonte, "observado_em": OBS}
+         fonte: str = "spike", efeito: str = "novo", descricao: str | None = None, sem_efeito: bool = False,
+         observado_em: str | None = None, chave_idempotencia: str | None = None) -> dict[str, Any]:
+    obs = observado_em if observado_em is not None else AGORA
+    corpo: dict[str, Any] = {"titular_id": tit, "competencia": comp, "tipo": tipo, "fonte": fonte, "observado_em": obs}
+    if chave_idempotencia is not None:
+        corpo["chave_idempotencia"] = chave_idempotencia
     if tributo:
         corpo["tributo"] = tributo
     if valor is not None:
@@ -137,7 +145,7 @@ def guia_payload(comp: str) -> dict[str, str]:
     return {"competencia_impressa": comp, "vencimento": "2026-10-20"}
 
 
-def cenario(cid: str, fase: int, nome: str, descricao: str, secoes: list[str], regras: list[str],
+def cenario(cid: str, fase: float, nome: str, descricao: str, secoes: list[str], regras: list[str],
             titulares: list[str], passos: list[dict[str, Any]]) -> dict[str, Any]:
     return {"id": cid, "fase": fase, "nome": nome, "descricao": descricao, "secoes_semantica": secoes,
             "regras_usadas": regras, "titulares": titulares, "passos": passos}
@@ -915,22 +923,292 @@ def c13() -> dict[str, Any]:
                    ["§6", "§7.1", "§9.1", "§11", "§16"], R_SEM_PARAM, [t, u], passos)
 
 
+# ---------------------------------------------------------------------------
+# Fase 4.5 · semântica v5 (manutenção M2): contrato de fato, hash v2, recebimento, concorrência
+# ---------------------------------------------------------------------------
+R_V5 = R_SEM_PARAM + ["contratos de tipo de fato v1 (V009)"]
+F45 = 4.5
+
+
+def rejeitado(tit: str, comp: str, tipo: str, valor: int | None, status: int, erro: str, violacoes: list[dict[str, str]] | None = None,
+              tributo: str = "", payload: dict[str, Any] | None = None, fonte: str = "porta_documental", descricao: str = "") -> dict[str, Any]:
+    p = fato(tit, comp, tipo, valor, tributo=tributo, payload=payload, fonte=fonte, descricao=descricao)
+    p["espera"] = {"status": status, "erro": erro, "nada_gravado": True}
+    if violacoes:
+        p["espera"]["violacoes"] = violacoes
+    return p
+
+
+def recebs(tit: str, comp: str, tipo: str, tributo: str = "", **kw: Any) -> dict[str, Any]:
+    return {"titular_id": tit, "competencia": comp, "tipo": tipo, "tributo": tributo} | kw
+
+
+def vig(tit: str, comp: str, tipo: str, tributo: str = "", **kw: Any) -> dict[str, Any]:
+    return {"titular_id": tit, "competencia": comp, "tipo": tipo, "tributo": tributo} | kw
+
+
+def sn_ate_e11(t: str, guia_extra: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Simples sem folha até o E11 liberado (mesmo caminho do C4, sem divergência)."""
+    return [
+        abrir(C, empresa(t, "SN")),
+        fato(t, C, "faturamento_mes", 5000000, fonte="intranet"),
+        fato(t, C, "notas_oneflow", 5000000, fonte="oneflow"),
+        fato(t, C, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        AGUARDAR,
+        concluir(t, C, "E03", [{"tributo": "DAS", "valor_centavos": 300000}]),
+        fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 180000}, {"socio": "S2", "valor_centavos": 120000}]}, fonte="calculo"),
+        fato(t, C, "recibo_obrigacao", None, tributo="PGDAS-D", payload={"numero_recibo": f"R-{t}"}, fonte="integra"),
+        fato(t, C, "guia", 300000, tributo="DAS", payload=guia_payload(C) | (guia_extra or {}), fonte="porta_documental"),
+        AGUARDAR,
+    ]
+
+
+def c19() -> dict[str, Any]:
+    t = "T019"
+    E11_SEQ = E11_PROT[:-1] + ["invalidado", "pronto", "processado", "validado", "liberado", "disponibilizado"]
+    passos = sn_ate_e11(t, {"documento_id": "doc-1", "extrator_versao": "x-1.0"}) + [
+        verificar("E11 liberado", {"entregaveis": [ent(t, C, "E11", "liberado")]}),
+        fato(t, C, "divisao_socios", None, payload={"parcelas": [{"socio": "S2", "valor_centavos": 120000}, {"socio": "S1", "valor_centavos": 180000}]},
+             fonte="calculo", efeito="sem_mudanca", sem_efeito=True, descricao="mesmas parcelas em outra ordem (ordenar_arrays)"),
+        fato(t, C, "guia", 300000, tributo="DAS", payload=guia_payload(C) | {"documento_id": "doc-2", "extrator_versao": "x-1.1"},
+             fonte="porta_documental", efeito="sem_mudanca", sem_efeito=True, descricao="mesma guia relida por outro extrator: rastro fora do hash"),
+        fato(t, C, "recibo_obrigacao", None, tributo="PGDAS-D", payload={"numero_recibo": f"  R-{t}\t"}, fonte="integra",
+             efeito="sem_mudanca", sem_efeito=True, descricao="espaço e tabulação nas pontas"),
+        fato(t, C, "anotacao_interna", None, payload={"texto": "Revisão  feita\npor Ana"}, fonte="intranet", sem_efeito=True,
+             descricao="anotação (nenhuma regra consome)"),
+        fato(t, C, "anotacao_interna", None, payload={"texto": "Revisão feita por Ana "}, fonte="intranet", efeito="sem_mudanca",
+             sem_efeito=True, descricao="mesmo texto em Unicode decomposto (NFC) e com espaços diferentes"),
+        fato(t, C, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000}, fonte="dp", sem_efeito=True,
+             descricao="folha sem irrf_centavos (empresa sem folha: ninguém consome)"),
+        fato(t, C, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": None}, fonte="dp",
+             efeito="sem_mudanca", sem_efeito=True, descricao="irrf_centavos: null é o mesmo que ausente"),
+        fato(t, C, "guia", 300000, tributo="DAS", payload=guia_payload(C) | {"vencimento": "2026-10-21", "documento_id": "doc-3"},
+             fonte="porta_documental", efeito="nova_versao", descricao="controle: vencimento está no hash, então é versão nova"),
+        AGUARDAR,
+        verificar("controle invalidou e revalidou o E11", {"entregaveis": [ent(t, C, "E11", "liberado")]}),
+        fato(t, C, "documento_disponibilizado", None, tributo="DAS", payload={"canal": "app"}, fonte="entrega"),
+        AGUARDAR,
+        verificar("final", {
+            "casos": [{"titular_id": t, "competencia": C, "estado": "encerrado"}],
+            "entregaveis": [ent(t, C, x, "validado", SEQ4) for x in ["E01", "E02", "E03", "E04", "E10"]]
+                           + [ent(t, C, "E11", "disponibilizado", E11_SEQ), ent(t, C, "E12", "encerrado", E12_ENC)],
+            "excecoes_abertas": 0,
+            "tarefas_abertas": [],
+            "fatos": [versoes(t, C, "divisao_socios", 1), versoes(t, C, "guia", 2, "DAS"), versoes(t, C, "recibo_obrigacao", 1, "PGDAS-D"),
+                      versoes(t, C, "anotacao_interna", 1), versoes(t, C, "folha", 1)],
+            "recebimentos": [recebs(t, C, "divisao_socios", efeitos=["novo", "sem_mudanca"]),
+                             recebs(t, C, "guia", "DAS", efeitos=["novo", "sem_mudanca", "nova_versao"]),
+                             recebs(t, C, "recibo_obrigacao", "PGDAS-D", efeitos=["novo", "sem_mudanca"]),
+                             recebs(t, C, "anotacao_interna", efeitos=["novo", "sem_mudanca"]),
+                             recebs(t, C, "folha", efeitos=["novo", "sem_mudanca"])],
+            "vigentes": [vig(t, C, "guia", "DAS", versao=2, tipo_versao=1)],
+            "eventos": eventos(t, C, entregavel__invalidado=1, documento__disponibilizado=1, fechamento__concluido=1),
+        }, final=True),
+    ]
+    return cenario("C19", F45, "M2: hash normalizado",
+                   "Simples sem folha. Republicações que só mudam o que não importa não viram versão: parcelas em outra ordem (ordenar_arrays), campos de rastro fora de campos_hash (documento_id, extrator_versao), espaços e tabulação nas pontas, Unicode decomposto, null igual a ausente. Nenhuma delas grava efeito nos casos. O controle (vencimento da guia, que está no hash) é versão nova e invalida o E11 liberado, que revalida e segue até o protocolo. Toda publicação deixa recebimento.",
+                   ["§6.1", "§6.3", "§6.4", "§11.2"], R_V5, [t], passos)
+
+
+def c20() -> dict[str, Any]:
+    t = "T020"
+    passos = [
+        abrir(C, empresa(t, "SN", folha=True, carteira="C-02")),
+        rejeitado(t, C, "guia", 88000, 422, "payload_invalido", [{"campo": "payload.competencia_impressa", "regra": "obrigatorio"}],
+                  tributo="INSS", payload={"vencimento": "2026-10-20"}, descricao="guia sem competencia_impressa"),
+        rejeitado(t, C, "guia", 88000, 422, "payload_invalido", [{"campo": "tributo", "regra": "fora_da_lista"}],
+                  tributo="ISS", payload=guia_payload(C), descricao="tributo fora da lista do contrato"),
+        rejeitado(t, C, "guia", 88000, 422, "payload_invalido", [{"campo": "tributo", "regra": "obrigatorio"}],
+                  payload=guia_payload(C), descricao="guia sem tributo"),
+        rejeitado(t, C, "faturamento_mes", 5000000, 422, "payload_invalido", [{"campo": "tributo", "regra": "proibido"}],
+                  tributo="DAS", fonte="intranet", descricao="tipo sem qualificador recebe tributo"),
+        rejeitado(t, C, "aliquota_mes", 100, 422, "payload_invalido", [{"campo": "valor_centavos", "regra": "proibido"}],
+                  payload={"aliquota_bp": 600}, fonte="calculo", descricao="alíquota com valor_centavos"),
+        rejeitado(t, C, "faturamento_mes", None, 422, "payload_invalido", [{"campo": "valor_centavos", "regra": "obrigatorio"}],
+                  fonte="intranet", descricao="faturamento sem valor"),
+        rejeitado(t, C, "folha", 400000, 422, "payload_invalido", [{"campo": "payload.inss_centavos", "regra": "tipo"}],
+                  payload={"inss_centavos": "88000", "fgts_centavos": 32000}, fonte="dp", descricao="número como texto"),
+        rejeitado(t, C, "guia", 88000, 422, "payload_invalido", [{"campo": "payload.competencia_impressa", "regra": "esquema"}],
+                  tributo="INSS", payload={"competencia_impressa": "09/2026"}, descricao="competência impressa fora do formato"),
+        rejeitado(t, C, "boleto_avulso", 1000, 422, "tipo_desconhecido", fonte="intranet", descricao="tipo sem contrato ativo"),
+        rejeitado(t, C, "faturamento_mes", 5000000, 403, "fonte_nao_autorizada", fonte="oneflow", descricao="fonte fora de fontes_permitidas"),
+        {"acao": "concluir_entregavel", "titular_id": t, "competencia": C, "tipo": "E06",
+         "descricao": "saída da tarefa fora do contrato (folha sem fgts_centavos): rejeita o pedido inteiro",
+         "corpo": {"ator": "dp-c02", "saidas": [{"valor_centavos": 400000, "payload": {"inss_centavos": 88000}}]},
+         "espera": {"status": 422, "erro": "payload_invalido", "nada_gravado": True,
+                    "violacoes": [{"campo": "saidas[0].payload.fgts_centavos", "regra": "obrigatorio"}]}},
+        AGUARDAR,
+        verificar("nada gravado; a tarefa do E06 segue aberta", {
+            "entregaveis": [ent(t, C, "E06", "pronto", ["aguardando_insumo", "pronto"])],
+            "tarefas_abertas": [tarefa(t, C, "E06")],
+            "fatos_total": [{"tipo": "guia", "tributo": "INSS", "quantidade": 0}, {"tipo": "folha", "quantidade": 0}],
+            "recebimentos": [recebs(t, C, "guia", "INSS", total=0), recebs(t, C, "faturamento_mes", total=0)]}),
+        fato(t, C, "guia", 88000, tributo="INSS", payload=guia_payload(C), fonte="porta_documental", descricao="a mesma guia, válida"),
+        concluir(t, C, "E06", [{"valor_centavos": 400000, "payload": {"inss_centavos": 88000, "fgts_centavos": 32000}}], ator="dp-c02"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(t, C, "E06", "validado", SEQ4)],
+            "excecoes_abertas": 0,
+            "tarefas_abertas": [],
+            "fatos": [versoes(t, C, "guia", 1, "INSS"), versoes(t, C, "folha", 1)],
+            "recebimentos": [recebs(t, C, "guia", "INSS", efeitos=["novo"]), recebs(t, C, "folha", efeitos=["novo"])],
+            "vigentes": [vig(t, C, "guia", "INSS", tipo_versao=1), vig(t, C, "folha", tipo_versao=1)],
+        }, final=True),
+    ]
+    return cenario("C20", F45, "M2: contrato de fato na entrada",
+                   "Publicações fora do contrato ativo do tipo são rejeitadas sem gravar nada (nem fato, nem recebimento, nem evento): campo obrigatório ausente, tributo fora da lista, tributo ausente ou proibido, valor_centavos proibido ou ausente, número como texto, formato fora do esquema, tipo sem contrato e fonte não autorizada. A saída de uma tarefa passa pela mesma validação e, se falha, a tarefa continua aberta. Depois, as versões válidas entram normalmente.",
+                   ["§6.1", "§6.2", "§8"], R_V5, [t], passos)
+
+
+def c21() -> dict[str, Any]:
+    tits = [f"T021{x}" for x in "ABCDE"]
+    folha_c = {"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 30000}
+
+    def corpo(t: str, tipo: str, valor: int | None, minuto: int, tributo: str = "", payload: dict[str, Any] | None = None,
+              fonte: str = "porta_documental", chave: str | None = None) -> dict[str, Any]:
+        c = fato(t, C, tipo, valor, tributo=tributo, payload=payload, fonte=fonte,
+                 observado_em=f"2026-10-01T10:{minuto:02d}:00-03:00", chave_idempotencia=chave)["corpo"]
+        return c
+
+    corpos: list[dict[str, Any]] = []
+    for t in tits:
+        gp = guia_payload(C)
+        corpos += [
+            corpo(t, "faturamento_mes", 5000000, 0, fonte="intranet"),
+            corpo(t, "notas_oneflow", 4900000, 1, fonte="oneflow"),
+            corpo(t, "notas_oneflow", 4950000, 2, fonte="oneflow"),
+            corpo(t, "notas_oneflow", 5000000, 3, fonte="oneflow"),
+            corpo(t, "aliquota_mes", None, 4, payload={"aliquota_bp": 600}, fonte="calculo"),
+            corpo(t, "divisao_socios", None, 5, payload={"parcelas": [{"socio": "S1", "valor_centavos": 180000}, {"socio": "S2", "valor_centavos": 120000}]}, fonte="calculo"),
+            corpo(t, "recibo_obrigacao", None, 6, tributo="PGDAS-D", payload={"numero_recibo": f"R-{t}"}, fonte="integra"),
+            corpo(t, "guia", 80000, 7, tributo="INSS", payload=gp),
+            corpo(t, "guia", 85000, 8, tributo="INSS", payload=gp),
+            corpo(t, "guia", 88000, 9, tributo="INSS", payload=gp),
+            corpo(t, "guia", 25000, 11, tributo="IRRF", payload=gp),
+            corpo(t, "guia", 300000, 12, tributo="DAS", payload=gp),
+        ] + [corpo(t, "guia", 32000, 10, tributo="FGTS", payload=gp, chave=f"fgts-{t}") for _ in range(5)]
+        # folha do mês anterior (par IRRF da CF-09, v4)
+        corpos.append(fato(t, ANT, "folha", 400000, payload={"inss_centavos": 88000, "fgts_centavos": 32000, "irrf_centavos": 25000},
+                           fonte="dp", observado_em="2026-10-01T10:13:00-03:00")["corpo"])
+    passos: list[dict[str, Any]] = [abrir(C, *[empresa(t, "SN", folha=True, carteira="C-04") for t in tits])]
+    passos += [concluir(t, C, "E06", [{"valor_centavos": 400000, "payload": folha_c}], ator="dp-c04") for t in tits]
+    passos += [
+        {"acao": "publicar_paralelo", "descricao": f"{len(corpos)} publicações de 5 titulares, embaralhadas, 20 em paralelo",
+         "semente": 20261027, "concorrencia": 20, "corpos": corpos,
+         "espera": {"efeitos_aceitos": ["novo", "nova_versao", "sem_mudanca", "obsoleto"]}},
+        AGUARDAR,
+    ]
+    passos += [concluir(t, C, "E03", [{"tributo": "DAS", "valor_centavos": 300000}]) for t in tits]
+    passos += [
+        AGUARDAR,
+        verificar("final: igual à execução em série, em todos os titulares", {
+            "entregaveis": [ent(t, C, x, "validado") for t in tits for x in ["E01", "E02", "E03", "E04", "E06", "E08", "E10"]]
+                           + [ent(t, C, "E11", "liberado") for t in tits] + [ent(t, C, "E12", "aguardando_insumo") for t in tits],
+            "excecoes_abertas": 0,
+            "tarefas_abertas": [],
+            "vigentes": [v for t in tits for v in (vig(t, C, "notas_oneflow", valor_centavos=5000000), vig(t, C, "guia", "INSS", valor_centavos=88000))],
+            "fatos": [versoes(t, C, "guia", 1, "FGTS") for t in tits],
+            "recebimentos": [r for t in tits for r in (recebs(t, C, "guia", "FGTS", contagem={"novo": 1}),
+                                                        recebs(t, C, "notas_oneflow", total=3), recebs(t, C, "guia", "INSS", total=3))],
+        }, final=True),
+    ]
+    return cenario("C21", F45, "M2: concorrência por titular",
+                   "Cinco empresas do Simples com folha. Os insumos de cada uma chegam embaralhados e em paralelo (20 de cada vez), com três versões de notas e de guia de INSS observadas em instantes diferentes e cinco envios da mesma guia de FGTS com a mesma chave de idempotência. Em qualquer ordem de chegada, a vigente é a observação mais nova, a chave de idempotência grava um só recebimento e o estado final é o da execução em série. Rodar três vezes seguidas sem nenhuma falha.",
+                   ["§6.4", "§6.5", "§13"], R_V5, tits, passos)
+
+
+def c22() -> dict[str, Any]:
+    t = "T022"
+    h10, h09 = "2026-10-01T10:00:00-03:00", "2026-10-01T09:00:00-03:00"
+    passos = [
+        abrir(C, empresa(t, "SN", carteira="C-05")),
+        fato(t, C, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        fato(t, C, "notas_oneflow", 5000000, fonte="oneflow", observado_em=h10, descricao="notas observadas às 10h"),
+        fato(t, C, "notas_oneflow", 4000000, fonte="oneflow", observado_em=h09, efeito="obsoleto", sem_efeito=True,
+             descricao="leitura das 9h chega atrasada: não vira versão"),
+        fato(t, C, "notas_oneflow", 4500000, fonte="oneflow", observado_em=h10, efeito="conflito_fonte",
+             descricao="a mesma fonte diz outro valor no mesmo instante"),
+        fato(t, C, "notas_oneflow", 4500000, fonte="oneflow", observado_em=h10, efeito="conflito_fonte",
+             descricao="de novo: a exceção não duplica"),
+        AGUARDAR,
+        verificar("conflito vira exceção do caso, sem entregável", {
+            "entregaveis": [ent(t, C, "E01", "aguardando_insumo")],
+            "excecoes": [exc(t, C, None, "conflito_fonte", ["aberta:"], "S")],
+            "vigentes": [vig(t, C, "notas_oneflow", versao=1, valor_centavos=5000000)]}),
+        {"acao": "ativar_contrato", "arquivo": "notas_oneflow-v2-duas-fontes.json",
+         "descricao": "contrato de teste: notas_oneflow aceita também a fonte oneflow_api"},
+        fato(t, C, "notas_oneflow", 4800000, fonte="oneflow_api", observado_em=h10, efeito="nova_versao",
+             descricao="outra fonte no mesmo instante: vale a regra normal"),
+        fato(t, C, "faturamento_mes", 4800000, fonte="intranet"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(t, C, "E01", "validado", SEQ4), ent(t, C, "E02", "validado")],
+            "excecoes": [exc(t, C, None, "conflito_fonte", ["aberta:"], "S")],
+            "excecoes_total": 1,
+            "fatos": [versoes(t, C, "notas_oneflow", 2)],
+            "vigentes": [vig(t, C, "notas_oneflow", versao=2, valor_centavos=4800000, tipo_versao=2)],
+            "recebimentos": [recebs(t, C, "notas_oneflow", efeitos=["novo", "obsoleto", "conflito_fonte", "conflito_fonte", "nova_versao"])],
+            "eventos": eventos(t, C, excecao__aberta=1, entregavel__invalidado=0),
+        }, final=True),
+    ]
+    return cenario("C22", F45, "M2: fato fora de ordem e conflito de fonte",
+                   "Simples sem folha. A vigente de uma chave é a observação mais nova. Uma leitura antiga que chega atrasada fica só no recebimento (obsoleto) e não mexe em nada. A mesma fonte dizendo outro valor no mesmo instante é conflito_fonte: não vira versão e abre uma única exceção no caso, classe S. Outra fonte autorizada no mesmo instante segue a regra normal.",
+                   ["§6.4", "§9.4"], R_V5 + ["contrato de teste notas_oneflow v2"], [t], passos)
+
+
+def c23() -> dict[str, Any]:
+    t = "T023"
+    passos = [
+        abrir(C, empresa(t, "SN", carteira="C-05")),
+        {"acao": "ativar_contrato", "arquivo": "notas_oneflow-v2-com-quantidade.json",
+         "descricao": "contrato de teste: quantidade_notas entra no hash"},
+        fato(t, C, "notas_oneflow", 5000000, payload={"quantidade_notas": 10}, fonte="oneflow", sem_efeito=True),
+        fato(t, C, "notas_oneflow", 5000000, payload={"quantidade_notas": 11}, fonte="oneflow", efeito="nova_versao", sem_efeito=True,
+             descricao="com quantidade_notas no hash, mudar a quantidade é versão nova"),
+        {"acao": "ativar_contrato", "arquivo": "notas_oneflow-v3-sem-quantidade.json",
+         "descricao": "contrato v3: quantidade_notas sai do hash"},
+        fato(t, C, "notas_oneflow", 5000000, payload={"quantidade_notas": 12}, fonte="oneflow", efeito="sem_mudanca", sem_efeito=True,
+             descricao="sob o contrato ativo, a vigente é recalculada sem quantidade: nada mudou"),
+        fato(t, C, "notas_oneflow", 5100000, payload={"quantidade_notas": 12}, fonte="oneflow", efeito="nova_versao", sem_efeito=True,
+             descricao="valor diferente: versão nova, gravada com o contrato v3"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(t, C, "E01", "aguardando_insumo", ["aguardando_insumo"])],
+            "fatos": [versoes(t, C, "notas_oneflow", 3)],
+            "vigentes": [vig(t, C, "notas_oneflow", versao=3, valor_centavos=5100000, tipo_versao=3)],
+            "recebimentos": [recebs(t, C, "notas_oneflow", efeitos=["novo", "nova_versao", "sem_mudanca", "nova_versao"])],
+            "excecoes_total": 0,
+        }, final=True),
+    ]
+    return cenario("C23", F45, "M2: troca de campos_hash no contrato",
+                   "A comparação de hash é sempre feita sob o contrato ativo: o motor recalcula o hash da vigente a partir do payload gravado. Tirar um campo do hash nunca gera versão nem cascata, e nenhum fato gravado é alterado. Fatos novos registram a versão do contrato em uso.",
+                   ["§6.1", "§6.3", "§6.4"], R_V5 + ["contratos de teste notas_oneflow v2 e v3"], [t], passos)
+
+
 def main() -> None:
-    gerados = {
-        "c1-feliz-simples-com-folha.json": c1(),
-        "c2-r4-folha-reaberta-apos-entrega.json": c2(),
-        "c3-r1-nota-cancelada-das-protocolado.json": c3(),
-        "c4-r6-guia-retificada-duas-vezes.json": c4(),
-        "c5-r7-retroativo-competencia-encerrada.json": c5(),
-        "c6-escala-4500-casos.json": c6(),
-        "c7-lp-terceiro-mes-trimestre.json": c7(),
-        "c8-lp-terceiro-mes-ate-encerramento.json": c8(),
-        "c9-override-conferencia.json": c9(),
-        "c10-acompanhamento-apos-protocolo.json": c10(),
-        "c11-m1-tolerancia-e-fator-r.json": c11(),
-        "c12-m1-cf07-presumido-por-tributo.json": c12(),
-        "c13-m1-irrf-folha-mes-anterior.json": c13(),
+    fabricas = {
+        "c1-feliz-simples-com-folha.json": c1,
+        "c2-r4-folha-reaberta-apos-entrega.json": c2,
+        "c3-r1-nota-cancelada-das-protocolado.json": c3,
+        "c4-r6-guia-retificada-duas-vezes.json": c4,
+        "c5-r7-retroativo-competencia-encerrada.json": c5,
+        "c6-escala-4500-casos.json": c6,
+        "c7-lp-terceiro-mes-trimestre.json": c7,
+        "c8-lp-terceiro-mes-ate-encerramento.json": c8,
+        "c9-override-conferencia.json": c9,
+        "c10-acompanhamento-apos-protocolo.json": c10,
+        "c11-m1-tolerancia-e-fator-r.json": c11,
+        "c12-m1-cf07-presumido-por-tributo.json": c12,
+        "c13-m1-irrf-folha-mes-anterior.json": c13,
+        "c19-m2-hash-normalizado.json": c19,
+        "c20-m2-contrato-de-fato.json": c20,
+        "c21-m2-concorrencia-por-titular.json": c21,
+        "c22-m2-fora-de-ordem-e-conflito.json": c22,
+        "c23-m2-troca-de-campos-hash.json": c23,
     }
+    gerados: dict[str, dict[str, Any]] = {}
+    for nome, fabrica in fabricas.items():
+        gerados[nome] = fabrica()
     for nome, conteudo in gerados.items():
         (SAIDA / nome).write_text(json.dumps(conteudo, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"{nome}: fase {conteudo['fase']}, {len(conteudo['passos'])} passos")

@@ -1,0 +1,38 @@
+{
+  "tipo": "aliquota_mes",
+  "descricao": "Alíquota efetiva do mês em pontos-base",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "aliquota_bp": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aliquota_bp"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": false,
+        "valores": []
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "aliquota_bp"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "calculo"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

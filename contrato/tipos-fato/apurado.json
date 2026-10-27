@@ -1,0 +1,38 @@
+{
+  "tipo": "apurado",
+  "descricao": "Tributo apurado na competência",
+  "area_dona": "fiscal",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": true,
+        "valores": [
+          "IRPJ",
+          "CSLL",
+          "PIS",
+          "COFINS",
+          "DAS"
+        ]
+      },
+      "valor_centavos": "obrigatorio",
+      "campos_hash": [],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "tarefa",
+        "equiparacao",
+        "intranet-legado"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

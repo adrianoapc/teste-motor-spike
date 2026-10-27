@@ -1,12 +1,15 @@
 openapi: 3.0.3
 info:
   title: Motor do fechamento — contrato comum do spike
-  version: "1.3.0"
+  version: "1.4.0"
   description: |
     Contrato que as TRES spikes (.NET 10, Python e PHP) implementam exatamente igual.
     Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
     Nenhuma rota extra é exigida; rotas extras não são usadas pelo verificador.
     Sem autenticação no spike.
+    1.4.0 (semântica v5, fase 4.5): contrato de tipo de fato na entrada (403 fonte_nao_autorizada,
+    422 tipo_desconhecido e payload_invalido com violacoes), chave_idempotencia, efeitos obsoleto e
+    conflito_fonte, campo repetido.
 servers:
   - url: http://localhost:8081
     description: spike .NET
@@ -54,6 +57,9 @@ paths:
         expoente, -0, fora da faixa), chave duplicada, substituto Unicode isolado ou mais de 64
         níveis; valor_centavos só aceita inteiro int64 ou null. O corpo é validado por inteiro
         antes de qualquer gravação.
+        v5 (§6.1 a §6.4): depois da forma, o corpo é validado contra o contrato ativo do tipo, nesta
+        ordem: tipo (422 tipo_desconhecido), fonte (403 fonte_nao_autorizada), qualificador, valor e
+        payload (422 payload_invalido, com violacoes). Erro = nada gravado (nem recebimento).
       requestBody:
         required: true
         content:
@@ -61,10 +67,11 @@ paths:
             schema: { $ref: "#/components/schemas/FatoRequest" }
       responses:
         "200":
-          description: Fato gravado ou sem mudança
+          description: Recebido. O efeito diz se virou fato (novo, nova_versao) ou não (sem_mudanca, obsoleto, conflito_fonte)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FatoResponse" }
+        "403": { $ref: "#/components/responses/FonteNaoAutorizada" }
         "422": { $ref: "#/components/responses/Invalido" }
 
   /casos/{titular_id}/{competencia}:
@@ -88,6 +95,9 @@ paths:
         A forma do corpo (inclusive as regras de payload do §6 em TODAS as saídas) é validada antes
         de qualquer consulta ou gravação: 422 corpo_invalido sem efeito parcial. Depois: 404, 409 e
         422 por entregável sem saída na regra.
+        v5 (§8 passo 3a): depois disso, cada saída é validada contra o contrato ativo de saida.tipo
+        (fonte 'tarefa'), antes de gravar qualquer coisa: 403 fonte_nao_autorizada ou 422
+        payload_invalido com violacoes; erro em uma saída rejeita o pedido inteiro.
       parameters:
         - $ref: "#/components/parameters/TitularId"
         - $ref: "#/components/parameters/Competencia"
@@ -103,6 +113,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EntregavelEstado" }
+        "403": { $ref: "#/components/responses/FonteNaoAutorizada" }
         "404": { $ref: "#/components/responses/NaoEncontrado" }
         "409": { $ref: "#/components/responses/Conflito" }
         "422": { $ref: "#/components/responses/Invalido" }
@@ -176,6 +187,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
+    FonteNaoAutorizada:
+      description: "v5: a fonte não está em fontes_permitidas do contrato ativo do tipo (erro = fonte_nao_autorizada). Nada gravado."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
     Invalido:
       description: |
         Corpo inválido (erro = corpo_invalido): JSON malformado, campo ausente ou de tipo errado etc.
@@ -183,6 +199,8 @@ components:
         int64, chave duplicada, substituto Unicode isolado, U+0000 em qualquer string ou chave (também em
         campos de texto do corpo) ou profundidade acima de 64 (semântica §6).
         U+0000 em parâmetro de caminho é rejeitado com este 422 ou com 400 do servidor web (ambos conformes).
+        v5: erro = tipo_desconhecido (tipo sem contrato ativo) ou payload_invalido (qualificador,
+        valor_centavos ou payload fora do contrato ativo; vem com violacoes).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
@@ -206,6 +224,15 @@ components:
       properties:
         erro: { type: string, description: "código curto, ex.: 'entregavel_nao_pronto'" }
         mensagem: { type: string }
+        violacoes:
+          type: array
+          description: "v5: só em payload_invalido. Uma entrada por regra violada; o verificador confere os campos, não o texto."
+          items:
+            type: object
+            required: [campo, regra]
+            properties:
+              campo: { type: string, description: "'tributo', 'valor_centavos' ou caminho no payload, ex.: 'payload.competencia_impressa'; em /concluir, prefixado por 'saidas[i].'" }
+              regra: { type: string, description: "ex.: 'obrigatorio', 'proibido', 'fora_da_lista', 'tipo', 'esquema'" }
 
     Empresa:
       type: object
@@ -273,15 +300,17 @@ components:
           description: "Objeto livre cujos números são só inteiros int64 (sem fração, expoente ou -0), sem chave duplicada, até 64 níveis; caso contrário 422 corpo_invalido. Ver semântica §6."
         fonte: { type: string, minLength: 1 }
         origem_ref: { type: string, nullable: true }
-        observado_em: { type: string, format: date-time }
+        observado_em: { type: string, format: date-time, description: "v5: decide a ordem entre versões da mesma chave (§6.4)" }
+        chave_idempotencia: { type: string, minLength: 1, maxLength: 200, nullable: true, description: "v5 (§6.5): mesma (fonte, chave) devolve a primeira resposta, com repetido = true, sem gravar nada" }
 
     FatoResponse:
       type: object
       required: [fato_id, versao, efeito]
       properties:
-        fato_id: { type: string, format: uuid, description: "id da versão vigente após a operação" }
+        fato_id: { type: string, format: uuid, description: "id da versão vigente após a operação (em obsoleto e conflito_fonte, a vigente que continuou vigente)" }
         versao: { type: integer }
-        efeito: { type: string, enum: [novo, nova_versao, sem_mudanca] }
+        efeito: { type: string, enum: [novo, nova_versao, sem_mudanca, obsoleto, conflito_fonte] }
+        repetido: { type: boolean, default: false, description: "v5: true quando a resposta é a de uma chave_idempotencia já recebida" }
 
     ConcluirRequest:
       type: object

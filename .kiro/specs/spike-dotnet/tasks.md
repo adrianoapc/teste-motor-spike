@@ -138,3 +138,41 @@ Antes da tarefa 19: `git merge origin/main` (traz a V008, o contrato 1.3.0, a se
   - `--todos cenarios --fase 4 --limpar --relatorio resultado-fase4-dotnet.json` com 13/13, só esta spike no ar.
   - `METRICAS.md` (seção Manutenção M1, com hora de fim), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - _Requisitos: 21.7, 22_
+
+## Fase 4.5 · manutenção M2 (segundo teste comum de manutenção)
+
+Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): criar a branch `m2/spike-dotnet` a partir da `main` atualizada (traz a V009, o contrato 1.4.0, a semântica v5, os contratos de tipo de fato e os cenários C19 a C23) e recriar o banco (`docker compose down -v && docker compose up -d`). Anotar a hora de início em `METRICAS.md` (seção Manutenção M2). Ler `docs/semantica-do-motor.md` §6 (inteiro), §8, §13 e §17 antes de mudar código.
+
+- [ ] 25. Regressão sem mudar código
+  - `--todos cenarios --fase 4 --limpar`: tem de dar 13/13. Depois `--fase 4.5` e registrar em `METRICAS.md` quais cenários quebram e por quê (é a medida de impacto da M2).
+  - _Requisitos: 23.1_
+
+- [ ] 26. Contrato de fato na entrada
+  - Ler o contrato ativo do banco a cada publicação; validar na ordem do §6.2; erros com o código e as `violacoes`; mesma validação em cada saída de `/concluir` (§8 passo 3a); gravar `tipo_versao` no fato.
+  - Verificador: `--cenario cenarios/c20-m2-contrato-de-fato.json`, depois C9.
+  - _Requisitos: 23.2, 23.3_
+
+- [ ] 27. Hash v2
+  - `projetar → normalizar → ordenar → canonico → sha256` como funções puras do domínio; o canônico é o da v4.
+  - Testes unitários com todos os casos e pares de `contrato/vetores-hash-v2.json` e com `contrato/vetores-hash.json`.
+  - Comparação sempre sob o contrato ativo, recalculando o hash da vigente; nada de `UPDATE` em `fatos.fato`.
+  - Verificador: C19, depois C23, depois C4.
+  - _Requisitos: 23.4, 23.5_
+
+- [ ] 28. Recebimento, fora de ordem e idempotência
+  - `fatos.recebimento` em toda publicação válida (inclusive saídas de tarefa); efeitos `obsoleto` e `conflito_fonte` (§6.4); exceção `conflito_fonte`; `chave_idempotencia` com resposta repetida (§6.5).
+  - Verificador: C22, depois C10 e C3.
+  - _Requisitos: 23.6, 23.7_
+
+- [ ] 29. Concorrência por titular
+  - Trava consultiva por titular como primeiro comando da transação em `PublicarFato`, `ConcluirTarefa`, `RegistrarOverride` e em cada transação de `AbrirCompetencias`; consumidor da fila (se houver) com `pg_try_advisory_xact_lock` (§13).
+  - Teste de integração: duas transações do mesmo titular não se intercalam; titulares diferentes não se bloqueiam.
+  - Verificador: C21 três vezes seguidas; depois C6 só com esta spike no ar, registrando o p95 das 300 guias e a abertura de 10.000 casos (comparar com a fase 4).
+  - _Requisitos: 23.8, 23.9_
+
+- [ ] 30. Fechamento da fase 4.5
+  - `--todos cenarios --fase 4.5 --limpar --relatorio resultado-fase45-dotnet.json` com 18/18, só esta spike no ar.
+  - `METRICAS.md` (seção Manutenção M2, com hora de fim), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
+  - Push da branch e PR para a `main`.
+  - _Requisitos: 23.10, 24_
+

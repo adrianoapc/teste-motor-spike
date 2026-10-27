@@ -50,7 +50,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -64,7 +64,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 20000000
       },
       "espera": {
@@ -129,7 +129,7 @@
         "competencia": "202607",
         "tipo": "apurado",
         "fonte": "intranet-legado",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRPJ",
         "valor_centavos": 150000
       },
@@ -162,7 +162,7 @@
         "competencia": "202608",
         "tipo": "apurado",
         "fonte": "intranet-legado",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "tributo": "IRPJ",
         "valor_centavos": 155000
       },

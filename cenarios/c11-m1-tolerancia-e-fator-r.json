@@ -62,7 +62,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 10000000
       },
       "espera": {
@@ -77,7 +77,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 9999990
       },
       "espera": {
@@ -91,7 +91,7 @@
         "competencia": "202609",
         "tipo": "aliquota_mes",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "aliquota_bp": 600
         }
@@ -107,7 +107,7 @@
         "competencia": "202609",
         "tipo": "faturamento_mes",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 10000000
       },
       "espera": {
@@ -122,7 +122,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 9999989
       },
       "espera": {
@@ -136,7 +136,7 @@
         "competencia": "202609",
         "tipo": "aliquota_mes",
         "fonte": "calculo",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "aliquota_bp": 600
         }
@@ -246,7 +246,7 @@
         "competencia": "202609",
         "tipo": "anotacao_interna",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "texto": "anotação com tarefa aberta: não pode criar outra tarefa"
         }
@@ -264,7 +264,7 @@
         "competencia": "202609",
         "tipo": "anotacao_interna",
         "fonte": "intranet",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "payload": {
           "texto": "anotação com exceção aberta: não pode abrir outra exceção nem reconferir"
         }
@@ -320,7 +320,7 @@
         "competencia": "202609",
         "tipo": "notas_oneflow",
         "fonte": "oneflow",
-        "observado_em": "2026-10-01T09:00:00-03:00",
+        "observado_em": "$agora",
         "valor_centavos": 10000000
       },
       "espera": {

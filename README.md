@@ -31,18 +31,18 @@ pip install -r verificador/requirements.txt
 
 python verificador/verificador.py --api http://localhost:8081 \
   --db postgresql://spike:spike@localhost:5432/spike_dotnet \
-  --todos cenarios --fase 4 --limpar --relatorio resultado-dotnet.json
+  --todos cenarios --fase 4.5 --limpar --relatorio resultado-dotnet.json
 
 python verificador/verificador.py --api http://localhost:8082 \
   --db postgresql://spike:spike@localhost:5432/spike_python \
-  --todos cenarios --fase 4 --limpar --relatorio resultado-python.json
+  --todos cenarios --fase 4.5 --limpar --relatorio resultado-python.json
 
 python verificador/verificador.py --api http://localhost:8083 \
   --db postgresql://spike:spike@localhost:5432/spike_php \
-  --todos cenarios --fase 4 --limpar --relatorio resultado-php.json
+  --todos cenarios --fase 4.5 --limpar --relatorio resultado-php.json
 ```
 
-O verificador chama a API de cada cenário, confere o banco, checa 15 invariantes e a idempotência da reavaliação (fase 4) (transições, versões de fatos, eventos, conferências, exceções, tarefas, override, protocolo com a guia, caso encerrado imutável) e mede as 6 consultas de indicador. `--fase N` roda as fases 1 a N.
+O verificador chama a API de cada cenário, confere o banco, checa 18 invariantes (INV-16 e INV-17 a partir da fase 4.5) e a idempotência da reavaliação (fase 4) (transições, versões de fatos, eventos, conferências, exceções, tarefas, override, protocolo com a guia, caso encerrado imutável) e mede as 6 consultas de indicador. `--fase N` roda as fases 1 a N (aceita 4.5). `--checar-contratos` confere banco = `contrato/tipos-fato/`.
 
 | Fase | Cenários | O que cobre |
 |---|---|---|
@@ -50,6 +50,7 @@ O verificador chama a API de cada cenário, confere o banco, checa 15 invariante
 | 2 | C2, C3, C4, C5, C8, C9, C10 | Invalidação e cascata, exceções, competência encerrada, override, encerramento do LP, acompanhamento depois do protocolo |
 | 3 | C6 | Escala: 4.500 casos e 300 guias em lote |
 | 4 | C11, C12, C13 | Manutenção M1 (semântica v4, §16): tolerância de 10 centavos, CF-08 só com Fator R, CF-07 do Presumido por tributo, CF-09 com o IRRF da folha do mês anterior, idempotência da reavaliação |
+| 4.5 | C19 a C23 | Manutenção M2 (semântica v5, §17): contrato de fato na entrada, hash normalizado, recebimento, fato fora de ordem e conflito de fonte, idempotência e trava por titular |
 
 Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gerados por `cenarios/fonte/gerar_cenarios.py`.
 
@@ -57,11 +58,11 @@ Mapa completo de cobertura: `docs/cobertura-cenarios.md`. Os cenários são gera
 
 | Pasta | O quê | Quem altera |
 |---|---|---|
-| `db/` | Esquema (V001–V008), regras **provisórias**, script de migração | Só o Adriano |
+| `db/` | Esquema (V001–V009), regras **provisórias**, script de migração | Só o Adriano |
 | `contrato/openapi.yaml` | API idêntica nas três spikes | Só o Adriano |
 | `docs/semantica-do-motor.md` | **O que** o motor faz. Fonte da verdade | Só o Adriano |
 | `docs/regras-do-jogo.md` | Como as spikes são comparadas | Só o Adriano |
-| `cenarios/` | C1 a C13, em quatro fases (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
+| `cenarios/` | C1 a C13 e C19 a C23, em cinco fases (1, 2, 3, 4 e 4.5), mais `contratos-teste/`, (gerados por `cenarios/fonte/gerar_cenarios.py`) | Só o Adriano |
 | `verificador/` | Juiz comum | Só o Adriano |
 | `massa/` | Massa sintética para o cenário de escala | Só o Adriano |
 | `anonimizacao/` | Anonimização local de amostras reais (roda só no Mac) | Só o Adriano |

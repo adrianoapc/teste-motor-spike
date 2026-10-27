@@ -11,7 +11,12 @@ Uso:
 
   python verificador.py --api ... --db ... --todos ../cenarios --fase 2 --limpar --relatorio saida.json
 
---fase N roda os cenários das fases 1..N (regressão incluída). Sem --fase, roda todos.
+--fase N roda os cenários das fases 1..N (regressão incluída; N pode ser decimal, ex.: 4.5). Sem --fase, roda todos.
+INV-16 e INV-17 (recebimento e contrato do fato, semântica v5) só valem com --fase >= 4.5 ou sem --fase.
+
+  python verificador.py --db ... --checar-contratos   # banco = contrato/tipos-fato/*.json (v5 §6.1)
+
+"$agora" no observado_em de um corpo de fato vira o instante do envio, pelo relógio do banco (v5 §6.4).
 
 Saída: relatório legível no terminal e, com --relatorio, JSON. Código 0 se tudo passou.
 """
@@ -20,12 +25,14 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import random
 import statistics
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +46,9 @@ TABELAS_EXECUCAO = [
     "conferencias.conferencia",
     "fechamento.entregavel_fato", "fechamento.entregavel_dependencia",
     "fechamento.entregavel_transicao", "fechamento.entregavel", "fechamento.caso_competencia",
-    "fatos.fato",
+    "fatos.recebimento", "fatos.fato",
 ]
+FASE_V5 = 4.5  # a partir daqui valem INV-16 e INV-17 (recebimento e tipo_versao)
 
 CONSULTAS_INDICADORES = {
     "I1": "SELECT * FROM indicadores.i1_entregaveis_por_estado",
@@ -60,6 +68,7 @@ class Resultado:
     checagens: int = 0
     passos: list[dict[str, Any]] = field(default_factory=list)
     indicadores: dict[str, dict[str, Any]] = field(default_factory=dict)
+    respostas: dict[int, dict[str, Any]] = field(default_factory=dict, repr=False)
 
     def checar(self, condicao: bool, mensagem: str) -> None:
         self.checagens += 1
@@ -88,6 +97,133 @@ def caso_id(conn: psycopg.Connection, titular: str, comp: str) -> str | None:
         )
         row = cur.fetchone()
     return row[0] if row else None
+
+
+RAIZ = Path(__file__).resolve().parent.parent
+CONTRATOS = RAIZ / "contrato" / "tipos-fato"
+CONTRATOS_TESTE = RAIZ / "cenarios" / "contratos-teste"
+
+
+def contratos_do_repositorio() -> dict[str, dict[str, Any]]:
+    return {a.stem: json.loads(a.read_text(encoding="utf-8")) for a in sorted(CONTRATOS.glob("*.json"))}
+
+
+def _versao_do_banco(row: dict[str, Any]) -> dict[str, Any]:
+    return {"versao": row["versao"], "estado": row["estado"], "esquema": row["esquema"], "qualificador": row["qualificador"],
+            "valor_centavos": row["valor_centavos"], "campos_hash": list(row["campos_hash"]),
+            "ordenar_arrays": row["ordenar_arrays"], "fontes_permitidas": list(row["fontes_permitidas"]),
+            "sensibilidade": row["sensibilidade"], "retencao": row["retencao"]}
+
+
+def checar_contratos(conn: psycopg.Connection) -> list[str]:
+    """v5 §6.1: o banco é espelho de contrato/tipos-fato/*.json. Devolve as diferenças."""
+    repo = contratos_do_repositorio()
+    difs: list[str] = []
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT * FROM fatos.tipo_fato_versao ORDER BY tipo, versao")
+        banco: dict[str, list[dict[str, Any]]] = {}
+        for row in cur.fetchall():
+            banco.setdefault(row["tipo"], []).append(_versao_do_banco(row))
+    for tipo in sorted(set(repo) | set(banco)):
+        if tipo not in banco:
+            difs.append(f"{tipo}: no repositório, ausente no banco")
+            continue
+        if tipo not in repo:
+            difs.append(f"{tipo}: no banco, ausente no repositório")
+            continue
+        esperado = [{"sensibilidade": "interna", "retencao": None, "ordenar_arrays": {}} | v for v in repo[tipo]["versoes"]]
+        if esperado != banco[tipo]:
+            difs.append(f"{tipo}: versões diferentes entre repositório e banco")
+    return difs
+
+
+def restaurar_contratos(conn: psycopg.Connection) -> None:
+    """Desfaz o que ativar_contrato fez num cenário anterior: banco volta a ser o espelho do repositório."""
+    repo = contratos_do_repositorio()
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('fatos.tipo_fato_versao') IS NOT NULL")
+        if not cur.fetchone()[0]:
+            return
+        cur.execute("UPDATE fatos.tipo_fato_versao SET estado = 'aposentada' WHERE estado = 'ativa'")
+        for tipo, c in repo.items():
+            nums = [v["versao"] for v in c["versoes"]]
+            cur.execute("DELETE FROM fatos.tipo_fato_versao WHERE tipo = %s AND NOT (versao = ANY(%s))", (tipo, nums))
+            for v in c["versoes"]:
+                cur.execute("UPDATE fatos.tipo_fato_versao SET estado = %s WHERE tipo = %s AND versao = %s",
+                            (v["estado"], tipo, v["versao"]))
+        cur.execute("DELETE FROM fatos.tipo_fato_versao WHERE NOT (tipo = ANY(%s))", (list(repo),))
+        cur.execute("DELETE FROM fatos.tipo_fato WHERE NOT (tipo = ANY(%s))", (list(repo),))
+    conn.commit()
+
+
+def ativar_contrato(conn: psycopg.Connection, arquivo: str) -> None:
+    """Grava uma versão de contrato de teste (cenarios/contratos-teste/) como a ativa do tipo."""
+    c = json.loads((CONTRATOS_TESTE / arquivo).read_text(encoding="utf-8"))
+    v = c["versao"]
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO fatos.tipo_fato (tipo, descricao, area_dona) VALUES (%s, %s, %s) ON CONFLICT (tipo) DO NOTHING",
+                    (c["tipo"], c.get("descricao", "contrato de teste"), c.get("area_dona", "teste")))
+        cur.execute("UPDATE fatos.tipo_fato_versao SET estado = 'aposentada' WHERE tipo = %s AND estado = 'ativa'", (c["tipo"],))
+        cur.execute("DELETE FROM fatos.tipo_fato_versao WHERE tipo = %s AND versao = %s", (c["tipo"], v["versao"]))
+        cur.execute(
+            """INSERT INTO fatos.tipo_fato_versao (tipo, versao, estado, esquema, qualificador, valor_centavos, campos_hash,
+                                                   ordenar_arrays, fontes_permitidas, sensibilidade, retencao)
+               VALUES (%s, %s, 'ativa', %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (c["tipo"], v["versao"], json.dumps(v["esquema"]), json.dumps(v["qualificador"]), v["valor_centavos"],
+             v["campos_hash"], json.dumps(v.get("ordenar_arrays", {})), v["fontes_permitidas"],
+             v.get("sensibilidade", "interna"), v.get("retencao")))
+    conn.commit()
+
+
+_ultimo_agora = datetime.min.replace(tzinfo=timezone.utc)
+_trava_agora = threading.Lock()
+
+
+def resolver_agora(corpo: dict[str, Any], conn: psycopg.Connection) -> dict[str, Any]:
+    """'$agora' vira o instante do envio pelo relógio do banco da spike (o mesmo que carimba as saídas
+    de tarefa, §8), estritamente crescente dentro da execução (v5 §6.4)."""
+    global _ultimo_agora
+    if corpo.get("observado_em") != "$agora":
+        return corpo
+    with _trava_agora:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute("SELECT clock_timestamp()")
+            agora = cur.fetchone()[0].astimezone(timezone.utc)
+        conn.rollback()
+        if agora <= _ultimo_agora:
+            agora = _ultimo_agora + timedelta(microseconds=1)
+        _ultimo_agora = agora
+    return corpo | {"observado_em": agora.isoformat(timespec="microseconds")}
+
+
+def contagem_gravacoes(conn: psycopg.Connection) -> dict[str, int]:
+    """Tudo o que uma requisição rejeitada não pode ter gravado (v5 §6.2)."""
+    tabelas = ["fatos.fato", "fatos.recebimento", "eventos.evento", "fechamento.entregavel_transicao",
+               "trabalho.tarefa_humana", "trabalho.excecao", "conferencias.conferencia", "fechamento.entregavel_fato"]
+    out: dict[str, int] = {}
+    conn.rollback()
+    with conn.cursor() as cur:
+        for t in tabelas:
+            cur.execute(f"SELECT count(*) FROM {t}")
+            out[t] = cur.fetchone()[0]
+    return out
+
+
+def checar_erro(resp: httpx.Response, esp: dict[str, Any], r: Resultado, rotulo: str) -> None:
+    if "erro" not in esp and "violacoes" not in esp:
+        return
+    try:
+        corpo = resp.json()
+    except ValueError:
+        r.checar(False, f"[{rotulo}] resposta de erro sem JSON: {resp.text[:200]}")
+        return
+    if "erro" in esp:
+        r.checar(corpo.get("erro") == esp["erro"], f"[{rotulo}] erro {corpo.get('erro')!r}, esperado {esp['erro']!r}")
+    for v in esp.get("violacoes", []):
+        achou = any(isinstance(x, dict) and x.get("campo") == v["campo"] and ("regra" not in v or x.get("regra") == v["regra"])
+                    for x in corpo.get("violacoes") or [])
+        r.checar(achou, f"[{rotulo}] violação {v} ausente em {corpo.get('violacoes')}")
 
 
 def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares: list[str],
@@ -268,6 +404,41 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
         ident = f"{f['titular_id']}/{f['competencia']}/{f['tipo']}[{f.get('tributo', '')}]"
         r.checar(n == f["versoes"], f"[{rotulo}] fato {ident}: {n} versão(ões), esperado {f['versoes']}")
 
+    for rc in esp.get("recebimentos", []):
+        # v5 §6.4: toda publicação válida deixa um recebimento com o efeito, na ordem de chegada
+        cur.execute(
+            """SELECT efeito, tipo_versao FROM fatos.recebimento
+               WHERE titular_id = %s AND competencia = %s AND tipo = %s AND tributo = %s ORDER BY recebido_em, id""",
+            (rc["titular_id"], rc["competencia"], rc["tipo"], rc.get("tributo", "")),
+        )
+        rows = cur.fetchall()
+        ident = f"{rc['titular_id']}/{rc['competencia']}/{rc['tipo']}[{rc.get('tributo', '')}]"
+        if "efeitos" in rc:
+            obtido = [x["efeito"] for x in rows]
+            r.checar(obtido == rc["efeitos"], f"[{rotulo}] recebimentos {ident}: {obtido}, esperado {rc['efeitos']}")
+        if "contagem" in rc:
+            obtido_c: dict[str, int] = {}
+            for x in rows:
+                obtido_c[x["efeito"]] = obtido_c.get(x["efeito"], 0) + 1
+            r.checar(obtido_c == rc["contagem"], f"[{rotulo}] recebimentos {ident}: {obtido_c}, esperado {rc['contagem']}")
+        if "total" in rc:
+            r.checar(len(rows) == rc["total"], f"[{rotulo}] recebimentos {ident}: {len(rows)}, esperado {rc['total']}")
+
+    for vg in esp.get("vigentes", []):
+        # v5 §6.4: a vigente é a de maior observado_em, qualquer que seja a ordem de chegada
+        cur.execute(
+            """SELECT versao, valor_centavos, payload, tipo_versao FROM fatos.fato_vigente
+               WHERE titular_id = %s AND competencia = %s AND tipo = %s AND tributo = %s""",
+            (vg["titular_id"], vg["competencia"], vg["tipo"], vg.get("tributo", "")),
+        )
+        row = cur.fetchone()
+        ident = f"{vg['titular_id']}/{vg['competencia']}/{vg['tipo']}[{vg.get('tributo', '')}]"
+        r.checar(row is not None, f"[{rotulo}] vigente {ident} não existe")
+        if row:
+            for campo in ("versao", "valor_centavos", "tipo_versao"):
+                if campo in vg:
+                    r.checar(row[campo] == vg[campo], f"[{rotulo}] vigente {ident}: {campo} {row[campo]!r}, esperado {vg[campo]!r}")
+
     for ev in esp.get("eventos", []):
         cid = caso_id(conn, ev["titular_id"], ev["competencia"])
         cur.execute(
@@ -280,8 +451,8 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
     cur.close()
 
 
-def verificar_invariantes(conn: psycopg.Connection, r: Resultado) -> None:
-    """Invariantes que valem para qualquer cenário (semântica v3 §4.1, §6, §9.2, §10, §12)."""
+def verificar_invariantes(conn: psycopg.Connection, r: Resultado, v5: bool = True) -> None:
+    """Invariantes que valem para qualquer cenário (semântica v3 §4.1, §6, §9.2, §10, §12; v5 §6.4)."""
     cur = conn.cursor(row_factory=dict_row)
 
     # INV-1: a última transição de cada entregável bate com o estado atual
@@ -434,6 +605,37 @@ def verificar_invariantes(conn: psycopg.Connection, r: Resultado) -> None:
     for x in cur.fetchall():
         r.checar(False, f"[INV-15] transição {x['id']} no caso {x['caso_id']} depois do encerramento")
     r.checagens += 1
+
+    # INV-18: entre versões de uma chave, observado_em nunca diminui (a vigente é a observação mais nova, v5 §6.4)
+    cur.execute("""
+        SELECT id, titular_id, competencia, tipo, tributo, versao FROM (
+            SELECT f.*, lag(observado_em) OVER (PARTITION BY titular_id, competencia, tipo, tributo ORDER BY versao) AS ant
+            FROM fatos.fato f) x
+        WHERE ant IS NOT NULL AND observado_em < ant""")
+    for x in cur.fetchall():
+        r.checar(False, f"[INV-18] fato {x['titular_id']}/{x['competencia']}/{x['tipo']}[{x['tributo']}] v{x['versao']} observado antes da versão anterior")
+    r.checagens += 1
+
+    if v5:
+        # INV-16: todo fato tem o recebimento que o criou (novo ou nova_versao)
+        cur.execute("""
+            SELECT f.id, f.tipo FROM fatos.fato f
+            WHERE NOT EXISTS (SELECT 1 FROM fatos.recebimento rc
+                              WHERE rc.fato_id = f.id AND rc.efeito IN ('novo', 'nova_versao'))""")
+        for x in cur.fetchall():
+            r.checar(False, f"[INV-16] fato {x['id']} ({x['tipo']}) sem recebimento novo/nova_versao")
+        r.checagens += 1
+
+        # INV-17: todo fato e todo recebimento apontam para um contrato existente
+        cur.execute("""
+            SELECT 'fato' AS o, f.id, f.tipo, f.tipo_versao FROM fatos.fato f
+            WHERE NOT EXISTS (SELECT 1 FROM fatos.tipo_fato_versao v WHERE v.tipo = f.tipo AND v.versao = f.tipo_versao)
+            UNION ALL
+            SELECT 'recebimento', rc.id, rc.tipo, rc.tipo_versao FROM fatos.recebimento rc
+            WHERE NOT EXISTS (SELECT 1 FROM fatos.tipo_fato_versao v WHERE v.tipo = rc.tipo AND v.versao = rc.tipo_versao)""")
+        for x in cur.fetchall():
+            r.checar(False, f"[INV-17] {x['o']} {x['id']} ({x['tipo']}) com tipo_versao {x['tipo_versao']} inexistente")
+        r.checagens += 1
     cur.close()
 
 
@@ -471,9 +673,6 @@ def aguardar_fila(cliente: httpx.Client, limite_s: float = 120.0) -> float:
         if time.perf_counter() - t0 > limite_s:
             raise TimeoutError(f"fila não esvaziou em {limite_s}s: {corpo}")
         time.sleep(0.1)
-
-
-RAIZ = Path(__file__).resolve().parent.parent
 
 
 def carregar_massa(param: dict[str, Any]) -> dict[str, Any]:
@@ -540,11 +739,26 @@ def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[
 
     elif acao == "publicar_fato":
         antes = contagem_efeitos(conn, passo["corpo"]["titular_id"]) if esp.get("sem_efeito_nos_casos") else None
-        resp = cliente.post("/fatos", json=passo["corpo"])
+        gravacoes = contagem_gravacoes(conn) if esp.get("nada_gravado") else None
+        resp = cliente.post("/fatos", json=resolver_agora(passo["corpo"], conn))
         r.checar(resp.status_code == esp.get("status", 200), f"[{rotulo}] HTTP {resp.status_code}: {resp.text[:300]}")
         if resp.status_code == 200 and "efeito" in esp:
             r.checar(resp.json().get("efeito") == esp["efeito"],
                      f"[{rotulo}] efeito {resp.json().get('efeito')!r}, esperado {esp['efeito']!r} ({passo['corpo']['tipo']})")
+        if resp.status_code == 200 and "repetido" in esp:
+            r.checar(bool(resp.json().get("repetido", False)) == esp["repetido"],
+                     f"[{rotulo}] repetido {resp.json().get('repetido')!r}, esperado {esp['repetido']!r}")
+        if resp.status_code == 200 and "mesmo_fato_do_passo" in esp:
+            ref = r.respostas.get(esp["mesmo_fato_do_passo"], {})
+            r.checar(resp.json().get("fato_id") == ref.get("fato_id"),
+                     f"[{rotulo}] fato_id {resp.json().get('fato_id')}, esperado o do passo {esp['mesmo_fato_do_passo']} ({ref.get('fato_id')})")
+        if resp.status_code == 200:
+            r.respostas[i] = resp.json()
+        checar_erro(resp, esp, r, rotulo)
+        if gravacoes is not None:
+            depois_g = contagem_gravacoes(conn)
+            for k in gravacoes:
+                r.checar(gravacoes[k] == depois_g[k], f"[{rotulo}] rejeitado, mas {k} mudou de {gravacoes[k]} para {depois_g[k]}")
         if antes is not None:
             # Idempotência da reavaliação (semântica v4, §6 passo 2): o fato não é entrada de ninguém;
             # reavaliar o titular inteiro (permitido) não pode criar nem mudar nada.
@@ -556,8 +770,44 @@ def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[
 
     elif acao == "concluir_entregavel":
         url = f"/casos/{passo['titular_id']}/{passo['competencia']}/entregaveis/{passo['tipo']}/concluir"
+        gravacoes = contagem_gravacoes(conn) if esp.get("nada_gravado") else None
         resp = cliente.post(url, json=passo["corpo"])
         r.checar(resp.status_code == esp.get("status", 200), f"[{rotulo}] {passo['tipo']}: HTTP {resp.status_code}: {resp.text[:300]}")
+        checar_erro(resp, esp, r, rotulo)
+        if gravacoes is not None:
+            depois_g = contagem_gravacoes(conn)
+            for k in gravacoes:
+                r.checar(gravacoes[k] == depois_g[k], f"[{rotulo}] rejeitado, mas {k} mudou de {gravacoes[k]} para {depois_g[k]}")
+
+    elif acao == "publicar_paralelo":
+        # v5 §13: publicações do mesmo titular em paralelo, embaralhadas com semente fixa
+        corpos = [resolver_agora(c, conn) for c in passo["corpos"]]
+        random.Random(passo["semente"]).shuffle(corpos)
+        api = str(cliente.base_url)
+        respostas: list[tuple[dict[str, Any], int, dict[str, Any] | str]] = []
+        trava_p = threading.Lock()
+
+        def enviar_p(corpo: dict[str, Any]) -> None:
+            resp_p = _cliente_thread(api).post("/fatos", json=corpo)
+            try:
+                dado: dict[str, Any] | str = resp_p.json()
+            except ValueError:
+                dado = resp_p.text[:200]
+            with trava_p:
+                respostas.append((corpo, resp_p.status_code, dado))
+
+        with ThreadPoolExecutor(max_workers=passo.get("concorrencia", 20)) as pool:
+            list(pool.map(enviar_p, corpos))
+        aguardar_fila(cliente)
+        aceitos = set(esp.get("efeitos_aceitos", ["novo", "nova_versao", "sem_mudanca", "obsoleto"]))
+        for corpo, status, dado in respostas:
+            if status != 200 or not isinstance(dado, dict):
+                r.checar(False, f"[{rotulo}] {corpo['tipo']}[{corpo.get('tributo', '')}]: HTTP {status}: {dado}")
+                continue
+            r.checar(dado.get("efeito") in aceitos, f"[{rotulo}] {corpo['tipo']}: efeito {dado.get('efeito')!r} fora de {sorted(aceitos)}")
+
+    elif acao == "ativar_contrato":
+        ativar_contrato(conn, passo["arquivo"])
 
     elif acao == "override":
         url = f"/casos/{passo['titular_id']}/{passo['competencia']}/entregaveis/{passo['tipo']}/override"
@@ -624,7 +874,7 @@ def executar_passo(cliente: httpx.Client, conn: psycopg.Connection, passo: dict[
     r.passos.append({"passo": i, "acao": acao, "segundos": round(time.perf_counter() - t0, 4)})
 
 
-def rodar_cenario(api: str, dsn: str, caminho: Path, limpar_antes: bool) -> Resultado:
+def rodar_cenario(api: str, dsn: str, caminho: Path, limpar_antes: bool, v5: bool = True) -> Resultado:
     cenario = json.loads(caminho.read_text(encoding="utf-8"))
     r = Resultado(cenario=f"{cenario['id']} · {cenario['nome']}")
     with psycopg.connect(dsn) as conn, httpx.Client(base_url=api, timeout=60.0) as cliente:
@@ -634,6 +884,7 @@ def rodar_cenario(api: str, dsn: str, caminho: Path, limpar_antes: bool) -> Resu
             return r
         if limpar_antes:
             limpar(conn)
+        restaurar_contratos(conn)
         for i, passo in enumerate(cenario["passos"], start=1):
             try:
                 executar_passo(cliente, conn, passo, cenario["titulares"], r, i)
@@ -641,7 +892,7 @@ def rodar_cenario(api: str, dsn: str, caminho: Path, limpar_antes: bool) -> Resu
                 r.checar(False, f"[passo {i} {passo['acao']}] erro: {e}")
                 break
         conn.rollback()
-        verificar_invariantes(conn, r)
+        verificar_invariantes(conn, r, v5)
         medir_indicadores(conn, r)
     return r
 
@@ -666,25 +917,37 @@ def imprimir(r: Resultado) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--api", required=True, help="URL base da spike, ex.: http://localhost:8081")
+    ap.add_argument("--api", help="URL base da spike, ex.: http://localhost:8081")
     ap.add_argument("--db", required=True, help="DSN do banco da spike")
     grupo = ap.add_mutually_exclusive_group(required=True)
+    grupo.add_argument("--checar-contratos", action="store_true", help="só confere banco = contrato/tipos-fato (v5 §6.1)")
     grupo.add_argument("--cenario", type=Path, help="arquivo de cenário")
     grupo.add_argument("--todos", type=Path, help="pasta com cenários c*.json")
     ap.add_argument("--limpar", action="store_true", help="esvazia as tabelas de execução antes de cada cenário")
     ap.add_argument("--relatorio", type=Path, help="grava o resultado em JSON")
-    ap.add_argument("--fase", type=int, help="roda só cenários das fases 1..N (padrão: todos)")
+    ap.add_argument("--fase", type=float, help="roda só cenários das fases 1..N; aceita decimal, ex.: 4.5 (padrão: todos)")
     args = ap.parse_args()
+
+    if args.checar_contratos:
+        with psycopg.connect(args.db) as conn:
+            difs = checar_contratos(conn)
+        for d in difs:
+            print(f"   ✗ {d}")
+        print(f"CONTRATOS: {'banco = repositório' if not difs else f'{len(difs)} diferença(s)'}")
+        return 0 if not difs else 1
+    if not args.api:
+        ap.error("--api é obrigatório para rodar cenários")
+    v5 = args.fase is None or args.fase >= FASE_V5
 
     arquivos = [args.cenario] if args.cenario else sorted(args.todos.glob("c*.json"), key=lambda a: int(a.name[1:].split("-")[0]))
     if args.fase is not None:
         arquivos = [a for a in arquivos
                     if json.loads(a.read_text(encoding="utf-8")).get("fase", 1) <= args.fase]
-    resultados = [rodar_cenario(args.api, args.db, a, args.limpar) for a in arquivos]
+    resultados = [rodar_cenario(args.api, args.db, a, args.limpar, v5) for a in arquivos]
     for r in resultados:
         imprimir(r)
     if args.relatorio:
-        args.relatorio.write_text(json.dumps([r.__dict__ | {"passou": r.passou} for r in resultados],
+        args.relatorio.write_text(json.dumps([{k: v for k, v in r.__dict__.items() if k != "respostas"} | {"passou": r.passou} for r in resultados],
                                              ensure_ascii=False, indent=2), encoding="utf-8")
     ok = all(r.passou for r in resultados)
     print(f"\nRESULTADO: {'todos passaram' if ok else 'há falhas'} ({sum(r.passou for r in resultados)}/{len(resultados)})")

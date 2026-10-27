@@ -1,6 +1,6 @@
 # Semântica do motor do fechamento (normativa para as três spikes)
 
-**v4 · 15/10/2026** (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
+**v5 · 27/10/2026** (manutenção M2, fase 4.5: contrato de fato, hash v2, recebimento, fora de ordem, idempotência e trava por titular: §6.1 a §6.5, §8 passo 3a, §9.4, §13, §17). v4 · 15/10/2026 (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
 
 Fontes do domínio: spec do spike v0.3, spec da saga do fechamento (CF-01..18, R1–R10), catálogo de capacidades (E01–E12). Tudo o que é regra fiscal aqui é **provisório** (status `provisoria` no banco) e não foi validado pelas áreas.
 
@@ -113,20 +113,14 @@ Para cada empresa do corpo da requisição, em **uma transação por empresa**:
 
 **Chave** do fato: (`titular_id`, `competencia`, `tipo`, `tributo`). `tributo` ausente = `''`.
 
-**Hash** = SHA-256, em hexadecimal minúsculo, do JSON canônico `{"payload": <payload>, "valor_centavos": <valor ou null>}`:
+**Hash** (v5: ver §6.3; o canônico abaixo continua sendo a última etapa) = SHA-256, em hexadecimal minúsculo, do JSON canônico `{"payload": <payload>, "valor_centavos": <valor ou null>}`:
 - chaves de objeto ordenadas, em todos os níveis, por **code point Unicode** (equivale à ordem de bytes UTF-8; **não** por unidade UTF-16: U+FF5E vem antes de U+1F600). Chaves são comparadas como strings, mesmo as numéricas (`"10"` vem antes de `"9"`);
 - sem espaços (`separators=(",", ":")`);
 - UTF-8, sem escapar caracteres não ASCII. Em strings (valores e chaves) escapa-se **somente** `"` (`\"`), `\` (`\\`) e U+0000 a U+001F (`\b`, `\t`, `\n`, `\f`, `\r` nas formas curtas; os demais como `\u00xx` com hex minúsculo). `/`, DEL (U+007F), U+2028 e U+2029 saem como caracteres crus. Entrada escapada (`\u00e7`, `\/`, `\u2028`) é decodificada antes do hash. Par substituto válido (`\ud83d\ude00`) vira o caractere; substituto isolado (`\ud800`) é rejeitado (não existe em UTF-8): 422 `corpo_invalido`. **U+0000 (NUL):** (1) NUL em qualquer string ou chave de objeto do payload, em qualquer profundidade, escapado (`\u0000`) ou literal, é rejeitado com 422 `corpo_invalido`, porque o `jsonb` do PostgreSQL não armazena U+0000. (2) A mesma regra vale para os campos de texto do corpo (`tipo`, `tributo`, `fonte`, `titular_id`, `ator`, `carteira` etc.). (3) Em parâmetro de caminho (`titular_id`, `competencia`, `tipo`), NUL é rejeitado pela aplicação com 422 `corpo_invalido` ou pelo servidor web com 400, antes de chegar à aplicação (caso do Kestrel no .NET com `%00`); as duas respostas são conformes. (4) Os vetores de NUL de `contrato/vetores-hash.json` valem apenas para o corpo da requisição (payload e campos de texto, via `campos_texto`); por isso o .NET os exercita só pelo corpo. (5) Os controles U+0001 a U+001F continuam permitidos e são escapados no canônico.
 
 **Números no `payload`** (`POST /fatos` e cada `payload` de `saidas` em `/concluir`): todo número JSON, em qualquer profundidade (objetos e arrays aninhados), deve ser **inteiro dentro da faixa int64 com sinal** (-9223372036854775808 a 9223372036854775807), sem parte fracionária, sem expoente e sem `-0`. Qualquer outro número (`0.5`, `1.0`, `1e2`, `123456789012345678901234567890`, `-0`) é rejeitado com **422 `corpo_invalido`**. Inteiros com mais de 4300 dígitos também são rejeitados. `valor_centavos` segue a mesma regra: só inteiro int64 ou `null` (ausente = `null`); `1.0`, `1e2`, `-0`, `"600"`, `true` e `9223372036854775808` dão 422 `corpo_invalido`. **Chave duplicada** em qualquer objeto do payload, em qualquer profundidade (comparada depois de decodificar escapes), é rejeitada com 422 `corpo_invalido`, mesmo que um dos valores seja inválido por outro motivo (não vale "a última vence"). **Profundidade máxima: 64 níveis** de objetos/arrays, contando o próprio objeto `payload` como nível 1; acima disso, 422 `corpo_invalido`. `payload` ausente = `{}`. Strings, booleanos, `null`, objetos e arrays (dentro desses limites) não são afetados. Valores em dinheiro são centavos (int64) e taxas são pontos-base (`aliquota_bp`). Portanto o JSON canônico do hash contém números **somente** como texto decimal int64 simples, idêntico em qualquer linguagem. Fato legado já gravado com fração que for reenviado agora também dá 422. Vetores de teste compartilhados: `contrato/vetores-hash.json`.
 
-Comportamento:
-
-| Situação | Efeito | Grava | Retorna `efeito` |
-|---|---|---|---|
-| Não existe fato com a chave | versão 1 | sim | `novo` |
-| Existe, e o hash da versão vigente é igual | nada | não | `sem_mudanca` |
-| Existe, hash diferente | versão = vigente + 1; `substitui_id` = vigente | sim | `nova_versao` |
+Comportamento: **v5, ver a tabela do §6.4** (que substitui a da v4: `novo`, `sem_mudanca` e `nova_versao` continuam, entram `obsoleto` e `conflito_fonte`).
 
 Quando grava:
 1. Evento `fato.publicado` (`payload`: `{"fato_id": ...}`).
@@ -138,6 +132,68 @@ Quando grava:
 4. Se o `tipo` é um dos fatos do §10.3 (`documento_disponibilizado` em reenvio, `entrega_falhou`, `entrega_confirmada`, `recebimento_pendente`), aplica o **acompanhamento** (§10.3) ao caso daquele titular e competência, **aberto ou encerrado**. Ordem: depois da invalidação e da reavaliação.
 
 Fato pode chegar para competência sem caso aberto. É gravado normalmente.
+
+### 6.1 · Contrato de tipo de fato (v5)
+
+Todo `tipo` de fato tem um **contrato versionado**. A fonte da verdade são os arquivos `contrato/tipos-fato/<tipo>.json` (revisados por PR); a V009 os espelha em `fatos.tipo_fato` e `fatos.tipo_fato_versao` (gerada por `db/scripts/gerar_v009_tipos.py`). O motor usa a **única versão `ativa`** do tipo no momento de cada publicação, **lida do banco a cada uso** (§13: nada em memória entre requisições; o verificador troca contratos no meio de cenários), e grava essa versão no fato e no recebimento (`tipo_versao`).
+
+| Campo | Significado |
+|---|---|
+| `versao`, `estado` | `rascunho` → `ativa` → `aposentada`; no máximo uma `ativa` por tipo |
+| `esquema` | JSON Schema **draft 2020-12** do `payload` |
+| `qualificador` | Regra da coluna `tributo` (o qualificador da chave no spike): `{"usa": false}` exige `tributo = ''`; `{"usa": true, "valores": [...]}` exige `tributo` não vazio e, se `valores` não for vazio, dentro da lista |
+| `valor_centavos` | `obrigatorio` (não pode ser `null`), `opcional` ou `proibido` (tem de ser `null`/ausente) |
+| `campos_hash` | Campos **de primeiro nível** do `payload` que entram no hash (§6.3). Os demais são gravados, mas não pesam. `valor_centavos` entra sempre |
+| `ordenar_arrays` | `{"campo": ["campo_do_item", ...]}`: arrays de `campos_hash` cuja ordem não importa e por quais campos dos itens se ordenam (§6.3) |
+| `fontes_permitidas` | Fontes que podem publicar o tipo. `tarefa` é a fonte das saídas de `/concluir` (§8) |
+| `sensibilidade`, `retencao` | Só registro no spike |
+
+### 6.2 · `PublicarFato`: ordem de validação (v5)
+
+1. **Forma do corpo** (regras da v4 acima) → `422 corpo_invalido`.
+2. **Tipo** sem versão `ativa` → `422 tipo_desconhecido`.
+3. **Fonte** fora de `fontes_permitidas` → `403 fonte_nao_autorizada`.
+4. **Qualificador**, **`valor_centavos`** e **`payload`** contra o contrato → `422 payload_invalido`, com **todas** as violações em `violacoes: [{"campo", "regra"}]`:
+   - `campo`: `tributo`, `valor_centavos` ou o caminho no payload (`payload.competencia_impressa`, `payload.parcelas[0].socio`); para campo obrigatório ausente, o caminho do campo que falta;
+   - `regra`: `obrigatorio` (tributo, valor ou campo `required` ausente), `proibido` (tributo ou valor que o contrato não aceita), `fora_da_lista` (tributo fora de `valores`), `tipo` (falha de `type` do esquema), `esquema` (qualquer outra falha do esquema: `pattern`, `minimum`, `minLength`...).
+
+Em qualquer erro, **nada é gravado** (nem fato, nem recebimento, nem evento, nem nada nos casos).
+
+### 6.3 · Hash v2 (v5)
+
+`hash = sha256( canonico( {"payload": ordenar(normalizar(projetar(payload))), "valor_centavos": valor} ) )`, sob o **contrato ativo** do tipo:
+
+| Etapa | Regra |
+|---|---|
+| Projetar | Mantém do `payload` só as chaves de `campos_hash` que existem nele |
+| Normalizar | Em todo valor **string**, em qualquer profundidade: Unicode **NFC**; toda sequência de espaço (U+0020), `\t`, `\n` e `\r` vira **um** espaço; remove espaço (U+0020) do início e do fim. Outros espaços Unicode (ex.: U+00A0) não mudam. **Chaves de objeto não mudam.** Membro de objeto com valor `null` é removido, em qualquer profundidade (ausente = `null`). Elemento `null` de array fica |
+| Ordenar | Cada array listado em `ordenar_arrays` (já normalizado) é ordenado pelos campos declarados, em ordem: compara o **texto canônico** de cada valor por code point; campo ausente vem **antes** de qualquer valor; empate desempata pelo texto canônico do item inteiro. Arrays fora de `ordenar_arrays` mantêm a ordem |
+| Canônico | Exatamente o da v4 (acima). `valor_centavos` sempre entra, mesmo `null` |
+
+Vetores: `contrato/vetores-hash-v2.json` (casos com o canônico e o sha256, e pares que têm de dar o mesmo hash). Os vetores da v4 (`vetores-hash.json`) continuam valendo para a forma do corpo e a etapa canônica. A coluna `fatos.fato.hash` e `fatos.recebimento.hash` guardam o hash v2 sob o contrato em uso naquele momento.
+
+### 6.4 · Efeitos da publicação (v5)
+
+Sejam `V` a vigente da chave, `h` o hash do que chegou e `hV` o hash de `V` **recalculado agora, sob o contrato ativo**, a partir do `payload` e do `valor_centavos` gravados (nunca o `hash` gravado em `V`). Assim, trocar `campos_hash` num contrato novo nunca gera versão nem cascata, e nada é alterado em `fatos.fato` (que é só inserção).
+
+| Situação | `efeito` | Grava em `fatos.fato` | Depois |
+|---|---|---|---|
+| Não existe `V` | `novo` | sim, versão 1 | passos 1 a 4 acima |
+| `h = hV` | `sem_mudanca` | não | nada |
+| `h ≠ hV` e `observado_em` > `V.observado_em` | `nova_versao` | sim, `V.versao + 1`, `substitui_id = V` | passos 1 a 4 acima |
+| `h ≠ hV` e `observado_em` < `V.observado_em` | **`obsoleto`** | não | nada (leitura antiga chegando atrasada) |
+| `h ≠ hV`, `observado_em` = `V.observado_em` e **mesma fonte** de `V` | **`conflito_fonte`** | não | exceção `conflito_fonte` (abaixo) |
+| `h ≠ hV`, `observado_em` = `V.observado_em` e **fonte diferente** | `nova_versao` | sim | passos 1 a 4 acima |
+
+- Comparação de `observado_em` como instante (`timestamptz`), não como texto.
+- **Por que `obsoleto` não entra em `fatos.fato`:** a vigente é a maior versão (view `fatos.fato_vigente`); gravar uma leitura antiga como versão nova a tornaria vigente por engano.
+- **`conflito_fonte`:** abre exceção `tipo = 'conflito_fonte'`, classe `S`, `entregavel_id` nulo, `dono` = carteira, no caso **aberto** do titular e competência (abertura única por caso, §9.4), com o evento `excecao.aberta`. Sem caso, ou com caso encerrado, fica só o recebimento. O spike não resolve essa exceção (§9.4).
+- **Saídas de tarefa** (§8) usam `observado_em` = relógio do servidor (o mesmo `agora` da conclusão), então seguem a regra normal. Por isso os cenários publicam fatos com `observado_em` = instante do envio (`"$agora"`, resolvido pelo verificador com o relógio do banco da spike, o mesmo que carimba as tarefas), na mesma linha do tempo das tarefas; instantes fixos só onde o cenário testa ordem (C21, C22).
+- **`fatos.recebimento`:** toda publicação **válida** (inclusive as saídas de `/concluir`) grava uma linha com o que chegou (`payload`, `valor_centavos`, `fonte`, `observado_em`, `chave_idempotencia`), o `tipo_versao`, o `hash` e o `efeito`. `fato_id` = o fato criado (`novo`, `nova_versao`) ou a vigente (`sem_mudanca`, `obsoleto`, `conflito_fonte`). A resposta devolve o mesmo `fato_id` e a `versao` dele.
+
+### 6.5 · Idempotência de requisição (v5)
+
+`PublicarFato` aceita `chave_idempotencia` (texto opcional, 1 a 200 caracteres). Depois das validações do §6.2 e já sob a trava do titular (§13): se existe recebimento com a mesma (`fonte`, `chave_idempotencia`), a resposta é `200` com o **mesmo `efeito`, `fato_id` e `versao` da primeira vez** e `repetido: true`, **sem gravar nada** (nem recebimento). Sem a chave, vale só a comparação de hash. O corpo repetido não é comparado com o original: a chave manda.
 
 ## 7 · Prontidão
 
@@ -191,6 +247,7 @@ Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir`.
 1. Caso ou entregável inexistente → `404`.
 2. Entregável fora de `pronto`, ou executor `sistema` → `409`.
 3. Entregável sem `saida` na regra → `422`.
+3a. **v5:** cada item de `saidas` é validado contra o contrato ativo de `saida.tipo` com `fonte = 'tarefa'` (§6.2 passos 2 a 4; `campo` das violações prefixado com `saidas[i].`), **todos antes de gravar qualquer um**. Erro → `403`/`422` e nada gravado: a tarefa continua aberta.
 4. Para cada item de `saidas`: publica fato (§6) com `tipo` = `saida.tipo` da regra, `titular_id` e `competencia` do caso, `tributo`, `valor_centavos` e `payload` do item, `fonte = 'tarefa'`, `observado_em` = agora. Liga em `entregavel_fato` com papel `saida` a versão vigente devolvida, **inclusive quando o efeito for `sem_mudanca`**. Se o efeito for `nova_versao`, a invalidação (§11) roda normalmente, **exceto para o próprio entregável que está sendo concluído**.
 5. Conclui a tarefa aberta do entregável (`estado = 'concluida'`, `concluida_em`).
 6. Entregável `pronto → processado` (motivo `tarefa_concluida`, `causado_por_tipo = 'tarefa'`, `causado_por_id` = id da tarefa, `ator` = `corpo.ator`).
@@ -271,7 +328,7 @@ Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `
 - **Resolução por fato novo:** quando um entregável sai de `divergente` para `invalidado` (§11), todas as suas exceções abertas cujo `tipo` comece com `CF-` passam a `resolvida`, `resolucao = 'fato_alterado'`, `resolvida_em` = agora.
 - **Resolução por override:** §8.1.
 - **Resolução pelo acompanhamento da entrega:** §10.3 (`reenviado`, `recebido`).
-- **Exceções que o spike não resolve:** `substituicao` e `competencia_encerrada` ficam `aberta`. Resolver exige ação humana fora do motor (reenvio do documento substituto, serviço retroativo). Elas **não** impedem o encerramento do caso (o E12 só olha estados dos entregáveis).
+- **Exceções que o spike não resolve:** `substituicao`, `competencia_encerrada` e (v5) `conflito_fonte` ficam `aberta`. Resolver exige ação humana fora do motor (reenvio do documento substituto, serviço retroativo). Elas **não** impedem o encerramento do caso (o E12 só olha estados dos entregáveis).
 - **Exceção aberta em caso encerrado** é normal (§10.3, §11.3): o caso não reabre, e a exceção tem dono.
 
 ## 10 · Depois de `validado`
@@ -376,6 +433,7 @@ Se a semente pertence a um caso com `estado = 'encerrado'`: **nenhuma transiçã
 
 ## 13 · Concorrência e fila
 
+- **v5 · trava por titular:** toda mutação de um mesmo `titular_id` é serial; titulares diferentes rodam em paralelo. `PublicarFato`, `ConcluirTarefa` e `RegistrarOverride` executam, **antes de qualquer leitura de estado**, `SELECT pg_advisory_xact_lock(hashtextextended('titular|' || titular_id, 0))`; a trava vale até o fim da transação e cobre toda a cadeia (recebimento, fato, invalidação, reavaliação, conferências, transições, exceções, tarefas, eventos). `AbrirCompetencias` usa uma transação por titular, com a mesma trava; quem agrupar titulares numa transação adquire as travas em ordem crescente de `titular_id`. Quem consumir `eventos.fila` pega o item com `FOR UPDATE SKIP LOCKED` e só o processa se conseguir `pg_try_advisory_xact_lock` do titular do item; senão, solta e pega outro. O texto da chave (`'titular|' || titular_id`) é o mesmo nas três spikes, para que nenhuma ferramenta externa precise saber a linguagem. A trava de linha ou o `version` abaixo continuam como segunda defesa.
 - A API pode processar de forma síncrona ou enfileirar em `eventos.fila`. Em ambos os casos, `GET /admin/fila` deve devolver `pendentes = 0` só quando **todo** o efeito de todas as requisições já estiver gravado.
 - Consumo da fila: `SELECT ... FOR UPDATE SKIP LOCKED`.
 - Mudança de estado de entregável sob trava da linha (`SELECT ... FOR UPDATE`) ou checagem de `version`. Duas reavaliações simultâneas do mesmo entregável não podem gravar duas transições iguais.
@@ -412,3 +470,24 @@ O que mudou da v3 para a v4, e de onde veio. É o **teste comum de manutenção*
 - O adaptador da folha publica `irrf_centavos` no `payload` da folha de cada mês (IRRF retido sobre salário e pró-labore).
 
 **Limitação conhecida (fora do spike):** na primeira competência de um cliente novo não existe folha do mês anterior; o E08 fica em `aguardando_insumo`. Em produção, isso vira exceção de cadastro ou um fato de folha zerada publicado pela implantação; o spike não trata.
+
+## 17 · v5 · Manutenção M2 (27/10/2026)
+
+O que mudou da v4 para a v5. É o **segundo teste comum de manutenção** (M2) das três spikes (`docs/regras-do-jogo.md`, critério 8), medido como a M1, com `--fase 4.5`. Prepara o motor para fontes reais (fase 5): sem isso, conector real gera versão nova e cascata falsa a cada campo de rastro, e fatos do mesmo titular em paralelo competem.
+
+| # | Mudança | Onde | Cenários |
+|---|---|---|---|
+| M2.1 | Contrato de tipo de fato na entrada (tipo, fonte, qualificador, valor, payload) | §6.1, §6.2, §8 passo 3a; V009; `contrato/tipos-fato/`; OpenAPI 1.4.0 | C20 |
+| M2.2 | Hash v2: projeção por `campos_hash`, normalização de texto, nulo = ausente, ordenação de arrays; sempre comparado sob o contrato ativo | §6.3, §6.4; `contrato/vetores-hash-v2.json` | C19, C23 |
+| M2.3 | Recebimento de toda publicação; efeitos `obsoleto` e `conflito_fonte`; exceção `conflito_fonte` | §6.4, §9.4; `fatos.recebimento` | C19 a C23 |
+| M2.4 | `chave_idempotencia` | §6.5 | C21 |
+| M2.5 | Trava consultiva por titular | §13 | C21 |
+
+**Invariantes novas** (verificador): INV-16 (todo fato tem o recebimento `novo`/`nova_versao` que o criou), INV-17 (todo fato e recebimento apontam para um contrato existente), INV-18 (entre versões de uma chave, `observado_em` nunca diminui). INV-16 e INV-17 só valem com `--fase 4.5` ou maior.
+
+**Cenários antigos:** só mudou o `observado_em`, que passa a ser o instante do envio (`"$agora"`). Antes, 14 passos em 8 cenários publicavam versão nova com o mesmo `observado_em` e a mesma fonte, o que na v5 é `conflito_fonte`. As spikes da v4 ignoram `observado_em`, então C1 a C13 seguem passando sem mudar código (`--fase 4`).
+
+**Decisões assumidas (spec da fase 4.5, 20/10):** contratos no repositório (D2); sujeito da trava = `titular_id` no spike (D3; raiz do CNPJ × estabelecimento continua aberta para produção); hash sempre sob o contrato ativo, sem migração de hash (D5); a chave fora do hash (D6); `obsoleto` fora de `fatos.fato` (D7).
+
+**Fora da v5:** correção por tela com autor e motivo e precedência entre fontes; referência genérica (fase 6); `observado_em` confiável por fonte (pergunta da fase 5); fila de mortos e espera crescente (fase 5).
+

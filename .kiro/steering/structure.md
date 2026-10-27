@@ -8,8 +8,11 @@ inclusion: always
 docker-compose.yml          base comum (SÓ LEITURA)
 db/
   init/                     cria os bancos spike_dotnet, spike_python e spike_php (SÓ LEITURA)
-  migrations/V001..V006     esquema e regras provisórias (SÓ LEITURA)
+  migrations/V001..V009     esquema, regras provisórias e contratos de fato (SÓ LEITURA)
+  scripts/gerar_v009_tipos.py  gera a V009 a partir de contrato/tipos-fato (SÓ LEITURA)
   scripts/migrar.sh         aplica as migrações (SÓ LEITURA)
+contrato/tipos-fato/        contratos de tipo de fato, fonte da verdade da V009 (SÓ LEITURA)
+contrato/vetores-hash-v2.json  vetores do hash v2 (SÓ LEITURA)
 contrato/openapi.yaml       contrato HTTP idêntico nas três spikes (SÓ LEITURA)
 docs/
   semantica-do-motor.md     O QUE o motor faz. Fonte da verdade (SÓ LEITURA)

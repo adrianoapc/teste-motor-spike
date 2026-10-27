@@ -1,0 +1,54 @@
+{
+  "tipo": "entrega_falhou",
+  "descricao": "Falha na entrega do documento",
+  "area_dona": "entrega",
+  "versoes": [
+    {
+      "versao": 1,
+      "estado": "ativa",
+      "esquema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "canal": {
+            "type": "string",
+            "minLength": 1
+          },
+          "motivo": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "canal",
+          "motivo"
+        ],
+        "additionalProperties": true
+      },
+      "qualificador": {
+        "usa": true,
+        "valores": [
+          "DAS",
+          "INSS",
+          "FGTS",
+          "IRRF",
+          "IRPJ",
+          "CSLL",
+          "PIS",
+          "COFINS"
+        ]
+      },
+      "valor_centavos": "proibido",
+      "campos_hash": [
+        "canal",
+        "motivo"
+      ],
+      "ordenar_arrays": {},
+      "fontes_permitidas": [
+        "entrega"
+      ],
+      "sensibilidade": "interna",
+      "retencao": null
+    }
+  ]
+}

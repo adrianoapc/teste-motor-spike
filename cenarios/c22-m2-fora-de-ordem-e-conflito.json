@@ -1,0 +1,287 @@
+{
+  "id": "C22",
+  "fase": 4.5,
+  "nome": "M2: fato fora de ordem e conflito de fonte",
+  "descricao": "Simples sem folha. A vigente de uma chave é a observação mais nova. Uma leitura antiga que chega atrasada fica só no recebimento (obsoleto) e não mexe em nada. A mesma fonte dizendo outro valor no mesmo instante é conflito_fonte: não vira versão e abre uma única exceção no caso, classe S. Outra fonte autorizada no mesmo instante segue a regra normal.",
+  "secoes_semantica": [
+    "§6.4",
+    "§9.4"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)",
+    "contrato de teste notas_oneflow v2"
+  ],
+  "titulares": [
+    "T022"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T022",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-05",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "notas observadas às 10h",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00-03:00",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "leitura das 9h chega atrasada: não vira versão",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T09:00:00-03:00",
+        "valor_centavos": 4000000
+      },
+      "espera": {
+        "efeito": "obsoleto",
+        "sem_efeito_nos_casos": true
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "a mesma fonte diz outro valor no mesmo instante",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00-03:00",
+        "valor_centavos": 4500000
+      },
+      "espera": {
+        "efeito": "conflito_fonte"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "de novo: a exceção não duplica",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00-03:00",
+        "valor_centavos": 4500000
+      },
+      "espera": {
+        "efeito": "conflito_fonte"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "conflito vira exceção do caso, sem entregável",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "aguardando_insumo"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "entregavel": null,
+            "tipo": "conflito_fonte",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "S"
+          }
+        ],
+        "vigentes": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versao": 1,
+            "valor_centavos": 5000000
+          }
+        ]
+      }
+    },
+    {
+      "acao": "ativar_contrato",
+      "arquivo": "notas_oneflow-v2-duas-fontes.json",
+      "descricao": "contrato de teste: notas_oneflow aceita também a fonte oneflow_api"
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "outra fonte no mesmo instante: vale a regra normal",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow_api",
+        "observado_em": "2026-10-01T10:00:00-03:00",
+        "valor_centavos": 4800000
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T022",
+        "competencia": "202609",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 4800000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "E01",
+            "estado": "validado",
+            "transicoes": [
+              "aguardando_insumo",
+              "pronto",
+              "processado",
+              "validado"
+            ]
+          },
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "E02",
+            "estado": "validado"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "entregavel": null,
+            "tipo": "conflito_fonte",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "S"
+          }
+        ],
+        "excecoes_total": 1,
+        "fatos": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versoes": 2
+          }
+        ],
+        "vigentes": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "versao": 2,
+            "valor_centavos": 4800000,
+            "tipo_versao": 2
+          }
+        ],
+        "recebimentos": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "obsoleto",
+              "conflito_fonte",
+              "conflito_fonte",
+              "nova_versao"
+            ]
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "nome": "excecao.aberta",
+            "quantidade": 1
+          },
+          {
+            "titular_id": "T022",
+            "competencia": "202609",
+            "nome": "entregavel.invalidado",
+            "quantidade": 0
+          }
+        ]
+      }
+    }
+  ]
+}
