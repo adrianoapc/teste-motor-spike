@@ -44,6 +44,12 @@ public interface IFatoRepo
 
     /// <summary>Recebimento já existente com a mesma (fonte, chave_idempotencia), se houver (§6.5).</summary>
     Task<RecebimentoRepetido?> RecebimentoPorChaveAsync(string fonte, string chaveIdempotencia);
+    /// <summary>Trava transacional na chave de idempotência (fonte, chave_idempotencia), serializando a
+    /// checagem-e-inserção do recebimento entre titulares DIFERENTES: o índice único
+    /// recebimento_idempotencia é global (não por titular), então sem esta trava dois publishers de
+    /// titulares distintos com a mesma (fonte, chave) leriam "sem recebimento" e colidiriam no índice
+    /// (§6.5). Chave no Postgres por hashtextextended, como o lock de titular (§13).</summary>
+    Task TravarChaveIdempotenciaAsync(string fonte, string chaveIdempotencia);
     /// <summary>Grava a linha de recebimento (§6.4). Toda publicação válida grava uma.</summary>
     Task GravarRecebimentoAsync(NovoRecebimento recebimento);
 }

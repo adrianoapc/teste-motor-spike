@@ -135,9 +135,11 @@ public sealed class MotorServico
         var violacoes = ValidadorContrato.Validar(contrato, cmd.Tributo, cmd.ValorCentavos, cmd.Payload);
         if (violacoes.Count > 0) return ResultadoFato.DeErro(FatoErro.PayloadInvalido, violacoes);
 
-        // §6.5 idempotência: já sob a trava do titular, resposta repetida sem gravar nada.
+        // §6.5 idempotência: a trava de titular não cobre a chave global (fonte, chave). Trava a chave
+        // ANTES de ler, serializando checagem-e-inserção do recebimento entre titulares diferentes.
         if (cmd.ChaveIdempotencia is { } chaveIdem)
         {
+            await r.Fatos.TravarChaveIdempotenciaAsync(cmd.Fonte, chaveIdem);
             var repetido = await r.Fatos.RecebimentoPorChaveAsync(cmd.Fonte, chaveIdem);
             if (repetido is not null)
                 return new ResultadoFato(repetido.FatoId, repetido.Versao, DeTexto(repetido.Efeito), Repetido: true);

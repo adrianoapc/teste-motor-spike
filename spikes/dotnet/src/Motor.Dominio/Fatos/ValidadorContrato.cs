@@ -67,6 +67,11 @@ public static class ValidadorContrato
             if (detalhe.Errors is null) continue;
             foreach (var (palavraChave, _) in detalhe.Errors)
             {
+                if (palavraChave == "required")
+                {
+                    AdicionarRequiredAusentes(detalhe, v, vistos);
+                    continue;
+                }
                 var (campo, regra) = Mapear(palavraChave, detalhe);
                 var chave = campo + "\u0000" + regra;
                 if (vistos.Add(chave)) v.Add(new Violacao(campo, regra));
@@ -87,28 +92,39 @@ public static class ValidadorContrato
     private static (string Campo, string Regra) Mapear(string palavraChave, EvaluationResults detalhe)
     {
         var instancia = detalhe.InstanceLocation.ToString(); // "" na raiz, "/campo", "/parcelas/0/socio"
-        if (palavraChave == "required")
-        {
-            // A propriedade required ausente vem no texto do erro; cai no caminho do pai + "/<prop>".
-            var ausente = PropriedadeRequeridaAusente(detalhe);
-            var baseCampo = CaminhoPayload(instancia);
-            var campo = ausente is null ? baseCampo : (baseCampo.Length == 0 ? "payload." + ausente : baseCampo + "." + ausente);
-            return (campo, "obrigatorio");
-        }
         var regra = palavraChave == "type" ? "tipo" : "esquema";
         return (CaminhoPayload(instancia), regra);
     }
 
-    /// <summary>Extrai o nome da propriedade required ausente da mensagem do erro, quando a biblioteca a traz.</summary>
-    private static string? PropriedadeRequeridaAusente(EvaluationResults detalhe)
+    /// <summary>Emite uma violação <c>obrigatorio</c> por cada propriedade required ausente (§6.2 exige
+    /// TODAS as violações). A mensagem traz todas as faltantes de um mesmo <c>required</c>:
+    /// <c>Required properties ["inss_centavos", "fgts_centavos"] were not present</c>.</summary>
+    private static void AdicionarRequiredAusentes(EvaluationResults detalhe, List<Violacao> v, HashSet<string> vistos)
     {
         if (detalhe.Errors is null || !detalhe.Errors.TryGetValue("required", out var msg) || msg is null)
-            return null;
-        // Mensagem padrão: "Required properties [\"competencia_impressa\"] were not present"
-        var i = msg.IndexOf('"');
-        if (i < 0) return null;
-        var j = msg.IndexOf('"', i + 1);
-        return j > i ? msg.Substring(i + 1, j - i - 1) : null;
+            return;
+        var baseCampo = CaminhoPayload(detalhe.InstanceLocation.ToString());
+        foreach (var ausente in PropriedadesRequeridasAusentes(msg))
+        {
+            var campo = baseCampo.Length == 0 ? "payload." + ausente : baseCampo + "." + ausente;
+            var chave = campo + "\u0000obrigatorio";
+            if (vistos.Add(chave)) v.Add(new Violacao(campo, "obrigatorio"));
+        }
+    }
+
+    /// <summary>Extrai TODOS os nomes de propriedade entre aspas da mensagem de <c>required</c>.</summary>
+    private static IEnumerable<string> PropriedadesRequeridasAusentes(string msg)
+    {
+        int i = 0;
+        while (true)
+        {
+            var abre = msg.IndexOf('"', i);
+            if (abre < 0) yield break;
+            var fecha = msg.IndexOf('"', abre + 1);
+            if (fecha < 0) yield break;
+            yield return msg.Substring(abre + 1, fecha - abre - 1);
+            i = fecha + 1;
+        }
     }
 
     /// <summary>Converte o JSON Pointer da instância (<c>/parcelas/0/socio</c>) para o caminho de §6.2

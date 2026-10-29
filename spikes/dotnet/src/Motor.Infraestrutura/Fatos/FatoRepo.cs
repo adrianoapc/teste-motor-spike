@@ -105,8 +105,18 @@ internal sealed class FatoRepo : RepoBase, IFatoRepo
         return r is null ? null : new RecebimentoRepetido(r.Value.fatoId, r.Value.versao, r.Value.efeito);
     }
 
-    public async Task GravarRecebimentoAsync(NovoRecebimento rec)
+    public async Task TravarChaveIdempotenciaAsync(string fonte, string chaveIdempotencia)
     {
+        // Serializa a checagem-e-inserção de recebimento por (fonte, chave) ENTRE TITULARES: o índice
+        // recebimento_idempotencia é global, então o lock de titular não cobre dois publishers de
+        // titulares diferentes com a mesma chave. Chave calculada no Postgres (hashtextextended), igual
+        // ao lock de titular (§13), para ser idêntica nas três spikes. Liberado no fim da transação.
+        await Conn.ExecuteAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended('idem|' || @f || '|' || @k, 0))",
+            new { f = fonte, k = chaveIdempotencia }, Tx);
+    }
+
+    public async Task GravarRecebimentoAsync(NovoRecebimento rec)    {
         var c = new NpgsqlCommand(
             @"INSERT INTO fatos.recebimento
               (titular_id, competencia, tipo, tributo, fonte, chave_idempotencia, observado_em, tipo_versao, hash, efeito, fato_id, payload, valor_centavos)
