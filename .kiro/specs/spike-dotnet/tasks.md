@@ -170,7 +170,7 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - Verificador: C21 três vezes seguidas; depois C6 só com esta spike no ar, registrando o p95 das 300 guias e a abertura de 10.000 casos (comparar com a fase 4).
   - _Requisitos: 23.8, 23.9_
 
-- [ ] 30. Fechamento da fase 4.5
+- [x] 30. Fechamento da fase 4.5
   - `--todos cenarios --fase 4.5 --limpar --relatorio resultado-fase45-dotnet.json` com 18/18, só esta spike no ar.
   - `METRICAS.md` (seção Manutenção M2, com hora de fim), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
   - Push da branch e PR para a `main`.
