@@ -94,9 +94,9 @@ def abrir_competencias(req: AbrirCompetenciasRequest) -> AbrirCompetenciasRespon
 
 @app.post("/fatos")
 def publicar_fato(req: FatoRequest) -> FatoResponse:
-    """§6: hash, versionamento, evento e reavaliação dos casos abertos."""
+    """§6: contrato, hash v2, versionamento, recebimento, idempotência e reavaliação."""
     with unidade_de_trabalho() as uow:
-        fato_id, versao, efeito = mf.publicar_fato(
+        fato_id, versao, efeito, repetido = mf.publicar_fato(
             uow,
             req.titular_id,
             req.competencia,
@@ -107,8 +107,9 @@ def publicar_fato(req: FatoRequest) -> FatoResponse:
             req.fonte,
             req.observado_em.isoformat(),
             origem_ref=req.origem_ref,
+            chave_idempotencia=req.chave_idempotencia,
         )
-    return FatoResponse(fato_id=fato_id, versao=versao, efeito=efeito)
+    return FatoResponse(fato_id=fato_id, versao=versao, efeito=efeito, repetido=repetido)
 
 
 @app.post("/casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir")

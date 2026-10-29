@@ -30,6 +30,31 @@ def _travar_linha(u: UnidadeDeTrabalhoSQL, chave: str) -> None:
     u._exec("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"linha|{chave}",))
 
 
+def test_titulares_diferentes_nao_se_bloqueiam() -> None:
+    """§13: a trava é por titular; titulares distintos rodam em paralelo (nunca espera)."""
+    a, b = _conn(), _conn()
+    try:
+        ua, ub = UnidadeDeTrabalhoSQL(a), UnidadeDeTrabalhoSQL(b)
+        ua.travar_titular(f"T-x-{os.getpid()}")
+        pronto = threading.Event()
+
+        def outro() -> None:
+            ub.travar_titular(f"T-y-{os.getpid()}")  # titular diferente: não espera a
+            pronto.set()
+            b.rollback()
+
+        t = threading.Thread(target=outro)
+        t.start()
+        # Com a primeira transação ainda ABERTA, a segunda (outro titular) toma a trava já.
+        assert pronto.wait(timeout=5), "titular diferente não deveria bloquear"
+        t.join(timeout=5)
+        assert not t.is_alive()
+        a.commit()
+    finally:
+        a.close()
+        b.close()
+
+
 def test_titular_e_reentrante_e_serializa_a_segunda_conexao() -> None:
     titular = f"T-lock-{os.getpid()}"
     a, b = _conn(), _conn()

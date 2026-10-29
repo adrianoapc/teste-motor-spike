@@ -13,3 +13,15 @@ Cada vez que o `mypy --strict` barrar um erro **antes de qualquer teste**, uma l
 
 Nenhum erro barrado pelo `mypy --strict` antes de teste nesta fase. `mypy --strict src` (sem
 `# type: ignore`) passou em toda rodada, antes de cada execução de testes, nas tarefas 19–24.
+
+## Fase 4.5 — Manutenção M2 (2026-10-28)
+
+| Data | Arquivo | Tipo do erro |
+|---|---|---|
+| 2026-10-28 | `dominio/contrato.py` | `import-untyped` (2×): `jsonschema` e `jsonschema.exceptions` sem stubs. Resolvido com `types-jsonschema` nas deps de dev (mypy-only). |
+| 2026-10-28 | `dominio/hashing.py` | `arg-type`: `ordenar(normalizar(...))` — `normalizar` devolve `object`; o resultado da composição em `entrada_hash_v2` precisou ser estreitado para `Mapping[str, object]` antes de `ordenar`. |
+| 2026-10-28 | `dominio/contrato.py` | `comparison-overlap` (2×): `jsonschema.ValidationError.validator` é tipado `Validator \| Unset`; comparar direto com os literais `'required'`/`'type'` é não sobreposto. Resolvido comparando `str(erro.validator)`. |
+
+Depois dessas correções, `mypy --strict` passou em toda rodada seguinte (antes de cada execução
+de testes, tarefas 26–30), sem `# type: ignore` novo. Fechamento da fase 4.5: `Success: no issues
+found in 25 source files`.

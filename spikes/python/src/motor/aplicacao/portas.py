@@ -17,6 +17,7 @@ from motor.aplicacao.registros import (
     TipoConferencia,
     Tolerancia,
 )
+from motor.dominio.contrato import Contrato
 
 
 class UnidadeDeTrabalho(Protocol):
@@ -36,6 +37,14 @@ class UnidadeDeTrabalho(Protocol):
     def area_do_tipo(self, tipo: str) -> str: ...
     def evento_publicado_do_tipo(self, tipo: str) -> str | None: ...
     def tipo_conferencia(self, cf: str) -> TipoConferencia: ...
+
+    # -- contrato de tipo de fato (§6.1, v5) ----------------------------------
+    def contrato_ativo(self, tipo: str) -> Contrato | None:
+        """Única versão `ativa` do contrato do tipo, lida do banco a cada uso (§6.1, §13).
+
+        None se o tipo não tem versão `ativa` (→ tipo_desconhecido no §6.2).
+        """
+        ...
 
     # -- caso -----------------------------------------------------------------
     def buscar_caso(self, titular_id: str, competencia: str) -> Caso | None: ...
@@ -143,8 +152,39 @@ class UnidadeDeTrabalho(Protocol):
         observado_em: str,
         hash_valor: str,
         substitui_id: str | None,
+        tipo_versao: int,
         origem_ref: str | None = None,
     ) -> Fato: ...
+
+    def versao_do_fato(self, fato_id: str) -> int:
+        """`versao` do fato por id (para montar a resposta de um efeito sem novo fato)."""
+        ...
+
+    # -- recebimento e idempotência (§6.4, §6.5, v5) --------------------------
+    def inserir_recebimento(
+        self,
+        titular_id: str,
+        competencia: str,
+        tipo: str,
+        tributo: str,
+        fonte: str,
+        chave_idempotencia: str | None,
+        observado_em: str,
+        tipo_versao: int,
+        hash_valor: str,
+        efeito: str,
+        fato_id: str,
+        payload: dict[str, object],
+        valor_centavos: int | None,
+    ) -> None:
+        """Grava uma linha em `fatos.recebimento` (toda publicação válida, §6.4)."""
+        ...
+
+    def recebimento_por_idempotencia(
+        self, fonte: str, chave_idempotencia: str
+    ) -> tuple[str, int, str] | None:
+        """(fato_id, versao, efeito) do recebimento com a mesma (fonte, chave), ou None (§6.5)."""
+        ...
 
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(

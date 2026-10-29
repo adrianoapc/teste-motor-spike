@@ -23,6 +23,7 @@ from motor.aplicacao.registros import (
     TipoConferencia,
     Tolerancia,
 )
+from motor.dominio.contrato import Contrato
 from motor.infraestrutura import banco
 
 
@@ -153,6 +154,33 @@ class UnidadeDeTrabalhoSQL:
             chave=str(row["chave"]),
             severidade=str(row["severidade"]),
             classe_padrao=str(row["classe_padrao"]),
+        )
+
+    # -- contrato de tipo de fato (§6.1, v5) ----------------------------------
+    def contrato_ativo(self, tipo: str) -> Contrato | None:
+        row = self._um(
+            "SELECT tipo, versao, esquema, qualificador, valor_centavos, campos_hash, "
+            "       ordenar_arrays, fontes_permitidas "
+            "FROM fatos.tipo_fato_versao WHERE tipo = %s AND estado = 'ativa'",
+            (tipo,),
+        )
+        if row is None:
+            return None
+        qualificador = row["qualificador"] or {}
+        valores = qualificador.get("valores") or []
+        return Contrato(
+            tipo=str(row["tipo"]),
+            versao=int(row["versao"]),
+            esquema=dict(row["esquema"]),
+            qualificador_usa=bool(qualificador.get("usa", False)),
+            qualificador_valores=tuple(str(v) for v in valores),
+            valor_centavos=str(row["valor_centavos"]),
+            campos_hash=tuple(str(c) for c in (row["campos_hash"] or [])),
+            ordenar_arrays={
+                str(k): [str(x) for x in v]
+                for k, v in (row["ordenar_arrays"] or {}).items()
+            },
+            fontes_permitidas=tuple(str(f) for f in (row["fontes_permitidas"] or [])),
         )
 
     # -- caso -----------------------------------------------------------------
@@ -383,6 +411,8 @@ class UnidadeDeTrabalhoSQL:
             valor_centavos=row["valor_centavos"],
             payload=row["payload"],
             hash=row["hash"],
+            fonte=str(row.get("fonte") or ""),
+            observado_em=str(row["observado_em"]) if row.get("observado_em") is not None else "",
         )
 
     def travar_chave_fato(
@@ -424,13 +454,14 @@ class UnidadeDeTrabalhoSQL:
         observado_em: str,
         hash_valor: str,
         substitui_id: str | None,
+        tipo_versao: int,
         origem_ref: str | None = None,
     ) -> Fato:
         row = self._um(
             "INSERT INTO fatos.fato "
             "(titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, "
-            " fonte, hash, substitui_id, observado_em, origem_ref) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+            " fonte, hash, substitui_id, observado_em, origem_ref, tipo_versao) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
             (
                 titular_id,
                 competencia,
@@ -444,10 +475,69 @@ class UnidadeDeTrabalhoSQL:
                 substitui_id,
                 observado_em,
                 origem_ref,
+                tipo_versao,
             ),
         )
         assert row is not None
         return self._fato(row)
+
+    def versao_do_fato(self, fato_id: str) -> int:
+        row = self._um("SELECT versao FROM fatos.fato WHERE id = %s", (fato_id,))
+        assert row is not None
+        return int(row["versao"])
+
+    # -- recebimento e idempotência (§6.4, §6.5, v5) --------------------------
+    def inserir_recebimento(
+        self,
+        titular_id: str,
+        competencia: str,
+        tipo: str,
+        tributo: str,
+        fonte: str,
+        chave_idempotencia: str | None,
+        observado_em: str,
+        tipo_versao: int,
+        hash_valor: str,
+        efeito: str,
+        fato_id: str,
+        payload: dict[str, object],
+        valor_centavos: int | None,
+    ) -> None:
+        self._exec(
+            "INSERT INTO fatos.recebimento "
+            "(titular_id, competencia, tipo, tributo, fonte, chave_idempotencia, "
+            " observado_em, tipo_versao, hash, efeito, fato_id, payload, valor_centavos) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                titular_id,
+                competencia,
+                tipo,
+                tributo,
+                fonte,
+                chave_idempotencia,
+                observado_em,
+                tipo_versao,
+                hash_valor,
+                efeito,
+                fato_id,
+                Jsonb(payload),
+                valor_centavos,
+            ),
+        )
+
+    def recebimento_por_idempotencia(
+        self, fonte: str, chave_idempotencia: str
+    ) -> tuple[str, int, str] | None:
+        row = self._um(
+            "SELECT r.fato_id, f.versao, r.efeito "
+            "FROM fatos.recebimento r JOIN fatos.fato f ON f.id = r.fato_id "
+            "WHERE r.fonte = %s AND r.chave_idempotencia = %s "
+            "ORDER BY r.recebido_em LIMIT 1",
+            (fonte, chave_idempotencia),
+        )
+        if row is None:
+            return None
+        return (str(row["fato_id"]), int(row["versao"]), str(row["efeito"]))
 
     # -- conferências ---------------------------------------------------------
     def conferencia_existente(

@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from motor.aplicacao.motor_fechamento import _invalidar
-from motor.aplicacao.motor_fechamento import _Pendencias
+from motor.aplicacao.motor_fechamento import _invalidar, _Pendencias
 from motor.aplicacao.registros import Caso, Entregavel
 
 

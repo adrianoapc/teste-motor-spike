@@ -287,3 +287,44 @@ semântica v4 e C11–C13). Decisões tomadas, todas lastreadas na semântica �
 
 **Erro na base comum:** nenhum encontrado. V008/contrato 1.3.0/semântica v4/C11–C13 estavam
 coerentes; a spike não precisou parar (`docs/regras-do-jogo.md` §1).
+
+## D17 — Manutenção M2 (fase 4.5, semântica v5 §6, §8, §13, §17)
+
+Decisões tomadas onde a semântica deixou margem (nenhuma contrariou o texto normativo):
+
+- **Ordem forma-do-corpo × contrato (§6.2 passo 1 vs 2–4).** A forma do corpo (números int64,
+  chave duplicada, NUL, substituto isolado, profundidade — a validação da v4 em
+  `api/numeros.py`) continua acontecendo ANTES de tudo, na rota (`RotaValidada`), porque é o
+  passo 1 do §6.2. Só depois o caso de uso lê o contrato ativo e roda os passos 2–4
+  (`validar_contrato_publicacao`). Assim um corpo malformado nunca chega a consultar o contrato.
+- **`jsonschema` no domínio.** A validação de contrato é regra pura, então mora em
+  `dominio/contrato.py`. `jsonschema` é biblioteca de terceiros sem framework web/banco, logo não
+  viola o `.importlinter` (que proíbe só `fastapi`, `psycopg`, `pydantic`, `uvicorn` no domínio).
+  O `Draft202012Validator` é construído a cada publicação a partir do esquema lido do banco.
+- **Mapeamento de violações do JSON Schema → `regra`.** `required` ausente → `obrigatorio` (campo
+  que falta); falha de `type` → `tipo`; qualquer outra (`pattern`, `minimum`, `minLength`, …) →
+  `esquema`. É o que o C20 cobra. As violações saem ordenadas de forma estável (por texto do erro)
+  para a resposta ser determinística.
+- **`conflito_fonte` como classe S, no caso aberto.** §6.4/§9.4 dizem classe S, `entregavel_id`
+  nulo, dono = carteira, abertura única por caso; sem caso aberto, fica só o recebimento. O spike
+  não resolve essa exceção (§9.4). Implementado assim.
+- **Comparação de `observado_em`.** Comparada como instante (`timestamptz`), parseando ISO e
+  normalizando `Z` → `+00:00`; texto idêntico é atalho para "mesmo instante". A vigente guarda
+  `fonte` e `observado_em` (campos novos no registro `Fato`) para a decisão da tabela §6.4.
+- **`hV` recalculado sob o contrato ativo.** O efeito nunca usa o `hash` gravado na vigente:
+  recalcula o hash v2 da vigente a partir do `payload`/`valor_centavos` gravados, sob o contrato
+  ativo do momento (§6.4, D5/D7 da spec). Por isso trocar `campos_hash` num contrato novo não
+  gera versão nem cascata (C23), e `fatos.fato` continua só-inserção.
+- **Trava por titular como primeiro comando.** `pg_advisory_xact_lock('titular|'||titular_id)` já
+  existia na v4; foi reordenada em `publicar_fato` para vir ANTES da leitura do contrato, de modo
+  a ser o primeiro comando da transação (§13). A idempotência (§6.5) é checada logo depois, sob a
+  trava, antes de travar a chave do fato.
+- **Teste diferencial sob o fluxo v5.** Com a validação de contrato ligada, parte dos fatos
+  "ruidosos" do `diferencial_reavaliacao.py` passa a dar 403 `fonte_nao_autorizada`
+  identicamente nos dois modos (recorte e completo), então não gera divergência; o resultado
+  seguiu 0 divergência e 0 não determinismo em 150×150.
+
+**Erro na base comum:** nenhum encontrado. V009, contrato 1.4.0, semântica v5 (§6, §8, §9.4,
+§13, §17), os contratos de `contrato/tipos-fato/` e os cenários C19–C23 estavam coerentes com os
+vetores (`vetores-hash-v2.json`) e com a V009; a spike não precisou parar
+(`docs/regras-do-jogo.md` §1).
