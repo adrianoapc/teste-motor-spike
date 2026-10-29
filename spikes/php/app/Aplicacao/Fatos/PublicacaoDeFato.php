@@ -13,6 +13,7 @@ use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fatos\ContratoTipoFato;
 use App\Dominio\Fatos\Fato;
 use App\Dominio\Fatos\HashFatoV2;
+use App\Dominio\Fatos\Instante;
 use App\Dominio\Fatos\ValidadorContrato;
 use App\Dominio\Fechamento\Caso;
 
@@ -228,20 +229,17 @@ final readonly class PublicacaoDeFato
             return 1;
         }
         try {
-            $a = new \DateTimeImmutable($novo);
-            $b = new \DateTimeImmutable($vigente);
+            // Normaliza à precisão do timestamptz (6 casas, meio-para-o-par) ANTES de comparar:
+            // o que chega (até 9 dígitos de fração) e a vigente lida do banco (já arredondada)
+            // têm de ser medidos no mesmo instante, senão '…1234567Z' viraria obsoleto em vez de
+            // conflito_fonte por 1 µs de diferença entre o truncar de PHP e o arredondar do Postgres.
+            $a = Instante::microssegundos($novo);
+            $b = Instante::microssegundos($vigente);
         } catch (\Exception) {
             // Sem instante comparável, trata como nova_versao (não silenciar mudança de hash).
             return 1;
         }
 
-        // Compara segundos e depois microssegundos (timestamptz tem precisão de microssegundo).
-        $segA = (int) $a->format('U');
-        $segB = (int) $b->format('U');
-        if ($segA !== $segB) {
-            return $segA <=> $segB;
-        }
-
-        return (int) $a->format('u') <=> (int) $b->format('u');
+        return $a <=> $b;
     }
 }

@@ -301,6 +301,29 @@ final class RevisaoCodexTest extends TestCase
         $this->assertSame(count($hashes), count(array_unique($hashes)));
     }
 
+    /**
+     * §6.4: fração com 7+ dígitos. O Postgres ARREDONDA ao gravar timestamptz (…1234567 -> .123457);
+     * PHP sozinho TRUNCARIA (.123456). Uma republicação com o MESMO instante, a MESMA fonte e valor
+     * diferente tem de dar conflito_fonte, não obsoleto por 1 µs de diferença de precisão.
+     */
+    public function test_republicacao_no_mesmo_instante_com_fracao_de_7_digitos_e_conflito_fonte(): void
+    {
+        $em = '2026-10-01T09:00:00.1234567-03:00';
+        $this->postJson('/fatos', [
+            'titular_id' => 'TPREC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 100,
+        ])->assertOk()->assertJsonPath('efeito', 'novo');
+
+        // Mesmo instante (idêntico), mesma fonte, valor diferente => hash muda => conflito_fonte (§6.4).
+        $this->postJson('/fatos', [
+            'titular_id' => 'TPREC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 200,
+        ])->assertOk()->assertJsonPath('efeito', 'conflito_fonte');
+
+        // Só a versão 1 permanece vigente (conflito_fonte não grava novo fato).
+        $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', 'TPREC')->where('tipo', 'faturamento_mes')->count());
+    }
+
     public function test_abrir_competencias_trava_a_chave_e_reporta_existente_na_segunda_chamada(): void
     {
         $this->abrirCaso('TCX12');
