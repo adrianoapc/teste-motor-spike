@@ -161,6 +161,15 @@ class UnidadeDeTrabalho(Protocol):
         ...
 
     # -- recebimento e idempotência (§6.4, §6.5, v5) --------------------------
+    def travar_idempotencia(self, fonte: str, chave_idempotencia: str) -> None:
+        """Trava consultiva pela chave (`fonte`, `chave_idempotencia`), global entre titulares.
+
+        A trava do titular (§13) não serializa duas publicações de titulares diferentes com a
+        mesma chave; sem isto ambas leriam "sem recebimento" e a segunda inserção colidiria no
+        índice único `recebimento_idempotencia` (erro, em vez do `repetido: true` do §6.5).
+        """
+        ...
+
     def inserir_recebimento(
         self,
         titular_id: str,

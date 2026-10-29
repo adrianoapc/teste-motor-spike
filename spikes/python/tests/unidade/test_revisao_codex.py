@@ -86,6 +86,9 @@ class _Fake:
     def travar_chave_fato(self, titular_id: str, competencia: str, tipo: str, tributo: str) -> None:
         self.chamadas.append("lock")
 
+    def travar_idempotencia(self, fonte: str, chave_idempotencia: str) -> None:
+        self.chamadas.append("lock-idemp")
+
     def fato_vigente(
         self, titular_id: str, competencia: str, tipo: str, tributo: str
     ) -> Fato | None:

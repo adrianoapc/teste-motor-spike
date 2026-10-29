@@ -53,22 +53,36 @@ def _caminho_payload(erro: ValidationError) -> str:
     return ".".join(partes)
 
 
+def _propriedade_faltando(erro: ValidationError) -> str:
+    """Property específica de um erro `required`.
+
+    O jsonschema emite UM erro por property ausente (`validator_value` é a lista inteira
+    de required, igual em todos). O campo que falta neste erro está na mensagem, no formato
+    estável `'<nome>' is a required property`. Em último caso, cai na primeira property da
+    lista que não está na instância (determinístico).
+    """
+    inicio = erro.message.find("'")
+    fim = erro.message.find("'", inicio + 1)
+    if inicio != -1 and fim != -1:
+        return erro.message[inicio + 1 : fim]
+    faltando = erro.validator_value
+    if isinstance(faltando, Sequence):
+        instancia = erro.instance if isinstance(erro.instance, Mapping) else {}
+        for campo in faltando:
+            if campo not in instancia:
+                return str(campo)
+    return ""
+
+
 def _regra_do_erro(erro: ValidationError) -> tuple[str, str]:
     """(campo, regra) de uma falha do JSON Schema (§6.2 passo 4).
 
-    - `required` → o campo que falta é `obrigatorio`;
+    - `required` → a property que falta NESTE erro é `obrigatorio` (uma por erro);
     - `type` → `tipo`;
     - qualquer outra (`pattern`, `minimum`, `minLength`, ...) → `esquema`.
     """
     if str(erro.validator) == "required":
-        faltando = erro.validator_value
-        nome = ""
-        if isinstance(faltando, Sequence):
-            instancia = erro.instance if isinstance(erro.instance, Mapping) else {}
-            for campo in faltando:
-                if campo not in instancia:
-                    nome = str(campo)
-                    break
+        nome = _propriedade_faltando(erro)
         base = _caminho_payload(erro)
         campo = f"{base}.{nome}" if nome else base
         return (campo, "obrigatorio")

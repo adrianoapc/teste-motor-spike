@@ -166,6 +166,10 @@ def publicar_fato(
 
     # §6.5: idempotência de requisição, depois das validações e sob a trava do titular.
     if chave_idempotencia is not None:
+        # A chave é global (índice único por (fonte, chave), não por titular). Travamos por
+        # ela para serializar leitura+inserção entre titulares diferentes e devolver
+        # `repetido: true` em vez de colidir no índice único (§6.5).
+        uow.travar_idempotencia(fonte, chave_idempotencia)
         repetido = uow.recebimento_por_idempotencia(fonte, chave_idempotencia)
         if repetido is not None:
             fato_id, versao, efeito = repetido

@@ -87,6 +87,44 @@ def test_payload_required_ausente() -> None:
     ]
 
 
+def test_payload_varios_required_ausentes_reportados_separadamente() -> None:
+    # Caso real do contrato `folha`: dois required ausentes num payload vazio.
+    # Cada property faltante vira sua própria violação (§6.2), não a primeira repetida.
+    esquema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "inss_centavos": {"type": "integer"},
+            "fgts_centavos": {"type": "integer"},
+        },
+        "required": ["inss_centavos", "fgts_centavos"],
+    }
+    c = _contrato(esquema=esquema)
+    v = validar_publicacao(c, "", None, {})
+    pares = sorted((x.campo, x.regra) for x in v)
+    assert pares == [
+        ("payload.fgts_centavos", "obrigatorio"),
+        ("payload.inss_centavos", "obrigatorio"),
+    ]
+
+
+def test_payload_required_parcial_reporta_so_o_que_falta() -> None:
+    esquema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "inss_centavos": {"type": "integer"},
+            "fgts_centavos": {"type": "integer"},
+        },
+        "required": ["inss_centavos", "fgts_centavos"],
+    }
+    c = _contrato(esquema=esquema)
+    v = validar_publicacao(c, "", None, {"inss_centavos": 100})
+    assert [(x.campo, x.regra) for x in v] == [
+        ("payload.fgts_centavos", "obrigatorio")
+    ]
+
+
 def test_payload_tipo_errado() -> None:
     esquema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

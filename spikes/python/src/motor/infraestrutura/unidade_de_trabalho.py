@@ -487,6 +487,10 @@ class UnidadeDeTrabalhoSQL:
         return int(row["versao"])
 
     # -- recebimento e idempotência (§6.4, §6.5, v5) --------------------------
+    def travar_idempotencia(self, fonte: str, chave_idempotencia: str) -> None:
+        chave = f"idemp|{fonte}|{chave_idempotencia}"
+        self._exec("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (chave,))
+
     def inserir_recebimento(
         self,
         titular_id: str,

@@ -328,3 +328,22 @@ Decisões tomadas onde a semântica deixou margem (nenhuma contrariou o texto no
 §13, §17), os contratos de `contrato/tipos-fato/` e os cenários C19–C23 estavam coerentes com os
 vetores (`vetores-hash-v2.json`) e com a V009; a spike não precisou parar
 (`docs/regras-do-jogo.md` §1).
+
+## Review P2 (Codex) — correções pós-PR
+
+- **Idempotência serializada entre titulares (§6.5).** O índice único
+  `recebimento_idempotencia` é por `(fonte, chave_idempotencia)`, global (não por titular). A
+  trava do titular não serializava duas publicações válidas de titulares DIFERENTES com a mesma
+  chave: ambas liam "sem recebimento" e a segunda inserção colidia no índice → erro, em vez do
+  `repetido: true`. Corrigido com uma trava consultiva por chave,
+  `travar_idempotencia(fonte, chave)` = `pg_advisory_xact_lock('idemp|'||fonte||'|'||chave)`,
+  tomada antes da leitura/gravação do recebimento. Testes em `test_locks.py`
+  (serializa a mesma chave entre titulares; chaves diferentes não se bloqueiam).
+- **Todos os campos obrigatórios ausentes reportados (§6.2).** O `jsonschema` emite um erro
+  `required` por property ausente, mas `validator_value` traz a lista inteira; o código pegava
+  sempre a primeira property faltante, repetindo-a e omitindo as outras (ex.: contrato `folha`
+  com payload vazio reportava `inss_centavos` duas vezes e nunca `fgts_centavos`). Corrigido
+  extraindo a property específica de cada erro via `erro.message` (formato estável
+  `'<nome>' is a required property`), com fallback determinístico na diferença required −
+  instância. Testes em `test_contrato.py` (dois required ausentes → duas violações distintas;
+  required parcial → só o que falta).

@@ -402,3 +402,18 @@ existia na v4). Máquina não totalmente quieta; ordem de grandeza, não compara
 Medida de manutenção M2: o núcleo do motor mudou sobretudo em `motor_fechamento.py`
 (reescrita de `PublicarFato` para o fluxo v5) e ganhou dois módulos de domínio novos
 (`contrato.py`, as funções de hash v2 em `hashing.py`); o resto é fiação de portas/UoW e testes.
+
+### Review P2 (Codex) — correções
+
+Dois achados P2 do Codex corrigidos após o PR (detalhe em DUVIDAS.md):
+1. idempotência serializada entre titulares com `travar_idempotencia` (fecha a corrida no índice
+   único `recebimento_idempotencia`);
+2. todos os campos `required` ausentes reportados separadamente (antes repetia o primeiro).
+
+Re-verificação após as correções (só a spike Python no ar):
+- `--todos cenarios --fase 4.5 --limpar`: **18/18**
+- C21 (`--limpar`): **PASSOU** (318 checagens, 0 falha)
+- `diferencial_reavaliacao.py 150 150`: **0 problema(s)** (0 divergência, 0 não determinismo)
+- `mypy --strict src`, `ruff`, `lint-imports`: limpos; suíte-alvo (contrato + revisão + locks): 75 passam.
+- Novos testes: `test_contrato.py` (required múltiplo/parcial), `test_locks.py` (idempotência
+  serializa entre titulares; chaves distintas não bloqueiam).
