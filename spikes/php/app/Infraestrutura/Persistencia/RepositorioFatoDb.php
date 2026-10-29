@@ -23,11 +23,27 @@ final readonly class RepositorioFatoDb implements RepositorioFato
     {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
-            SELECT id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash
+            SELECT id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash,
+                   fonte, observado_em, tipo_versao
             FROM fatos.fato_vigente
             WHERE titular_id = ? AND competencia = ? AND tipo = ? AND tributo = ?
             SQL,
             [$titularId, $competencia, $tipo, $tributo],
+        );
+
+        return $linha === null ? null : $this->mapear($linha);
+    }
+
+    public function porId(string $fatoId): ?Fato
+    {
+        $linha = $this->conexao->selectOne(
+            <<<'SQL'
+            SELECT id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash,
+                   fonte, observado_em, tipo_versao
+            FROM fatos.fato
+            WHERE id = ?
+            SQL,
+            [$fatoId],
         );
 
         return $linha === null ? null : $this->mapear($linha);
@@ -46,6 +62,7 @@ final readonly class RepositorioFatoDb implements RepositorioFato
         string $hash,
         ?string $substituiId,
         string $observadoEm,
+        int $tipoVersao,
     ): Fato {
         // Payload só tem inteiros int64 (validado na borda); JsonCru evita qualquer passagem por float.
         $payloadJson = JsonCru::codificar($payload, false);
@@ -53,13 +70,13 @@ final readonly class RepositorioFatoDb implements RepositorioFato
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             INSERT INTO fatos.fato
-                (titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, fonte, origem_ref, hash, substitui_id, observado_em)
-            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
-            RETURNING id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash
+                (titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, fonte, origem_ref, hash, substitui_id, observado_em, tipo_versao)
+            VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
+            RETURNING id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash, fonte, observado_em, tipo_versao
             SQL,
             [
                 $titularId, $competencia, $tipo, $tributo, $versao, $valorCentavos,
-                $payloadJson, $fonte, $origemRef, $hash, $substituiId, $observadoEm,
+                $payloadJson, $fonte, $origemRef, $hash, $substituiId, $observadoEm, $tipoVersao,
             ],
         );
         assert($linha !== null);
@@ -72,7 +89,8 @@ final readonly class RepositorioFatoDb implements RepositorioFato
     {
         $linhas = $this->conexao->select(
             <<<'SQL'
-            SELECT id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash
+            SELECT id::text, titular_id, competencia, tipo, tributo, versao, valor_centavos, payload, hash,
+                   fonte, observado_em, tipo_versao
             FROM fatos.fato_vigente
             WHERE titular_id = ? AND competencia = ?
             SQL,
@@ -89,7 +107,7 @@ final readonly class RepositorioFatoDb implements RepositorioFato
 
     private function mapear(mixed $linha): Fato
     {
-        /** @var array{id: string, titular_id: string, competencia: string, tipo: string, tributo: string, versao: int, valor_centavos: ?int, payload: string, hash: string} $row */
+        /** @var array{id: string, titular_id: string, competencia: string, tipo: string, tributo: string, versao: int, valor_centavos: ?int, payload: string, hash: string, fonte: string, observado_em: ?string, tipo_versao: ?int} $row */
         $row = (array) $linha;
         // payload como objeto (preserva {} vs []) para o hash e para as fórmulas.
         $payload = json_decode($row['payload'], false, flags: JSON_THROW_ON_ERROR);
@@ -104,6 +122,9 @@ final readonly class RepositorioFatoDb implements RepositorioFato
             valorCentavos: $row['valor_centavos'] === null ? null : (int) $row['valor_centavos'],
             payload: $payload,
             hash: $row['hash'],
+            fonte: $row['fonte'],
+            observadoEm: $row['observado_em'],
+            tipoVersao: $row['tipo_versao'] === null ? null : (int) $row['tipo_versao'],
         );
     }
 }

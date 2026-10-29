@@ -16,7 +16,10 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
 
     public function travarTitular(string $titularId): void
     {
-        $chave = json_encode(['titular', $titularId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        // §13 (v5): a chave é exatamente 'titular|' || titular_id, a mesma string nas três
+        // spikes, para que uma ferramenta externa (consumidor de fila) tome o mesmo lock
+        // sem saber a linguagem.
+        $chave = 'titular|'.$titularId;
         $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
     }
 

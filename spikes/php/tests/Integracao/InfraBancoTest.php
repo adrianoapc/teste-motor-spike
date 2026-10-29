@@ -18,8 +18,8 @@ final class InfraBancoTest extends TestCase
         $regras = $this->app->make(RepositorioRegras::class);
         $regra = $regras->entregaveisEmUso();
 
-        // A V006 publicou a v2 (a v1 está aposentada). Nunca fixar versao=1 (§2).
-        $this->assertSame(2, $regra->versao);
+        // A base M2 tem a v3 de fechamento.entregaveis em uso (a v1/v2 aposentadas). Nunca fixar versao=1 (§2).
+        $this->assertSame(3, $regra->versao);
         $e11 = $regra->item('E11');
         $this->assertNotNull($e11);
         $this->assertNotNull($e11->posValidacao);
@@ -36,7 +36,7 @@ final class InfraBancoTest extends TestCase
         $regras = $this->app->make(RepositorioRegras::class);
 
         $this->assertSame(0, $regras->toleranciaEmUso()->okAteCentavos);
-        $this->assertSame(100, $regras->toleranciaEmUso()->alertaAteCentavos);
+        $this->assertSame(10, $regras->toleranciaEmUso()->alertaAteCentavos);
         $this->assertSame(2800, $regras->parametrosEmUso()->prolaborePercentualBp);
     }
 

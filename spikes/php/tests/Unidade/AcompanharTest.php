@@ -151,11 +151,11 @@ it('PublicarFato só aciona o acompanhamento quando o E11 já estava disponibili
     $m = new Mundo;
     $caso = $m->abrirCaso();
 
-    $m->fato('entrega_falhou', null, new stdClass, 'DAS');
+    $m->fato('entrega_falhou', null, (object) ['canal' => 'email', 'motivo' => 'caixa cheia'], 'DAS', observadoEm: '2026-01-10T09:00:00-03:00');
     expect($m->excecoes->excecoes)->toBe([]); // E11 ainda aguarda insumo
 
     $m->entregaveis->definirEstado($caso->id, 'E11', EstadoEntregavel::Disponibilizado);
-    $m->fato('entrega_falhou', null, (object) ['tentativa' => 2], 'DAS');
+    $m->fato('entrega_falhou', null, (object) ['canal' => 'email', 'motivo' => 'segunda tentativa'], 'DAS', observadoEm: '2026-01-10T10:00:00-03:00');
 
     expect($m->excecoes->resumo())->toBe(['entrega_falhou:aberta']);
 });

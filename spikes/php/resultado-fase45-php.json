@@ -1,0 +1,2385 @@
+[
+  {
+    "cenario": "C1 · Feliz: Simples Nacional com folha e pró-labore",
+    "falhas": [],
+    "checagens": 179,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0332
+      },
+      {
+        "passo": 2,
+        "acao": "abrir_competencias",
+        "segundos": 0.0107
+      },
+      {
+        "passo": 3,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 4,
+        "acao": "verificar",
+        "segundos": 0.0105
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0259
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.025
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0102
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0202
+      },
+      {
+        "passo": 9,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 10,
+        "acao": "verificar",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 11,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0155
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0064
+      },
+      {
+        "passo": 14,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0228
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0146
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.0226
+      },
+      {
+        "passo": 17,
+        "acao": "publicar_fato",
+        "segundos": 0.0222
+      },
+      {
+        "passo": 18,
+        "acao": "publicar_fato",
+        "segundos": 0.0145
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.0185
+      },
+      {
+        "passo": 20,
+        "acao": "publicar_fato",
+        "segundos": 0.0249
+      },
+      {
+        "passo": 21,
+        "acao": "publicar_fato",
+        "segundos": 0.023
+      },
+      {
+        "passo": 22,
+        "acao": "aguardar_fila",
+        "segundos": 0.0078
+      },
+      {
+        "passo": 23,
+        "acao": "verificar",
+        "segundos": 0.002
+      },
+      {
+        "passo": 24,
+        "acao": "publicar_fato",
+        "segundos": 0.0285
+      },
+      {
+        "passo": 25,
+        "acao": "aguardar_fila",
+        "segundos": 0.0087
+      },
+      {
+        "passo": 26,
+        "acao": "verificar",
+        "segundos": 0.0364
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 10,
+        "segundos": 0.0008
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0011
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 10,
+        "segundos": 0.0005
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.001
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0012
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C2 · R4: folha reaberta depois de o pacote ser entregue",
+    "falhas": [],
+    "checagens": 164,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0228
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.018
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0176
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0267
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0206
+      },
+      {
+        "passo": 6,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 7,
+        "acao": "concluir_entregavel",
+        "segundos": 0.016
+      },
+      {
+        "passo": 8,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0168
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0237
+      },
+      {
+        "passo": 10,
+        "acao": "publicar_fato",
+        "segundos": 0.0139
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0167
+      },
+      {
+        "passo": 12,
+        "acao": "publicar_fato",
+        "segundos": 0.0217
+      },
+      {
+        "passo": 13,
+        "acao": "publicar_fato",
+        "segundos": 0.0188
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0142
+      },
+      {
+        "passo": 15,
+        "acao": "aguardar_fila",
+        "segundos": 0.0062
+      },
+      {
+        "passo": 16,
+        "acao": "verificar",
+        "segundos": 0.0038
+      },
+      {
+        "passo": 17,
+        "acao": "publicar_fato",
+        "segundos": 0.0204
+      },
+      {
+        "passo": 18,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 19,
+        "acao": "verificar",
+        "segundos": 0.0028
+      },
+      {
+        "passo": 20,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0213
+      },
+      {
+        "passo": 21,
+        "acao": "aguardar_fila",
+        "segundos": 0.0067
+      },
+      {
+        "passo": 22,
+        "acao": "verificar",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 23,
+        "acao": "publicar_fato",
+        "segundos": 0.0229
+      },
+      {
+        "passo": 24,
+        "acao": "publicar_fato",
+        "segundos": 0.0197
+      },
+      {
+        "passo": 25,
+        "acao": "aguardar_fila",
+        "segundos": 0.0068
+      },
+      {
+        "passo": 26,
+        "acao": "verificar",
+        "segundos": 0.0203
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 9,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 2,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 9,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0008
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C3 · R1: nota cancelada depois da apuração, com o DAS já protocolado",
+    "falhas": [],
+    "checagens": 155,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0179
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0197
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0186
+      },
+      {
+        "passo": 5,
+        "acao": "aguardar_fila",
+        "segundos": 0.0074
+      },
+      {
+        "passo": 6,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0151
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.019
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0208
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0174
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0072
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0033
+      },
+      {
+        "passo": 12,
+        "acao": "publicar_fato",
+        "segundos": 0.0299
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0166
+      },
+      {
+        "passo": 14,
+        "acao": "verificar",
+        "segundos": 0.0067
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0287
+      },
+      {
+        "passo": 16,
+        "acao": "aguardar_fila",
+        "segundos": 0.008
+      },
+      {
+        "passo": 17,
+        "acao": "verificar",
+        "segundos": 0.0039
+      },
+      {
+        "passo": 18,
+        "acao": "concluir_entregavel",
+        "segundos": 0.025
+      },
+      {
+        "passo": 19,
+        "acao": "aguardar_fila",
+        "segundos": 0.0077
+      },
+      {
+        "passo": 20,
+        "acao": "verificar",
+        "segundos": 0.0022
+      },
+      {
+        "passo": 21,
+        "acao": "publicar_fato",
+        "segundos": 0.0259
+      },
+      {
+        "passo": 22,
+        "acao": "publicar_fato",
+        "segundos": 0.0321
+      },
+      {
+        "passo": 23,
+        "acao": "aguardar_fila",
+        "segundos": 0.0096
+      },
+      {
+        "passo": 24,
+        "acao": "verificar",
+        "segundos": 0.0224
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0008
+      },
+      "I2": {
+        "linhas": 2,
+        "segundos": 0.0007
+      },
+      "I3": {
+        "linhas": 3,
+        "segundos": 0.0004
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0008
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C4 · R6: guia retificada duas vezes",
+    "falhas": [],
+    "checagens": 119,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0184
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0174
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0211
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0235
+      },
+      {
+        "passo": 5,
+        "acao": "aguardar_fila",
+        "segundos": 0.0077
+      },
+      {
+        "passo": 6,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0166
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0206
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0195
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0187
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0015
+      },
+      {
+        "passo": 12,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 14,
+        "acao": "verificar",
+        "segundos": 0.0016
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0196
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.0094
+      },
+      {
+        "passo": 17,
+        "acao": "aguardar_fila",
+        "segundos": 0.0059
+      },
+      {
+        "passo": 18,
+        "acao": "verificar",
+        "segundos": 0.0014
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.0163
+      },
+      {
+        "passo": 20,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 21,
+        "acao": "verificar",
+        "segundos": 0.0157
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0007
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 2,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0009
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0011
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C5 · R7: alteração retroativa em competência encerrada",
+    "falhas": [],
+    "checagens": 149,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0167
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0203
+      },
+      {
+        "passo": 4,
+        "acao": "aguardar_fila",
+        "segundos": 0.0069
+      },
+      {
+        "passo": 5,
+        "acao": "concluir_entregavel",
+        "segundos": 0.015
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0181
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0185
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0179
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0165
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.001
+      },
+      {
+        "passo": 12,
+        "acao": "abrir_competencias",
+        "segundos": 0.0158
+      },
+      {
+        "passo": 13,
+        "acao": "publicar_fato",
+        "segundos": 0.0176
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0182
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0189
+      },
+      {
+        "passo": 16,
+        "acao": "aguardar_fila",
+        "segundos": 0.0069
+      },
+      {
+        "passo": 17,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0155
+      },
+      {
+        "passo": 18,
+        "acao": "aguardar_fila",
+        "segundos": 0.0062
+      },
+      {
+        "passo": 19,
+        "acao": "verificar",
+        "segundos": 0.0017
+      },
+      {
+        "passo": 20,
+        "acao": "publicar_fato",
+        "segundos": 0.0188
+      },
+      {
+        "passo": 21,
+        "acao": "aguardar_fila",
+        "segundos": 0.0061
+      },
+      {
+        "passo": 22,
+        "acao": "verificar",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 23,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0137
+      },
+      {
+        "passo": 24,
+        "acao": "aguardar_fila",
+        "segundos": 0.0065
+      },
+      {
+        "passo": 25,
+        "acao": "verificar",
+        "segundos": 0.0185
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 12,
+        "segundos": 0.0008
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 1,
+        "segundos": 0.0004
+      },
+      "I4": {
+        "linhas": 6,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 4,
+        "segundos": 0.001
+      },
+      "I6": {
+        "linhas": 2,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C6 · Escala: 4.500 casos no dia 1 e 300 guias em lote",
+    "falhas": [],
+    "checagens": 339,
+    "passos": [
+      {
+        "passo": 4000,
+        "acao": "abrir_massa",
+        "segundos": 44.0881
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_lote",
+        "segundos": 0.9666
+      },
+      {
+        "passo": 3,
+        "acao": "verificar",
+        "segundos": 0.0078
+      }
+    ],
+    "indicadores": {
+      "abertura_massa": {
+        "empresas": 4500,
+        "criados": 4500,
+        "segundos": 44.08
+      },
+      "lote_fatos": {
+        "quantidade": 300,
+        "p95_segundos": 0.109,
+        "total_segundos": 0.96,
+        "erros": 0
+      },
+      "I1": {
+        "linhas": 600,
+        "segundos": 0.0089
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.02
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0007
+      },
+      "I4": {
+        "linhas": 11,
+        "segundos": 0.0189
+      },
+      "I5": {
+        "linhas": 40306,
+        "segundos": 0.1176
+      },
+      "I6": {
+        "linhas": 50,
+        "segundos": 0.0079
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C7 · Lucro Presumido, 3º mês do trimestre",
+    "falhas": [],
+    "checagens": 95,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0179
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0136
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 4,
+        "acao": "aguardar_fila",
+        "segundos": 0.0064
+      },
+      {
+        "passo": 5,
+        "acao": "verificar",
+        "segundos": 0.0034
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.014
+      },
+      {
+        "passo": 7,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 8,
+        "acao": "verificar",
+        "segundos": 0.0011
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0159
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0067
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0011
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 14,
+        "acao": "verificar",
+        "segundos": 0.0122
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 6,
+        "segundos": 0.0007
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0004
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 6,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 4,
+        "segundos": 0.0009
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C8 · Lucro Presumido, 3º mês, até o encerramento",
+    "falhas": [],
+    "checagens": 125,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0165
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0145
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 4,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 5,
+        "acao": "verificar",
+        "segundos": 0.003
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0128
+      },
+      {
+        "passo": 7,
+        "acao": "aguardar_fila",
+        "segundos": 0.0062
+      },
+      {
+        "passo": 8,
+        "acao": "verificar",
+        "segundos": 0.0011
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.015
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.007
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0013
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0146
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0182
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0182
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.0127
+      },
+      {
+        "passo": 17,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 18,
+        "acao": "verificar",
+        "segundos": 0.0013
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.0184
+      },
+      {
+        "passo": 20,
+        "acao": "publicar_fato",
+        "segundos": 0.0155
+      },
+      {
+        "passo": 21,
+        "acao": "aguardar_fila",
+        "segundos": 0.0072
+      },
+      {
+        "passo": 22,
+        "acao": "verificar",
+        "segundos": 0.0166
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 6,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0004
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 6,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0007
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0007
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C9 · Override de conferência",
+    "falhas": [],
+    "checagens": 86,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0177
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0195
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0176
+      },
+      {
+        "passo": 5,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 6,
+        "acao": "verificar",
+        "segundos": 0.0026
+      },
+      {
+        "passo": 7,
+        "acao": "override",
+        "segundos": 0.0482
+      },
+      {
+        "passo": 8,
+        "acao": "override",
+        "segundos": 0.0086
+      },
+      {
+        "passo": 9,
+        "acao": "override",
+        "segundos": 0.0077
+      },
+      {
+        "passo": 10,
+        "acao": "override",
+        "segundos": 0.0082
+      },
+      {
+        "passo": 11,
+        "acao": "override",
+        "segundos": 0.0132
+      },
+      {
+        "passo": 12,
+        "acao": "override",
+        "segundos": 0.0077
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0059
+      },
+      {
+        "passo": 14,
+        "acao": "verificar",
+        "segundos": 0.0029
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0229
+      },
+      {
+        "passo": 16,
+        "acao": "aguardar_fila",
+        "segundos": 0.0062
+      },
+      {
+        "passo": 17,
+        "acao": "verificar",
+        "segundos": 0.0089
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0004
+      },
+      "I3": {
+        "linhas": 1,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0003
+      },
+      "I5": {
+        "linhas": 5,
+        "segundos": 0.0008
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C10 · Acompanhamento depois do protocolo",
+    "falhas": [],
+    "checagens": 154,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0175
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0138
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0217
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0175
+      },
+      {
+        "passo": 5,
+        "acao": "aguardar_fila",
+        "segundos": 0.0074
+      },
+      {
+        "passo": 6,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0184
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0173
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0181
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0064
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0126
+      },
+      {
+        "passo": 12,
+        "acao": "aguardar_fila",
+        "segundos": 0.0064
+      },
+      {
+        "passo": 13,
+        "acao": "verificar",
+        "segundos": 0.002
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0164
+      },
+      {
+        "passo": 15,
+        "acao": "aguardar_fila",
+        "segundos": 0.0065
+      },
+      {
+        "passo": 16,
+        "acao": "verificar",
+        "segundos": 0.0033
+      },
+      {
+        "passo": 17,
+        "acao": "publicar_fato",
+        "segundos": 0.0123
+      },
+      {
+        "passo": 18,
+        "acao": "publicar_fato",
+        "segundos": 0.0108
+      },
+      {
+        "passo": 19,
+        "acao": "aguardar_fila",
+        "segundos": 0.0066
+      },
+      {
+        "passo": 20,
+        "acao": "verificar",
+        "segundos": 0.0028
+      },
+      {
+        "passo": 21,
+        "acao": "publicar_fato",
+        "segundos": 0.0124
+      },
+      {
+        "passo": 22,
+        "acao": "aguardar_fila",
+        "segundos": 0.0062
+      },
+      {
+        "passo": 23,
+        "acao": "verificar",
+        "segundos": 0.0016
+      },
+      {
+        "passo": 24,
+        "acao": "publicar_fato",
+        "segundos": 0.0118
+      },
+      {
+        "passo": 25,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 26,
+        "acao": "verificar",
+        "segundos": 0.0026
+      },
+      {
+        "passo": 27,
+        "acao": "publicar_fato",
+        "segundos": 0.012
+      },
+      {
+        "passo": 28,
+        "acao": "publicar_fato",
+        "segundos": 0.0112
+      },
+      {
+        "passo": 29,
+        "acao": "aguardar_fila",
+        "segundos": 0.0061
+      },
+      {
+        "passo": 30,
+        "acao": "verificar",
+        "segundos": 0.0141
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0007
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 2,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0007
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C11 · M1: tolerância de 10 centavos e CF-08 só com Fator R",
+    "falhas": [],
+    "checagens": 137,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0324
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0152
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0207
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.019
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0148
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0218
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.022
+      },
+      {
+        "passo": 8,
+        "acao": "aguardar_fila",
+        "segundos": 0.0067
+      },
+      {
+        "passo": 9,
+        "acao": "verificar",
+        "segundos": 0.0054
+      },
+      {
+        "passo": 10,
+        "acao": "publicar_fato",
+        "segundos": 0.0481
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0788
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0314
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.0103
+      },
+      {
+        "passo": 14,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0212
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0325
+      },
+      {
+        "passo": 16,
+        "acao": "aguardar_fila",
+        "segundos": 0.0082
+      },
+      {
+        "passo": 17,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0319
+      },
+      {
+        "passo": 18,
+        "acao": "aguardar_fila",
+        "segundos": 0.0117
+      },
+      {
+        "passo": 19,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0212
+      },
+      {
+        "passo": 20,
+        "acao": "aguardar_fila",
+        "segundos": 0.0094
+      },
+      {
+        "passo": 21,
+        "acao": "verificar",
+        "segundos": 0.0193
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 18,
+        "segundos": 0.0009
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0006
+      },
+      "I3": {
+        "linhas": 1,
+        "segundos": 0.0004
+      },
+      "I4": {
+        "linhas": 9,
+        "segundos": 0.001
+      },
+      "I5": {
+        "linhas": 10,
+        "segundos": 0.0012
+      },
+      "I6": {
+        "linhas": 2,
+        "segundos": 0.0017
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C12 · M1: CF-07 do Presumido tributo a tributo",
+    "falhas": [],
+    "checagens": 141,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.037
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0173
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0223
+      },
+      {
+        "passo": 4,
+        "acao": "aguardar_fila",
+        "segundos": 0.0076
+      },
+      {
+        "passo": 5,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0227
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0169
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0234
+      },
+      {
+        "passo": 8,
+        "acao": "aguardar_fila",
+        "segundos": 0.0093
+      },
+      {
+        "passo": 9,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0186
+      },
+      {
+        "passo": 10,
+        "acao": "publicar_fato",
+        "segundos": 0.0177
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0201
+      },
+      {
+        "passo": 12,
+        "acao": "aguardar_fila",
+        "segundos": 0.0088
+      },
+      {
+        "passo": 13,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0189
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0279
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0212
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.028
+      },
+      {
+        "passo": 17,
+        "acao": "aguardar_fila",
+        "segundos": 0.0094
+      },
+      {
+        "passo": 18,
+        "acao": "verificar",
+        "segundos": 0.0125
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.0305
+      },
+      {
+        "passo": 20,
+        "acao": "publicar_fato",
+        "segundos": 0.022
+      },
+      {
+        "passo": 21,
+        "acao": "aguardar_fila",
+        "segundos": 0.0069
+      },
+      {
+        "passo": 22,
+        "acao": "verificar",
+        "segundos": 0.0101
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0007
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 1,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 6,
+        "segundos": 0.0005
+      },
+      "I5": {
+        "linhas": 11,
+        "segundos": 0.0012
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0007
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C13 · M1: CF-09 com o IRRF da folha do mês anterior",
+    "falhas": [],
+    "checagens": 118,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0378
+      },
+      {
+        "passo": 2,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0276
+      },
+      {
+        "passo": 3,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0305
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0243
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0259
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0239
+      },
+      {
+        "passo": 7,
+        "acao": "aguardar_fila",
+        "segundos": 0.0087
+      },
+      {
+        "passo": 8,
+        "acao": "verificar",
+        "segundos": 0.0032
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0294
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0078
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 12,
+        "acao": "publicar_fato",
+        "segundos": 0.0322
+      },
+      {
+        "passo": 13,
+        "acao": "publicar_fato",
+        "segundos": 0.0315
+      },
+      {
+        "passo": 14,
+        "acao": "aguardar_fila",
+        "segundos": 0.0087
+      },
+      {
+        "passo": 15,
+        "acao": "verificar",
+        "segundos": 0.0021
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.0305
+      },
+      {
+        "passo": 17,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 18,
+        "acao": "publicar_fato",
+        "segundos": 0.0194
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.019
+      },
+      {
+        "passo": 20,
+        "acao": "publicar_fato",
+        "segundos": 0.0275
+      },
+      {
+        "passo": 21,
+        "acao": "aguardar_fila",
+        "segundos": 0.0099
+      },
+      {
+        "passo": 22,
+        "acao": "verificar",
+        "segundos": 0.014
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 10,
+        "segundos": 0.0009
+      },
+      "I2": {
+        "linhas": 1,
+        "segundos": 0.0006
+      },
+      "I3": {
+        "linhas": 2,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 9,
+        "segundos": 0.0008
+      },
+      "I5": {
+        "linhas": 15,
+        "segundos": 0.002
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0011
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C19 · M2: hash normalizado",
+    "falhas": [],
+    "checagens": 168,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0183
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0147
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0199
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0238
+      },
+      {
+        "passo": 5,
+        "acao": "aguardar_fila",
+        "segundos": 0.0093
+      },
+      {
+        "passo": 6,
+        "acao": "concluir_entregavel",
+        "segundos": 0.026
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0221
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0222
+      },
+      {
+        "passo": 10,
+        "acao": "aguardar_fila",
+        "segundos": 0.0072
+      },
+      {
+        "passo": 11,
+        "acao": "verificar",
+        "segundos": 0.0011
+      },
+      {
+        "passo": 12,
+        "acao": "publicar_fato",
+        "segundos": 0.0241
+      },
+      {
+        "passo": 13,
+        "acao": "publicar_fato",
+        "segundos": 0.0236
+      },
+      {
+        "passo": 14,
+        "acao": "publicar_fato",
+        "segundos": 0.0285
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.0262
+      },
+      {
+        "passo": 16,
+        "acao": "publicar_fato",
+        "segundos": 0.0227
+      },
+      {
+        "passo": 17,
+        "acao": "publicar_fato",
+        "segundos": 0.0252
+      },
+      {
+        "passo": 18,
+        "acao": "publicar_fato",
+        "segundos": 0.0225
+      },
+      {
+        "passo": 19,
+        "acao": "publicar_fato",
+        "segundos": 0.0227
+      },
+      {
+        "passo": 20,
+        "acao": "aguardar_fila",
+        "segundos": 0.0069
+      },
+      {
+        "passo": 21,
+        "acao": "verificar",
+        "segundos": 0.0007
+      },
+      {
+        "passo": 22,
+        "acao": "publicar_fato",
+        "segundos": 0.0181
+      },
+      {
+        "passo": 23,
+        "acao": "aguardar_fila",
+        "segundos": 0.0096
+      },
+      {
+        "passo": 24,
+        "acao": "verificar",
+        "segundos": 0.0149
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0009
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0009
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0011
+      },
+      "I5": {
+        "linhas": 0,
+        "segundos": 0.0039
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.003
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C20 · M2: contrato de fato na entrada",
+    "falhas": [],
+    "checagens": 171,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0243
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.018
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0152
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0156
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0149
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.019
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.0173
+      },
+      {
+        "passo": 8,
+        "acao": "publicar_fato",
+        "segundos": 0.0186
+      },
+      {
+        "passo": 9,
+        "acao": "publicar_fato",
+        "segundos": 0.0585
+      },
+      {
+        "passo": 10,
+        "acao": "publicar_fato",
+        "segundos": 0.0188
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0153
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0158
+      },
+      {
+        "passo": 13,
+        "acao": "aguardar_fila",
+        "segundos": 0.009
+      },
+      {
+        "passo": 14,
+        "acao": "verificar",
+        "segundos": 0.0038
+      },
+      {
+        "passo": 15,
+        "acao": "publicar_fato",
+        "segundos": 0.03
+      },
+      {
+        "passo": 16,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0265
+      },
+      {
+        "passo": 17,
+        "acao": "aguardar_fila",
+        "segundos": 0.0097
+      },
+      {
+        "passo": 18,
+        "acao": "verificar",
+        "segundos": 0.0042
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 9,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 9,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 8,
+        "segundos": 0.001
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0007
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C21 · M2: concorrência por titular",
+    "falhas": [],
+    "checagens": 318,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0803
+      },
+      {
+        "passo": 2,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0184
+      },
+      {
+        "passo": 3,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0174
+      },
+      {
+        "passo": 4,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0175
+      },
+      {
+        "passo": 5,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0168
+      },
+      {
+        "passo": 6,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0167
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_paralelo",
+        "segundos": 0.352
+      },
+      {
+        "passo": 8,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 9,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0273
+      },
+      {
+        "passo": 10,
+        "acao": "concluir_entregavel",
+        "segundos": 0.028
+      },
+      {
+        "passo": 11,
+        "acao": "concluir_entregavel",
+        "segundos": 0.025
+      },
+      {
+        "passo": 12,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0284
+      },
+      {
+        "passo": 13,
+        "acao": "concluir_entregavel",
+        "segundos": 0.0252
+      },
+      {
+        "passo": 14,
+        "acao": "aguardar_fila",
+        "segundos": 0.0063
+      },
+      {
+        "passo": 15,
+        "acao": "verificar",
+        "segundos": 0.02
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 9,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 2,
+        "segundos": 0.0005
+      },
+      "I3": {
+        "linhas": 2,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 9,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 5,
+        "segundos": 0.001
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C22 · M2: fato fora de ordem e conflito de fonte",
+    "falhas": [],
+    "checagens": 74,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0175
+      },
+      {
+        "passo": 2,
+        "acao": "publicar_fato",
+        "segundos": 0.0192
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0127
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0217
+      },
+      {
+        "passo": 5,
+        "acao": "publicar_fato",
+        "segundos": 0.0104
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.009
+      },
+      {
+        "passo": 7,
+        "acao": "aguardar_fila",
+        "segundos": 0.0057
+      },
+      {
+        "passo": 8,
+        "acao": "verificar",
+        "segundos": 0.002
+      },
+      {
+        "passo": 9,
+        "acao": "ativar_contrato",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 10,
+        "acao": "publicar_fato",
+        "segundos": 0.0129
+      },
+      {
+        "passo": 11,
+        "acao": "publicar_fato",
+        "segundos": 0.0191
+      },
+      {
+        "passo": 12,
+        "acao": "aguardar_fila",
+        "segundos": 0.0061
+      },
+      {
+        "passo": 13,
+        "acao": "verificar",
+        "segundos": 0.0044
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0004
+      },
+      "I3": {
+        "linhas": 1,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 5,
+        "segundos": 0.0008
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0007
+      }
+    },
+    "passou": true
+  },
+  {
+    "cenario": "C23 · M2: troca de campos_hash no contrato",
+    "falhas": [],
+    "checagens": 77,
+    "passos": [
+      {
+        "passo": 1,
+        "acao": "abrir_competencias",
+        "segundos": 0.0181
+      },
+      {
+        "passo": 2,
+        "acao": "ativar_contrato",
+        "segundos": 0.0024
+      },
+      {
+        "passo": 3,
+        "acao": "publicar_fato",
+        "segundos": 0.0258
+      },
+      {
+        "passo": 4,
+        "acao": "publicar_fato",
+        "segundos": 0.0248
+      },
+      {
+        "passo": 5,
+        "acao": "ativar_contrato",
+        "segundos": 0.0023
+      },
+      {
+        "passo": 6,
+        "acao": "publicar_fato",
+        "segundos": 0.0208
+      },
+      {
+        "passo": 7,
+        "acao": "publicar_fato",
+        "segundos": 0.024
+      },
+      {
+        "passo": 8,
+        "acao": "aguardar_fila",
+        "segundos": 0.006
+      },
+      {
+        "passo": 9,
+        "acao": "verificar",
+        "segundos": 0.0027
+      }
+    ],
+    "indicadores": {
+      "I1": {
+        "linhas": 7,
+        "segundos": 0.0006
+      },
+      "I2": {
+        "linhas": 0,
+        "segundos": 0.0004
+      },
+      "I3": {
+        "linhas": 0,
+        "segundos": 0.0003
+      },
+      "I4": {
+        "linhas": 7,
+        "segundos": 0.0004
+      },
+      "I5": {
+        "linhas": 7,
+        "segundos": 0.0009
+      },
+      "I6": {
+        "linhas": 1,
+        "segundos": 0.0006
+      }
+    },
+    "passou": true
+  }
+]

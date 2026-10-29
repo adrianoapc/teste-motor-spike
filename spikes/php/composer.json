@@ -5,7 +5,9 @@
     "license": "proprietary",
     "require": {
         "php": "^8.4",
-        "laravel/framework": "^12.0"
+        "ext-intl": "*",
+        "laravel/framework": "^12.0",
+        "opis/json-schema": "^2.4"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",

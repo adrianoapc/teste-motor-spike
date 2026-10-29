@@ -28,7 +28,7 @@ final readonly class FatosController
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo deve ser um objeto JSON');
         }
-        CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em'], 'FatoRequest');
+        CorpoEstrito::exigirChaves($cru, ['titular_id', 'competencia', 'tipo', 'tributo', 'valor_centavos', 'payload', 'fonte', 'origem_ref', 'observado_em', 'chave_idempotencia'], 'FatoRequest');
 
         // valor_centavos: só int64 nativo ou null (ausente = null): 1.0, 1e2, -0, "600", true, 2^63 => 422.
         $valor = $cru->valor_centavos ?? null;
@@ -50,6 +50,7 @@ final readonly class FatosController
             'tributo' => ['sometimes', 'string'],
             'fonte' => ['present', 'string', 'min:1'],
             'origem_ref' => ['sometimes', 'nullable', 'string'],
+            'chave_idempotencia' => ['sometimes', 'nullable', 'string', 'min:1', 'max:200'],
             'observado_em' => ['present', 'string', function (string $atributo, mixed $v, \Closure $falhar): void {
                 if (! is_string($v) || ! self::dataHoraValida($v)) {
                     $falhar('observado_em deve ser data-hora RFC 3339');
@@ -64,15 +65,17 @@ final readonly class FatosController
         $fonte = $this->texto($cru, 'fonte');
         $origemRef = isset($cru->origem_ref) && is_string($cru->origem_ref) ? $cru->origem_ref : null;
         $observadoEm = $this->texto($cru, 'observado_em');
+        $chaveIdempotencia = isset($cru->chave_idempotencia) && is_string($cru->chave_idempotencia) ? $cru->chave_idempotencia : null;
 
         $resultado = $this->publicar->publicar(new PublicarFatoComando(
-            $titularId, $competencia, $tipo, $tributo, $valor, $payload, $fonte, $origemRef, $observadoEm,
+            $titularId, $competencia, $tipo, $tributo, $valor, $payload, $fonte, $origemRef, $observadoEm, $chaveIdempotencia,
         ));
 
         return new JsonResponse([
             'fato_id' => $resultado->fatoId,
             'versao' => $resultado->versao,
             'efeito' => $resultado->efeito,
+            'repetido' => $resultado->repetido,
         ]);
     }
 

@@ -17,6 +17,9 @@ interface RepositorioFato
     /** Fato vigente (maior versão) de uma chave, ou null. */
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato;
 
+    /** Fato por id (qualquer versão), ou null. Usado pela idempotência de requisição (§6.5). */
+    public function porId(string $fatoId): ?Fato;
+
     /**
      * Insere uma nova versão do fato. $substituiId = id da versão anterior (ou null).
      *
@@ -35,6 +38,7 @@ interface RepositorioFato
         string $hash,
         ?string $substituiId,
         string $observadoEm,
+        int $tipoVersao,
     ): Fato;
 
     /**
