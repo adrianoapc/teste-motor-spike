@@ -263,7 +263,7 @@ public sealed class MotorServico
     // ---- ConcluirTarefa (§8) ----
     public enum ConcluirErro { None, NaoEncontrado, Conflito, Invalido }
     public sealed record ConcluirResultado(ConcluirErro Erro, Entregavel? Entregavel, string? Mensagem,
-        IReadOnlyList<Violacao>? Violacoes = null);
+        IReadOnlyList<Violacao>? Violacoes = null, FatoErro ErroContrato = FatoErro.None);
     public sealed record SaidaDto(string Tributo, long? ValorCentavos, JsonElement Payload);
 
     public async Task<ConcluirResultado> ConcluirTarefaAsync(string titularId, Competencia competencia,
@@ -301,7 +301,7 @@ public sealed class MotorServico
             var rf = await PublicarFatoInternoAsync(r, cmd, reavaliar: false, entregavelConcluido: ent.Id);
             if (rf.Erro != FatoErro.None)
                 return new ConcluirResultado(ConcluirErro.Invalido, null, "saída fora do contrato",
-                    PrefixarSaida(indice, rf));
+                    PrefixarSaida(indice, rf), rf.Erro);
             await r.Entregaveis.LigarFatoAsync(ent.Id, rf.FatoId, "saida");
             indice++;
         }

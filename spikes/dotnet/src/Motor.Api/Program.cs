@@ -207,6 +207,10 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
                 mensagem = "saída fora do contrato",
                 violacoes = res.Violacoes.Select(v => new { campo = v.Campo, regra = v.Regra }),
             }, jsonOpts, statusCode: 422),
+            MotorServico.ConcluirErro.Invalido when res.ErroContrato is FatoErro.TipoDesconhecido
+                => Erro(422, "tipo_desconhecido", "saída com tipo sem contrato ativo"),
+            MotorServico.ConcluirErro.Invalido when res.ErroContrato is FatoErro.FonteNaoAutorizada
+                => Erro(403, "fonte_nao_autorizada", "fonte 'tarefa' não pode publicar este tipo"),
             MotorServico.ConcluirErro.Invalido => Erro(422, "corpo_invalido", res.Mensagem ?? "corpo inválido"),
             _ => Results.Json(new
             {
