@@ -16,12 +16,13 @@ use Opis\JsonSchema\Validator;
  * caso de uso. Este serviço cobre o passo 4: qualificador (tributo), valor_centavos
  * e payload contra o JSON Schema, devolvendo TODAS as violações numa lista.
  *
- * O prefixo do caminho (`payload.`, `saidas[i].`) é do chamador: o validador fala
- * em caminhos relativos ao payload e prefixa com o que receber.
+ * O prefixo do ITEM é do chamador (§8 passo 3a, OpenAPI 1.4.0): vazio no /fatos
+ * (`tributo`, `valor_centavos`, `payload.x`) e `saidas[i]` no /concluir
+ * (`saidas[i].tributo`, `saidas[i].valor_centavos`, `saidas[i].payload.x`).
  */
 final readonly class ValidadorContrato
 {
-    public function __construct(private string $prefixoPayload = 'payload') {}
+    public function __construct(private string $prefixoItem = '') {}
 
     /**
      * @param  mixed  $payload  stdClass|array como veio (objetos preservados)
@@ -34,19 +35,19 @@ final readonly class ValidadorContrato
         // Qualificador (coluna tributo).
         if ($contrato->usaTributo()) {
             if ($tributo === '') {
-                $violacoes[] = new Violacao('tributo', 'obrigatorio');
+                $violacoes[] = new Violacao($this->campoItem('tributo'), 'obrigatorio');
             } elseif ($contrato->valoresDeTributo() !== [] && ! in_array($tributo, $contrato->valoresDeTributo(), true)) {
-                $violacoes[] = new Violacao('tributo', 'fora_da_lista');
+                $violacoes[] = new Violacao($this->campoItem('tributo'), 'fora_da_lista');
             }
         } elseif ($tributo !== '') {
-            $violacoes[] = new Violacao('tributo', 'proibido');
+            $violacoes[] = new Violacao($this->campoItem('tributo'), 'proibido');
         }
 
         // valor_centavos.
         if ($contrato->valorCentavos === 'obrigatorio' && $valorCentavos === null) {
-            $violacoes[] = new Violacao('valor_centavos', 'obrigatorio');
+            $violacoes[] = new Violacao($this->campoItem('valor_centavos'), 'obrigatorio');
         } elseif ($contrato->valorCentavos === 'proibido' && $valorCentavos !== null) {
-            $violacoes[] = new Violacao('valor_centavos', 'proibido');
+            $violacoes[] = new Violacao($this->campoItem('valor_centavos'), 'proibido');
         }
 
         // Payload contra o JSON Schema (draft 2020-12).
@@ -57,12 +58,28 @@ final readonly class ValidadorContrato
         return $violacoes;
     }
 
+    /** Prefixa um campo escalar (`tributo`/`valor_centavos`) com o item: `saidas[0].tributo` ou `tributo`. */
+    private function campoItem(string $campo): string
+    {
+        return $this->prefixoItem === '' ? $campo : $this->prefixoItem.'.'.$campo;
+    }
+
+    /** Base dos caminhos de payload: `payload` ou `saidas[0].payload`. */
+    private function basePayload(): string
+    {
+        return $this->prefixoItem === '' ? 'payload' : $this->prefixoItem.'.payload';
+    }
+
     /**
      * @return list<Violacao>
      */
     private function violacoesDoEsquema(object $esquema, mixed $payload): array
     {
         $validador = new Validator;
+        // O `required` do opis só lista tantos campos ausentes quanto maxErrors (1 por
+        // padrão). §6.2 pede TODAS as violações, então elevamos o teto para coletar todos
+        // os required ausentes de um mesmo objeto numa única resposta.
+        $validador->setMaxErrors(100);
         // O payload chega como stdClass/array; o opis quer o mesmo formato de json_decode.
         $dados = Helper::toJSON($payload);
         $resultado = $validador->validate($dados, $esquema);
@@ -76,7 +93,7 @@ final readonly class ValidadorContrato
 
         // Sem folha reconhecível (erro sem subErros e sem keyword mapeável): registra o erro raiz.
         if ($violacoes === []) {
-            $violacoes[] = $this->violacaoDe($erro);
+            $violacoes = $this->violacoesDe($erro);
         }
 
         return $violacoes;
@@ -92,7 +109,7 @@ final readonly class ValidadorContrato
     {
         $subs = $erro->subErrors();
         if ($subs === []) {
-            return [$this->violacaoDe($erro)];
+            return $this->violacoesDe($erro);
         }
         $violacoes = [];
         foreach ($subs as $sub) {
@@ -107,26 +124,42 @@ final readonly class ValidadorContrato
         return $violacoes;
     }
 
-    private function violacaoDe(ValidationError $erro): Violacao
+    /**
+     * Converte um erro-folha do opis em uma ou mais violações. Um `required` com vários
+     * campos ausentes vira UMA violação por campo (§6.2: todas as violações, não só a primeira).
+     *
+     * @return list<Violacao>
+     */
+    private function violacoesDe(ValidationError $erro): array
     {
         $keyword = $erro->keyword();
-        $caminhoBase = $this->prefixoPayload;
+        $caminhoBase = $this->basePayload();
         $segmentos = array_values(array_map(static fn (int|string $s): string => (string) $s, $erro->data()->fullPath()));
 
         if ($keyword === 'required') {
-            // args['missing'] lista os required ausentes; o caminho aponta o objeto pai.
+            // args['missing'] lista TODOS os required ausentes; o caminho aponta o objeto pai.
             $args = $erro->args();
             $faltando = $args['missing'] ?? [];
-            if (is_array($faltando) && isset($faltando[0]) && is_string($faltando[0])) {
-                $segmentos[] = $faltando[0];
+            if (is_array($faltando) && $faltando !== []) {
+                $violacoes = [];
+                foreach ($faltando as $campo) {
+                    if (! is_string($campo)) {
+                        continue;
+                    }
+                    $violacoes[] = new Violacao($this->juntar($caminhoBase, [...$segmentos, $campo]), 'obrigatorio');
+                }
+                if ($violacoes !== []) {
+                    return $violacoes;
+                }
             }
 
-            return new Violacao($this->juntar($caminhoBase, $segmentos), 'obrigatorio');
+            // Sem a lista de ausentes: aponta o objeto pai.
+            return [new Violacao($this->juntar($caminhoBase, $segmentos), 'obrigatorio')];
         }
 
         $regra = $keyword === 'type' ? 'tipo' : 'esquema';
 
-        return new Violacao($this->juntar($caminhoBase, $segmentos), $regra);
+        return [new Violacao($this->juntar($caminhoBase, $segmentos), $regra)];
     }
 
     /**

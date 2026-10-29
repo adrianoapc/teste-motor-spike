@@ -39,8 +39,8 @@ final readonly class PublicacaoDeFato
     ) {}
 
     /**
-     * Valida e publica. $prefixoCampo = prefixo das violações ('payload' no /fatos,
-     * 'saidas[i].payload' numa saída de tarefa). O chamador já travou titular e chave.
+     * Valida e publica. $prefixoCampo = prefixo do ITEM nas violações ('' no /fatos,
+     * 'saidas[i]' numa saída de tarefa). O chamador já travou titular e chave.
      *
      * @param  mixed  $payload  objeto preservado
      */
@@ -113,7 +113,7 @@ final readonly class PublicacaoDeFato
      * Valida uma publicação contra o contrato ativo SEM gravar (§8 passo 3a: todas as
      * saídas de /concluir são validadas antes de gravar qualquer uma). Lança o mesmo
      * erro de publicar(): tipo_desconhecido (422), fonte_nao_autorizada (403) ou
-     * payload_invalido (422, com violações prefixadas por $prefixoCampo).
+     * payload_invalido (422, com violações prefixadas por $prefixoCampo, o prefixo do item).
      *
      * @param  mixed  $payload  objeto preservado
      */

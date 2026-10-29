@@ -19,6 +19,15 @@ final readonly class RepositorioFatoDb implements RepositorioFato
         $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
     }
 
+    public function travarIdempotencia(string $fonte, string $chaveIdempotencia): void
+    {
+        // §6.5: serializa publicações com a mesma (fonte, chave) mesmo entre titulares
+        // diferentes, para que o índice único global recebimento_idempotencia nunca
+        // seja violado. Chave = 'idem|' || fonte || '|' || chave, a mesma nas três spikes.
+        $chave = 'idem|'.$fonte.'|'.$chaveIdempotencia;
+        $this->conexao->selectOne('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [$chave]);
+    }
+
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato
     {
         $linha = $this->conexao->selectOne(

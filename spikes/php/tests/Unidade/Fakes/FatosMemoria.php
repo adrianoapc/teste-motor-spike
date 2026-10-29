@@ -23,6 +23,11 @@ final class FatosMemoria implements RepositorioFato
         $this->travas[] = "{$tipo}|{$tributo}";
     }
 
+    public function travarIdempotencia(string $fonte, string $chaveIdempotencia): void
+    {
+        $this->travas[] = "idem|{$fonte}|{$chaveIdempotencia}";
+    }
+
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato
     {
         $vigente = null;

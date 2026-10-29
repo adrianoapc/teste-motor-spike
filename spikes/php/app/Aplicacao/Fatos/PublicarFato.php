@@ -36,6 +36,13 @@ final readonly class PublicarFato
     public function publicar(PublicarFatoComando $comando): ResultadoFato
     {
         return $this->uow->transacao(function () use ($comando): ResultadoFato {
+            // §6.5: trava da chave de idempotência ANTES de tudo, pois o índice único
+            // recebimento_idempotencia é global (fonte, chave) — dois titulares diferentes
+            // com a mesma chave têm de serializar aqui, senão o 2º INSERT estoura (500).
+            if ($comando->chaveIdempotencia !== null) {
+                $this->fatos->travarIdempotencia($comando->fonte, $comando->chaveIdempotencia);
+            }
+
             // §13: trava do titular antes de qualquer leitura de estado.
             $this->casos->travarTitular($comando->titularId);
 
@@ -53,7 +60,7 @@ final readonly class PublicarFato
             $pub = $this->publicacao->publicar(
                 $comando->titularId, $comando->competencia, $comando->tipo, $comando->tributo,
                 $comando->valorCentavos, $comando->payload, $comando->fonte, $comando->origemRef,
-                $comando->observadoEm, $comando->chaveIdempotencia, $caso, 'payload',
+                $comando->observadoEm, $comando->chaveIdempotencia, $caso, '',
             );
             $fato = $pub->fato;
             $efeito = $pub->efeito;

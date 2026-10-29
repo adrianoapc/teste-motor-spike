@@ -72,7 +72,7 @@ final readonly class ConcluirTarefa
             foreach ($comando->saidas as $i => $saida) {
                 $this->publicacao->validar(
                     $item->saidaTipo, $saida->tributo, $saida->valorCentavos, $saida->payload,
-                    'tarefa', "saidas[{$i}].payload",
+                    'tarefa', "saidas[{$i}]",
                 );
             }
 
@@ -107,7 +107,7 @@ final readonly class ConcluirTarefa
         $pub = $this->publicacao->publicar(
             $caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo,
             $saida->valorCentavos, $saida->payload, 'tarefa', null, $this->relogio->agora(),
-            null, $caso, 'payload',
+            null, $caso, '',
         );
 
         // Liga a versão vigente devolvida como 'saida', inclusive quando sem_mudanca (§8 item 4).
