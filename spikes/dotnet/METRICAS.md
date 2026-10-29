@@ -123,6 +123,57 @@ fase 4 é todo nos cenários novos (tarefas 20–22). Rodando `--fase 4` sem mud
 
 ---
 
+# Manutenção M2 (Fase 4.5)
+
+> Segundo teste comum de manutenção (`docs/regras-do-jogo.md`): mesma mudança
+> (semântica **v5**, migração **V009**, contrato **1.4.0**, contratos de tipo de fato,
+> cenários **C19–C23**) pedida às três spikes. Branch `m2/spike-dotnet`, cortada da `main`
+> atualizada (traz a base v5: V009 aplicada, C19–C23 e o verificador com `--fase 4.5`).
+
+- **Início da tarefa 25:** 2026-10-28 19:30 -03.
+- **Fim da tarefa 30:** 2026-10-28 23:10 -03. **`--fase 4.5 --limpar`: `RESULTADO: todos passaram (18/18)`**, só esta spike no ar. Relatório em `spikes/dotnet/resultado-fase45-dotnet.json`. `dotnet test`: 268 verdes + 2 pulados (integração de concorrência, que passa com `MOTOR_DB_TESTE` apontado para o banco); 0 aviso, 0 erro sob `TreatWarningsAsErrors`.
+
+## Tarefa 25 · regressão sem mudar código
+
+**`--fase 4 --limpar`: `RESULTADO: todos passaram (13/13)`** (C1–C13), sem tocar código. Guardrail atendido: a v5 só mudou o `observado_em` dos cenários antigos (passa a `"$agora"`), que o código v4 ignora. Relatório em `spikes/dotnet/resultado-fase4-spike-dotnet.json`.
+
+**`--fase 4.5 --limpar`: `RESULTADO: há falhas (0/18)`** — medida de impacto da M2. Todos os 18 quebram, por **uma causa raiz comum**: o motor v4 não grava `fatos.recebimento` nem `tipo_versao`, e a `--fase 4.5` liga as invariantes novas (INV-16/17/18), que o verificador cobra em **todo** cenário, antigo ou novo.
+
+| Cenário | Falhas | Por quê (causa da quebra em código v4) |
+|---|---|---|
+| C1–C13 (antigos) | 8–600 | INV-16 (todo fato precisa do recebimento `novo`/`nova_versao` que o criou) e INV-17 (`tipo_versao` existente) falham: o v4 nunca escreve `recebimento` nem `tipo_versao`. C6 acumula 600 (massa). |
+| C19 (hash normalizado) | 65 | Hash v1: sem projeção por `campos_hash`, sem normalização de texto, sem nulo=ausente, sem ordenação de arrays (§6.3). Efeitos e recebimentos divergem. |
+| C20 (contrato de fato) | 94 | Sem contrato de tipo na entrada: validação §6.2 (tipo/fonte/qualificador/valor/payload) e `tipo_versao` ausentes; saídas de `/concluir` não revalidadas (§8 passo 3a). |
+| C21 (concorrência) | 217 | Sem trava consultiva por titular (§13); sem `chave_idempotencia` (§6.5); sem recebimento/`tipo_versao`. |
+| C22 (fora de ordem / conflito) | 26 | Sem efeitos `obsoleto` e `conflito_fonte` (§6.4): o v4 trata tudo como `nova_versao`/`sem_mudanca`; sem exceção `conflito_fonte`; sem recebimento. INV-18 falha (ordem de `observado_em`). |
+| C23 (troca de `campos_hash`) | 13 | Hash não recalculado sob o contrato ativo: trocar `campos_hash` gera versão nova em vez de `sem_mudanca` (§6.4, D5/D7). |
+
+Plano de implementação (tarefas 26–29): contrato de fato na entrada + `tipo_versao` (26), hash v2 (27), recebimento + `obsoleto`/`conflito_fonte` + idempotência (28), trava por titular + concorrência (29).
+
+## Tarefas 26–29 · implementação v5
+
+| Tarefa | O que entrou | Verificador |
+|---|---|---|
+| 26 · contrato de fato | `ContratoTipoFato` (lido do banco por publicação), `ValidadorContrato` (JSON Schema draft 2020-12 via `JsonSchema.Net`), ordem §6.2, `violacoes`, mesma validação nas saídas de `/concluir`, `tipo_versao` no fato. | C20 **PASSOU** (171), C9 **PASSOU** (86) |
+| 27 · hash v2 | `HashV2` (projetar→normalizar→ordenar→canônico→sha256) como funções puras do domínio; 25 vetores de `vetores-hash-v2.json` (casos + pares `iguais`) + `vetores-hash.json` ainda verdes. | C19 **PASSOU** (168), C23 **PASSOU** (77), C4 **PASSOU** (119) |
+| 28 · recebimento / ordem / idempotência | `fatos.recebimento` em toda publicação válida; efeitos `obsoleto` e `conflito_fonte` (§6.4); exceção `conflito_fonte`; `chave_idempotencia` com resposta `repetido` (§6.5). | C22 **PASSOU** (74), C10 **PASSOU** (154), C3 **PASSOU** (155) |
+| 29 · concorrência por titular | Trava por titular com a chave **exata do §13** (`pg_advisory_xact_lock(hashtextextended('titular\|' \|\| titular_id, 0))`) como 1º comando em `PublicarFato`, `ConcluirTarefa`, `RegistrarOverride` e em cada transação de `AbrirCompetencias`. Processamento síncrono (sem consumidor de fila). Teste de integração `ConcorrenciaTitularTeste` (mesmo titular serializa; titulares diferentes não se bloqueiam). | C21 **PASSOU** 3× seguidas (318 cada) |
+
+Nota: na M1 o `Directory.Build.props` tinha `InvariantGlobalization=true`, o que torna `String.Normalize(FormC)` um no-op (sem ICU) e quebra o NFC do hash v2. Desligado na M2 (ver `DUVIDAS.md`); a ordenação do canônico não depende de cultura.
+
+### C6 com só esta spike no ar (tarefa 29)
+
+Com apenas o `spike-dotnet` em pé (python/php parados), `--cenario cenarios/c6-escala-4500-casos.json --limpar`:
+
+| Medida | Fase 4.5 (v5) | Fase 4 (histórico pós-merge) |
+|---|---|---|
+| Abertura em massa (4.500 casos) | **75,97 s** | — (C6 da fase 4 media p95 do lote, não a abertura) |
+| Lote de 300 guias, p95 | **0,062 s** (0 erro) | 0,030 s (percurso completo, medição pós-merge) |
+
+O p95 das 300 publicações subiu de ~0,030 s (v4) para 0,062 s (v5): o custo novo é a validação de contrato + hash v2 + gravação do recebimento por publicação. Continua bem abaixo do volume real da Rissi; a reavaliação segue percurso completo (sem recorte), coerente com a decisão de 15/10.
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.

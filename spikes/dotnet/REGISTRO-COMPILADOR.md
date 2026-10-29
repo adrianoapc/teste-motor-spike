@@ -13,6 +13,8 @@ Cada vez que o compilador C# (com `TreatWarningsAsErrors=true`) barrou um erro
 | 2026-10-06 | `src/Motor.Api/Program.cs` | CS0103: `Validacao` não existe no contexto (7×) | `using Motor.Api` faltando no `Program.cs` top-level |
 | 2026-10-08 | `src/Motor.Aplicacao/MotorServico.cs` | CS1061: `JsonElement` não tem `.Value` (2×) | review Codex P1: `ConteudoPorIdAsync` devolve `JsonElement?`; após `?? throw` o valor já é `JsonElement`, `.Value` sobra |
 | 2026-10-15 | `tests/Motor.Testes.Unidade/RevisaoPosMergeTeste.cs` | CS1501: nenhuma sobrecarga de `Calcular` aceita 5 argumentos (2×) | fase 4: CF-09 passou a receber `ContextoCalculo` + a lista de fatos; os testes chamavam `Calcular(cf, ctx, f1, f2, f3)` em vez de `Calcular(cf, ctx, new[]{...})` |
+| 2026-10-29 | `src/Motor.Api/Program.cs` | CS0117: `MotorServico` não contém `ParaTexto` | M2: o mapeamento do efeito para texto nasceu `internal static` em `MotorServico`; `internal` não cruza assembly — promovido a `public static` |
+| 2026-10-29 | `tests/Motor.Testes.Unidade/{DominioVetores,RegraPinada,RevisaoPosMerge}Teste.cs` | CS7036: parâmetro `TipoVersao` de `FatoVigente` sem argumento (5×) | M2: `FatoVigente` ganhou `TipoVersao`/`Fonte`/`ObservadoEm` (§6.4); os fixtures antigos construíam com a aridade v4 — os três novos campos ganharam default para não tocar fixtures que não exercem concorrência |
 
 Observações:
 

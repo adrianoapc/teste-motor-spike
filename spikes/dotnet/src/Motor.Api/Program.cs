@@ -135,19 +135,33 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
             return Erro(422, "corpo_invalido", motivoPayload);
         if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef, aceitaNull: true))
             return Erro(422, "corpo_invalido", "origem_ref deve ser string");
+        // §6.5: chave_idempotencia opcional, 1..200 caracteres.
+        if (!Validacao.TextoOpcionalValido(raiz, "chave_idempotencia", out var chaveIdem))
+            return Erro(422, "corpo_invalido", "chave_idempotencia deve ser string");
+        if (chaveIdem is { Length: 0 or > 200 })
+            return Erro(422, "corpo_invalido", "chave_idempotencia deve ter de 1 a 200 caracteres");
 
-        var cmd = new PublicarFatoCmd(titular, Competencia.Analisar(compTexto), tipo, tributo, valor, payload, fonte, origemRef, observadoEm);
+        var cmd = new PublicarFatoCmd(titular, Competencia.Analisar(compTexto), tipo, tributo, valor, payload, fonte, origemRef, observadoEm, chaveIdem);
         var res = await motor.PublicarFatoAsync(cmd);
+        if (res.Erro != FatoErro.None)
+            return res.Erro switch
+            {
+                FatoErro.TipoDesconhecido => Erro(422, "tipo_desconhecido", "tipo sem contrato ativo"),
+                FatoErro.FonteNaoAutorizada => Erro(403, "fonte_nao_autorizada", "fonte não pode publicar este tipo"),
+                _ => Results.Json(new
+                {
+                    erro = "payload_invalido",
+                    mensagem = "payload fora do contrato",
+                    violacoes = (res.Violacoes ?? Array.Empty<Motor.Dominio.Fatos.Violacao>())
+                        .Select(v => new { campo = v.Campo, regra = v.Regra }),
+                }, jsonOpts, statusCode: 422),
+            };
         return Results.Json(new
         {
             fato_id = res.FatoId,
             versao = res.Versao,
-            efeito = res.Efeito switch
-            {
-                EfeitoFato.Novo => "novo",
-                EfeitoFato.NovaVersao => "nova_versao",
-                _ => "sem_mudanca",
-            },
+            efeito = MotorServico.ParaTexto(res.Efeito),
+            repetido = res.Repetido,
         }, jsonOpts);
     }
 });
@@ -187,6 +201,12 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/concluir",
         {
             MotorServico.ConcluirErro.NaoEncontrado => Erro(404, "nao_encontrado", res.Mensagem ?? "não encontrado"),
             MotorServico.ConcluirErro.Conflito => Erro(409, "entregavel_nao_pronto", res.Mensagem ?? "estado não permite"),
+            MotorServico.ConcluirErro.Invalido when res.Violacoes is { Count: > 0 } => Results.Json(new
+            {
+                erro = "payload_invalido",
+                mensagem = "saída fora do contrato",
+                violacoes = res.Violacoes.Select(v => new { campo = v.Campo, regra = v.Regra }),
+            }, jsonOpts, statusCode: 422),
             MotorServico.ConcluirErro.Invalido => Erro(422, "corpo_invalido", res.Mensagem ?? "corpo inválido"),
             _ => Results.Json(new
             {

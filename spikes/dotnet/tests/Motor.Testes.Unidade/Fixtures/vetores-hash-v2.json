@@ -1,0 +1,362 @@
+{
+  "descricao": "Vetores do hash v2 (semântica v5 §6.3). hash = sha256(canonico({payload: ordenar(normalizar(projetar(payload))), valor_centavos})). 'payload' é o texto JSON bruto; 'contrato' traz só campos_hash e ordenar_arrays; 'canonico' é a entrada exata do sha256 (UTF-8). 'iguais': pares que têm de dar o mesmo hash. A etapa canônica é a da v4 e continua coberta por vetores-hash.json. Gerado por verificador/hash_v2.py; não editar à mão.",
+  "casos": [
+    {
+      "nome": "projeção: campo fora de campos_hash não pesa",
+      "contrato": {
+        "campos_hash": [
+          "a"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"a\":1,\"rastro\":\"x\"}",
+      "valor_centavos": 100,
+      "canonico": "{\"payload\":{\"a\":1},\"valor_centavos\":100}",
+      "sha256": "6ad0fb7834304304895901fb11da2770b855574c91736a76e49efa0c88090bf9"
+    },
+    {
+      "nome": "projeção: campos_hash vazio, só o valor",
+      "contrato": {
+        "campos_hash": [],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"a\":1}",
+      "valor_centavos": 5000000,
+      "canonico": "{\"payload\":{},\"valor_centavos\":5000000}",
+      "sha256": "d4ece2e33d6c01f9531a0784acf213b64de4488769b1ec3a30cad22901d01905"
+    },
+    {
+      "nome": "projeção: campo de campos_hash ausente no payload",
+      "contrato": {
+        "campos_hash": [
+          "a",
+          "b"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"a\":1}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"a\":1},\"valor_centavos\":null}",
+      "sha256": "70c73d7daf8494e3977c157637c9b31556438b8d46c67f5d6ffb12e2d9cd627e"
+    },
+    {
+      "nome": "nulo no primeiro nível = ausente",
+      "contrato": {
+        "campos_hash": [
+          "a",
+          "b"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"a\":1,\"b\":null}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"a\":1},\"valor_centavos\":null}",
+      "sha256": "70c73d7daf8494e3977c157637c9b31556438b8d46c67f5d6ffb12e2d9cd627e"
+    },
+    {
+      "nome": "nulo aninhado em objeto é removido",
+      "contrato": {
+        "campos_hash": [
+          "o"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"o\":{\"x\":null,\"y\":2}}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"o\":{\"y\":2}},\"valor_centavos\":null}",
+      "sha256": "a6ff7c33d7a4ce55a5b10401eb6f7fd9d42604f300cca81d44c88872a1fe203b"
+    },
+    {
+      "nome": "nulo dentro de array fica",
+      "contrato": {
+        "campos_hash": [
+          "l"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"l\":[1,null,2]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"l\":[1,null,2]},\"valor_centavos\":null}",
+      "sha256": "c5a4840b2e2b4a827dd8c363f3898f0ac805de55c00cb69cb9165a29b738d911"
+    },
+    {
+      "nome": "texto: espaços, \\t, \\n e \\r internos viram um espaço",
+      "contrato": {
+        "campos_hash": [
+          "t"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"t\":\"a  b\\tc\\n\\r\\nd\"}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"t\":\"a b c d\"},\"valor_centavos\":null}",
+      "sha256": "b40e6f99dc28832162562dfb506ae85cba262cc1a1e8b8c64a01e23753be7fb1"
+    },
+    {
+      "nome": "texto: pontas sem espaço",
+      "contrato": {
+        "campos_hash": [
+          "t"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"t\":\"  \\t abc \\n\"}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"t\":\"abc\"},\"valor_centavos\":null}",
+      "sha256": "808df1edd1252983abfabde88e6acb6c4e38116de2c9c1062b1d2d1a35303979"
+    },
+    {
+      "nome": "texto: NFC (e + U+0301 vira é)",
+      "contrato": {
+        "campos_hash": [
+          "t"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"t\":\"cafe\\u0301\"}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"t\":\"café\"},\"valor_centavos\":null}",
+      "sha256": "ecdb8c217b74206aa2ca99f79ceea54e6e871acecb9296f03bf240d73e3ae2f5"
+    },
+    {
+      "nome": "texto: NBSP (U+00A0) não é espaço da regra",
+      "contrato": {
+        "campos_hash": [
+          "t"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"t\":\"a\\u00a0b\"}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"t\":\"a b\"},\"valor_centavos\":null}",
+      "sha256": "10664ff9fb1c2908d4bd2b3d844776df6aa01b25d5dfaa79d79bf168f99b99e2"
+    },
+    {
+      "nome": "texto: só espaços vira texto vazio",
+      "contrato": {
+        "campos_hash": [
+          "t"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"t\":\"   \"}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"t\":\"\"},\"valor_centavos\":null}",
+      "sha256": "3cfd4819afba7d3ca1b6bb5290cc39263fbac47265a120b2ca5e97d2b575dd99"
+    },
+    {
+      "nome": "texto aninhado em array e objeto também normaliza",
+      "contrato": {
+        "campos_hash": [
+          "l"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"l\":[{\"n\":\" x  y \"}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"l\":[{\"n\":\"x y\"}]},\"valor_centavos\":null}",
+      "sha256": "877a577d8dc8ddcb9c8fa96aabed96be5f9aa5509e08997056216c5879e716db"
+    },
+    {
+      "nome": "chaves de objeto não são normalizadas",
+      "contrato": {
+        "campos_hash": [
+          "o"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"o\":{\" k \":1}}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"o\":{\" k \":1}},\"valor_centavos\":null}",
+      "sha256": "a2faf71ed180c2c37f63b06a52a5e8ab235a2a76c42c9d3f37d626dc7048231a"
+    },
+    {
+      "nome": "ordenar_arrays por um campo",
+      "contrato": {
+        "campos_hash": [
+          "p"
+        ],
+        "ordenar_arrays": {
+          "p": [
+            "socio"
+          ]
+        }
+      },
+      "payload": "{\"p\":[{\"socio\":\"S2\",\"v\":1},{\"socio\":\"S1\",\"v\":2}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"p\":[{\"socio\":\"S1\",\"v\":2},{\"socio\":\"S2\",\"v\":1}]},\"valor_centavos\":null}",
+      "sha256": "7c056803ed72e07509a6fa4a6aa657b8424085c3500366e7f4eed918b48f3a48"
+    },
+    {
+      "nome": "ordenar_arrays por dois campos, ausente antes de qualquer valor",
+      "contrato": {
+        "campos_hash": [
+          "p"
+        ],
+        "ordenar_arrays": {
+          "p": [
+            "socio",
+            "tributo"
+          ]
+        }
+      },
+      "payload": "{\"p\":[{\"socio\":\"S1\",\"tributo\":\"PIS\"},{\"socio\":\"S1\"},{\"socio\":\"S1\",\"tributo\":\"COFINS\"}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"p\":[{\"socio\":\"S1\"},{\"socio\":\"S1\",\"tributo\":\"COFINS\"},{\"socio\":\"S1\",\"tributo\":\"PIS\"}]},\"valor_centavos\":null}",
+      "sha256": "4d8a58455d0b5a409f8f63a59a2a29e22bff100b30170f47a3771a40535bd7ed"
+    },
+    {
+      "nome": "ordenar_arrays compara o texto canônico (número 10 antes de 9 como texto)",
+      "contrato": {
+        "campos_hash": [
+          "p"
+        ],
+        "ordenar_arrays": {
+          "p": [
+            "n"
+          ]
+        }
+      },
+      "payload": "{\"p\":[{\"n\":9},{\"n\":10}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"p\":[{\"n\":10},{\"n\":9}]},\"valor_centavos\":null}",
+      "sha256": "508eac5496eb8c1aa6f955aba1e443fce0df2f843e2a1eef05e33185a1f8aab9"
+    },
+    {
+      "nome": "ordenar_arrays: empate desempata pelo item inteiro",
+      "contrato": {
+        "campos_hash": [
+          "p"
+        ],
+        "ordenar_arrays": {
+          "p": [
+            "socio"
+          ]
+        }
+      },
+      "payload": "{\"p\":[{\"socio\":\"S1\",\"v\":2},{\"socio\":\"S1\",\"v\":1}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"p\":[{\"socio\":\"S1\",\"v\":1},{\"socio\":\"S1\",\"v\":2}]},\"valor_centavos\":null}",
+      "sha256": "d8627ea6b2bf6df4b1d640ee458ecabbe2c9ec7cb249ab7a2757564aa818dbd5"
+    },
+    {
+      "nome": "ordenar_arrays: normaliza antes de ordenar",
+      "contrato": {
+        "campos_hash": [
+          "p"
+        ],
+        "ordenar_arrays": {
+          "p": [
+            "socio"
+          ]
+        }
+      },
+      "payload": "{\"p\":[{\"socio\":\" S2\"},{\"socio\":\"S1 \"}]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"p\":[{\"socio\":\"S1\"},{\"socio\":\"S2\"}]},\"valor_centavos\":null}",
+      "sha256": "270684e1db8d92c9b09a2996bfb7b02fbcfcfa6a079c8f4f41952735b88e3a74"
+    },
+    {
+      "nome": "array fora de ordenar_arrays mantém a ordem",
+      "contrato": {
+        "campos_hash": [
+          "l"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"l\":[\"b\",\"a\"]}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{\"l\":[\"b\",\"a\"]},\"valor_centavos\":null}",
+      "sha256": "140ed8e73d5a78683d0c9e21831619e870f5e983dd36f4b98be1c539bb63df6b"
+    },
+    {
+      "nome": "valor_centavos sempre entra, mesmo nulo",
+      "contrato": {
+        "campos_hash": [
+          "a"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{}",
+      "valor_centavos": null,
+      "canonico": "{\"payload\":{},\"valor_centavos\":null}",
+      "sha256": "6ce2074e31e2dd4d213266a5f6667a2a81675aafcd1b82b1fd3e302b6fefb914"
+    },
+    {
+      "nome": "ordem das chaves no canônico por code point, como na v4",
+      "contrato": {
+        "campos_hash": [
+          "b",
+          "a",
+          "é"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload": "{\"é\":1,\"b\":2,\"a\":3}",
+      "valor_centavos": 7,
+      "canonico": "{\"payload\":{\"a\":3,\"b\":2,\"é\":1},\"valor_centavos\":7}",
+      "sha256": "2becbd3411aff6db81680b723c92a24189705599bd719ff6e851ffe5f815153e"
+    }
+  ],
+  "iguais": [
+    {
+      "nome": "ordem diferente das parcelas",
+      "contrato": {
+        "campos_hash": [
+          "parcelas"
+        ],
+        "ordenar_arrays": {
+          "parcelas": [
+            "socio",
+            "tributo"
+          ]
+        }
+      },
+      "payload_a": "{\"parcelas\":[{\"socio\":\"S1\",\"valor_centavos\":1},{\"socio\":\"S2\",\"valor_centavos\":2}]}",
+      "payload_b": "{\"parcelas\":[{\"socio\":\"S2\",\"valor_centavos\":2},{\"socio\":\"S1\",\"valor_centavos\":1}]}",
+      "valor_centavos": null,
+      "sha256": "e1fef59d70838b379d9bcad3b7425254d2126fc3136bfbdbbd9b427a258e64aa"
+    },
+    {
+      "nome": "rastro diferente",
+      "contrato": {
+        "campos_hash": [
+          "competencia_impressa",
+          "vencimento"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload_a": "{\"competencia_impressa\":\"202609\",\"vencimento\":\"2026-10-20\",\"documento_id\":\"doc-1\"}",
+      "payload_b": "{\"competencia_impressa\":\"202609\",\"vencimento\":\"2026-10-20\",\"documento_id\":\"doc-2\"}",
+      "valor_centavos": null,
+      "sha256": "1bb9c57fa4131db9c355db10bf8ec658de186cc01bb061ac4e93da0b5ac83858"
+    },
+    {
+      "nome": "nulo × ausente",
+      "contrato": {
+        "campos_hash": [
+          "inss_centavos",
+          "irrf_centavos"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload_a": "{\"inss_centavos\":1}",
+      "payload_b": "{\"inss_centavos\":1,\"irrf_centavos\":null}",
+      "valor_centavos": null,
+      "sha256": "5d6a64d75526cc94c40b4601a2253d1d15a9cb612263764a599733e9ac181467"
+    },
+    {
+      "nome": "NFC e espaços",
+      "contrato": {
+        "campos_hash": [
+          "texto"
+        ],
+        "ordenar_arrays": {}
+      },
+      "payload_a": "{\"texto\":\"Revis\\u00e3o  feita\\npor Ana\"}",
+      "payload_b": "{\"texto\":\"Revisa\\u0303o feita por Ana \"}",
+      "valor_centavos": null,
+      "sha256": "91eebb5e0270ae1876db0826c1ecd60c0509f8495723d6925d4b2486b65baa5d"
+    }
+  ]
+}
