@@ -152,7 +152,7 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - Verificador: `--cenario cenarios/c20-m2-contrato-de-fato.json`, depois C9.
   - _Requisitos: 23.2, 23.3_
 
-- [ ] 27. Hash v2
+- [x] 27. Hash v2
   - `projetar → normalizar → ordenar → canonico → sha256` como funções puras do domínio; o canônico é o da v4.
   - Testes unitários com todos os casos e pares de `contrato/vetores-hash-v2.json` e com `contrato/vetores-hash.json`.
   - Comparação sempre sob o contrato ativo, recalculando o hash da vigente; nada de `UPDATE` em `fatos.fato`.
