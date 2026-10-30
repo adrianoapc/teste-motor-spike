@@ -67,9 +67,9 @@ final class RevisaoCodexTest extends TestCase
     }
 
     /** @param  array<string, mixed>|null  $payload */
-    private function fato(string $titular, string $tipo, ?int $valor, ?array $payload = null): void
+    private function fato(string $titular, string $tipo, ?int $valor, ?array $payload = null, string $observadoEm = '2026-10-01T09:00:00-03:00'): void
     {
-        $corpo = ['titular_id' => $titular, 'competencia' => self::COMP, 'tipo' => $tipo, 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00-03:00'];
+        $corpo = ['titular_id' => $titular, 'competencia' => self::COMP, 'tipo' => $tipo, 'fonte' => self::fontePara($tipo), 'observado_em' => $observadoEm];
         if ($valor !== null) {
             $corpo['valor_centavos'] = $valor;
         }
@@ -77,6 +77,24 @@ final class RevisaoCodexTest extends TestCase
             $corpo['payload'] = $payload;
         }
         $this->postJson('/fatos', $corpo)->assertOk();
+    }
+
+    /** Fonte permitida pelo contrato ativo (V009) do tipo (§6.2 passo 3). */
+    private static function fontePara(string $tipo): string
+    {
+        return match ($tipo) {
+            'notas_oneflow' => 'oneflow',
+            'aliquota_mes' => 'calculo',
+            'apurado' => 'tarefa',
+            'guia' => 'porta_documental',
+            'folha' => 'dp',
+            'divisao_socios' => 'calculo',
+            'prolabore' => 'tarefa',
+            'recibo_obrigacao' => 'integra',
+            'documento_disponibilizado', 'entrega_confirmada', 'entrega_falhou' => 'entrega',
+            'recebimento_pendente' => 'agendador',
+            default => 'intranet', // faturamento_mes, taxa_municipal
+        };
     }
 
     public function test_salvar_estado_com_estado_esperado_velho_devolve_false_e_transicionador_lanca_409(): void
@@ -115,7 +133,7 @@ final class RevisaoCodexTest extends TestCase
         $fatos->travarChave('TCX3', self::COMP, 'faturamento_mes', '');
 
         $this->fato('TCX3', 'faturamento_mes', 100);
-        $this->postJson('/fatos', ['titular_id' => 'TCX3', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => 100])
+        $this->postJson('/fatos', ['titular_id' => 'TCX3', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => 100])
             ->assertOk()->assertJsonPath('efeito', 'sem_mudanca');
     }
 
@@ -203,7 +221,7 @@ final class RevisaoCodexTest extends TestCase
     public function test_fato_rejeita_valor_centavos_string_numerica_com_422(): void
     {
         $this->postJson('/fatos', [
-            'titular_id' => 'TCX6', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'titular_id' => 'TCX6', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet',
             'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => '100',
         ])->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX6')->count());
@@ -224,7 +242,7 @@ final class RevisaoCodexTest extends TestCase
     public function test_fato_rejeita_observado_em_invalido_com_422(string $data): void
     {
         $this->postJson('/fatos', [
-            'titular_id' => 'TCX7', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'titular_id' => 'TCX7', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet',
             'observado_em' => $data, 'valor_centavos' => 100,
         ])->assertStatus(422);
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX7')->count());
@@ -232,10 +250,12 @@ final class RevisaoCodexTest extends TestCase
 
     public function test_fato_aceita_observado_em_rfc3339_com_fracao_e_z(): void
     {
-        foreach (['2026-10-01T09:00:00Z', '2026-10-01T09:00:00.123Z', '2026-10-01T09:00:00.123456-03:00'] as $i => $data) {
+        foreach (['2026-10-01T09:00:00Z', '2026-10-01T09:00:00.123Z', '2026-10-01T09:00:00.123456-03:00'] as $data) {
+            // faturamento_mes tem qualificador usa:false (sem tributo); as três publicações da
+            // mesma chave e mesmo valor dão novo, depois sem_mudanca — todas 200.
             $this->postJson('/fatos', [
-                'titular_id' => 'TCX8', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'tributo' => "T{$i}",
-                'fonte' => 'teste', 'observado_em' => $data, 'valor_centavos' => 100,
+                'titular_id' => 'TCX8', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+                'fonte' => 'intranet', 'observado_em' => $data, 'valor_centavos' => 100,
             ])->assertOk();
         }
     }
@@ -251,45 +271,57 @@ final class RevisaoCodexTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_cf01_com_faturamento_nulo_e_nota_zero_diverge_classe_s_e_nao_vira_ok(): void
-    {
-        $caso = $this->abrirCaso('TCX10');
-        $this->fato('TCX10', 'faturamento_mes', null, ['obs' => 'sem valor']);
-        $this->fato('TCX10', 'notas_oneflow', 0);
-        $this->fato('TCX10', 'aliquota_mes', null, ['aliquota_bp' => 600]);
+    // NOTA (M2/v5): o teste "CF-01 classe S com faturamento de valor nulo" foi removido.
+    // A classe S da CF-01 exigia um faturamento_mes PRESENTE com valor_centavos nulo; na v5 o
+    // contrato de faturamento_mes torna valor_centavos obrigatório, então esse fato é recusado na
+    // entrada (payload_invalido) e nunca chega a gravar. Sem o fato presente, o E01 não atinge
+    // `processado` e a CF-01 não roda — logo o caminho de classe S por "operando nulo" deixou de
+    // existir para a CF-01. A classe S por fato ausente continua coberta pela CF-12 (teste abaixo).
+    // Ver spikes/php/DUVIDAS.md (M2).
 
-        $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
-        $this->assertNotNull($e01);
-        $this->assertSame(EstadoEntregavel::Divergente, $e01->estado);
-
-        $c = (array) DB::selectOne("SELECT resultado, classe, diferenca, fatos_usados FROM conferencias.conferencia WHERE entregavel_id = ? AND cf = 'CF-01' ORDER BY em DESC LIMIT 1", [$e01->id]);
-        $this->assertSame('divergente', $c['resultado']);
-        $this->assertSame('S', $c['classe']);
-        $this->assertIsString($c['diferenca']);
-        $this->assertStringContainsString('faturamento_mes.valor', $c['diferenca']);
-        $this->assertIsString($c['fatos_usados']);
-        $usados = json_decode($c['fatos_usados'], true, flags: JSON_THROW_ON_ERROR);
-        $this->assertIsArray($usados);
-        $this->assertCount(2, $usados);
-    }
-
-    public function test_resultado_de_dado_ausente_mantem_fatos_consultados_e_o_hash_muda_com_a_versao(): void
+    public function test_nova_versao_do_fato_usado_muda_o_entrada_hash_da_conferencia(): void
     {
         $caso = $this->abrirCaso('TCX11');
-        $this->fato('TCX11', 'faturamento_mes', null, ['v' => 1]);
-        $this->fato('TCX11', 'notas_oneflow', 0);
+        // v5: faturamento_mes exige valor_centavos. Divergência B (faturamento ≠ notas) gera a CF-01;
+        // uma nova versão do faturamento muda o entrada_hash => nova conferência (não reaproveita).
+        $this->fato('TCX11', 'faturamento_mes', 5000000);
+        $this->fato('TCX11', 'notas_oneflow', 4000000);
         $this->fato('TCX11', 'aliquota_mes', null, ['aliquota_bp' => 600]);
         $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
         $this->assertNotNull($e01);
 
         $antes = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->count();
-        // Nova versão (ainda nula) do faturamento: o hash de entrada tem de mudar => nova conferência.
-        $this->fato('TCX11', 'faturamento_mes', null, ['v' => 2]);
+        // Nova versão do faturamento (observado_em MAIS TARDE, senão seria conflito_fonte na v5):
+        // o hash de entrada muda => nova conferência.
+        $this->fato('TCX11', 'faturamento_mes', 4500000, null, '2026-10-01T10:00:00-03:00');
         $depois = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->count();
         $this->assertGreaterThan($antes, $depois);
 
         $hashes = DB::table('conferencias.conferencia')->where('entregavel_id', $e01->id)->where('cf', 'CF-01')->pluck('entrada_hash')->map(static fn (mixed $h): string => is_string($h) ? $h : '')->all();
         $this->assertSame(count($hashes), count(array_unique($hashes)));
+    }
+
+    /**
+     * §6.4: fração com 7+ dígitos. O Postgres ARREDONDA ao gravar timestamptz (…1234567 -> .123457);
+     * PHP sozinho TRUNCARIA (.123456). Uma republicação com o MESMO instante, a MESMA fonte e valor
+     * diferente tem de dar conflito_fonte, não obsoleto por 1 µs de diferença de precisão.
+     */
+    public function test_republicacao_no_mesmo_instante_com_fracao_de_7_digitos_e_conflito_fonte(): void
+    {
+        $em = '2026-10-01T09:00:00.1234567-03:00';
+        $this->postJson('/fatos', [
+            'titular_id' => 'TPREC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 100,
+        ])->assertOk()->assertJsonPath('efeito', 'novo');
+
+        // Mesmo instante (idêntico), mesma fonte, valor diferente => hash muda => conflito_fonte (§6.4).
+        $this->postJson('/fatos', [
+            'titular_id' => 'TPREC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 200,
+        ])->assertOk()->assertJsonPath('efeito', 'conflito_fonte');
+
+        // Só a versão 1 permanece vigente (conflito_fonte não grava novo fato).
+        $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', 'TPREC')->where('tipo', 'faturamento_mes')->count());
     }
 
     public function test_abrir_competencias_trava_a_chave_e_reporta_existente_na_segunda_chamada(): void
@@ -323,7 +355,7 @@ final class RevisaoCodexTest extends TestCase
     #[DataProvider('payloadsNaoObjeto')]
     public function test_fato_rejeita_payload_que_nao_e_objeto_com_422(string $payloadJson): void
     {
-        $corpo = '{"titular_id":"TCX13","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00-03:00","payload":'.$payloadJson.'}';
+        $corpo = '{"titular_id":"TCX13","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"intranet","observado_em":"2026-10-01T09:00:00-03:00","payload":'.$payloadJson.'}';
         $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)
             ->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX13')->count());
@@ -369,7 +401,7 @@ final class RevisaoCodexTest extends TestCase
     public function test_lock_do_titular_exclui_outra_conexao(): void
     {
         $this->app->make(RepositorioCaso::class)->travarTitular('TLOCK');
-        $chave = json_encode(['titular', 'TLOCK'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $chave = 'titular|TLOCK';
 
         $c = DB::connection();
         $pdo2 = new \PDO(
@@ -381,7 +413,7 @@ final class RevisaoCodexTest extends TestCase
         $st->execute([$chave]);
         $this->assertFalse((bool) $st->fetchColumn(), 'segunda conexão não deveria obter o lock do titular');
         $st = $pdo2->prepare('SELECT pg_try_advisory_lock(hashtextextended(?, 0))');
-        $st->execute([json_encode(['titular', 'OUTRO'], JSON_THROW_ON_ERROR)]);
+        $st->execute(['titular|OUTRO']);
         $this->assertTrue((bool) $st->fetchColumn(), 'outro titular não é bloqueado');
     }
 
@@ -393,7 +425,7 @@ final class RevisaoCodexTest extends TestCase
     public function test_fato_rejeita_propriedade_nao_declarada_com_422(): void
     {
         $this->postJson('/fatos', [
-            'titular_id' => 'TCX20', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste',
+            'titular_id' => 'TCX20', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet',
             'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavo' => 100,
         ])->assertStatus(422);
         $this->assertSame(0, DB::table('fatos.fato')->where('titular_id', 'TCX20')->count());
@@ -456,8 +488,8 @@ final class RevisaoCodexTest extends TestCase
 
     public function test_competencia_com_quebra_de_linha_final_da_422(): void
     {
-        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP."\n", 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'])->assertStatus(422);
-        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => "2026-10-01T09:00:00Z\n"])->assertStatus(422);
+        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP."\n", 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => '2026-10-01T09:00:00Z'])->assertStatus(422);
+        $this->postJson('/fatos', ['titular_id' => 'TCX31', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => "2026-10-01T09:00:00Z\n"])->assertStatus(422);
         $this->postJson('/competencias/abrir', ['competencia' => self::COMP."\n", 'ator' => 'x', 'empresas' => []])->assertStatus(422);
         $this->getJson('/casos/T/'.self::COMP.'%0A')->assertStatus(422);
         $this->expectException(\InvalidArgumentException::class);
@@ -497,21 +529,23 @@ final class RevisaoCodexTest extends TestCase
 
     public function test_fato_com_payload_de_inteiros_int64_e_aceito_e_hash_confere(): void
     {
-        $corpo = '{"titular_id":"TCX42","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775807,"payload":{"n":9223372036854775807}}';
+        $corpo = '{"titular_id":"TCX42","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"intranet","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775807,"payload":{"n":9223372036854775807}}';
         $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertOk();
         $linha = (array) DB::selectOne("SELECT hash FROM fatos.fato WHERE titular_id = 'TCX42'");
-        $this->assertSame('a662ca55bae7e6594d1710edf24d8afd8fcc352382caabbbba08e1fd7e6d50c0', $linha['hash']);
+        // v5 (§6.3): faturamento_mes tem campos_hash vazio, então o payload projeta para {} e o
+        // hash depende só do valor_centavos: sha256('{"payload":{},"valor_centavos":9223372036854775807}').
+        $this->assertSame('f003a126a3bf32adc23f4fcf69814c7336b86c900d7cfe0ca1d6e8b10f234db3', $linha['hash']);
     }
 
     public function test_valor_centavos_alem_de_int64_da_422(): void
     {
-        $corpo = '{"titular_id":"TCX41","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"teste","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775808}';
+        $corpo = '{"titular_id":"TCX41","competencia":"'.self::COMP.'","tipo":"faturamento_mes","fonte":"intranet","observado_em":"2026-10-01T09:00:00Z","valor_centavos":9223372036854775808}';
         $this->call('POST', '/fatos', [], [], [], ['CONTENT_TYPE' => 'application/json'], $corpo)->assertStatus(422);
     }
 
     public function test_tributo_vazio_e_aceito_e_textos_valem_como_enviados(): void
     {
-        $base = ['competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavos' => 1];
+        $base = ['competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavos' => 1];
         $this->postJson('/fatos', $base + ['titular_id' => 'TS1 ', 'tributo' => ''])->assertOk();
         $this->postJson('/fatos', $base + ['titular_id' => '   '])->assertOk();
         $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', 'TS1 ')->where('tributo', '')->count());
@@ -537,7 +571,7 @@ final class RevisaoCodexTest extends TestCase
     #[DataProvider('fusos')]
     public function test_observado_em_com_fuso_fora_do_intervalo_do_postgres_da_422_e_nao_500(string $data, int $status): void
     {
-        $this->postJson('/fatos', ['titular_id' => 'TFUSO', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => $data])->assertStatus($status);
+        $this->postJson('/fatos', ['titular_id' => 'TFUSO', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => $data, 'valor_centavos' => 100])->assertStatus($status);
     }
 
     public function test_erros_500_e_405_saem_em_json_sem_accept(): void
@@ -602,7 +636,7 @@ final class RevisaoCodexTest extends TestCase
         $post('/casos/T%00/'.self::COMP.'/entregaveis/E01/override', $json(['ator' => 'x', 'cf' => 'CF-01', 'motivo' => 'motivo valido']))->assertStatus(422)->assertJsonPath('erro', 'corpo_invalido');
 
         // U+0001..U+001F continuam permitidos.
-        $this->postJson('/fatos', ['titular_id' => "T\u{1}X", 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00Z'])->assertOk();
+        $this->postJson('/fatos', ['titular_id' => "T\u{1}X", 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => '2026-10-01T09:00:00Z', 'valor_centavos' => 100])->assertOk();
     }
 
     public function test_cf12_ok_grava_esperado_e_obtido_nulos_e_diferenca_zero(): void
@@ -610,7 +644,10 @@ final class RevisaoCodexTest extends TestCase
         $caso = $this->abrirCaso('TCX50');
         $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
         $this->assertNotNull($e01);
-        $this->fato('TCX50', 'recibo_obrigacao', null, ['n' => 1]);
+        $this->postJson('/fatos', [
+            'titular_id' => 'TCX50', 'competencia' => self::COMP, 'tipo' => 'recibo_obrigacao', 'tributo' => 'PGDAS-D',
+            'fonte' => 'integra', 'observado_em' => '2026-10-01T09:00:00-03:00', 'payload' => ['numero_recibo' => 'R-1'],
+        ])->assertOk();
         $fato = (array) DB::selectOne("SELECT id::text AS id, versao FROM fatos.fato WHERE titular_id = 'TCX50' AND tipo = 'recibo_obrigacao'");
         $this->assertIsString($fato['id']);
 
@@ -663,12 +700,15 @@ final class RevisaoCodexTest extends TestCase
         $this->assertStringContainsString('recibo_obrigacao[PGDAS-D]', self::txt($linha['dif']));
     }
 
-    public function test_conferencia_grava_semantica_calculo_2_e_legada_nao_e_reaproveitada(): void
+    public function test_conferencia_grava_semantica_calculo_corrente_e_legada_nao_e_reaproveitada(): void
     {
         $caso = $this->abrirCaso('TCX60');
         $e01 = $this->app->make(RepositorioEntregavel::class)->porCasoTipo($caso['id'], 'E01');
         $this->assertNotNull($e01);
-        $this->fato('TCX60', 'recibo_obrigacao', null, ['n' => 1]);
+        $this->postJson('/fatos', [
+            'titular_id' => 'TCX60', 'competencia' => self::COMP, 'tipo' => 'recibo_obrigacao', 'tributo' => 'PGDAS-D',
+            'fonte' => 'integra', 'observado_em' => '2026-10-01T09:00:00-03:00', 'payload' => ['numero_recibo' => 'R-1'],
+        ])->assertOk();
         $fato = (array) DB::selectOne("SELECT id::text AS id FROM fatos.fato WHERE titular_id = 'TCX60' AND tipo = 'recibo_obrigacao'");
         $this->assertIsString($fato['id']);
         $usados = [['fato_id' => $fato['id'], 'versao' => 1]];
@@ -700,7 +740,7 @@ final class RevisaoCodexTest extends TestCase
         );
         $this->assertCount(2, $linhas, 'a legada não foi reaproveitada e a nova não duplicou');
         $this->assertSame('1', self::txt($linhas[0]['semantica_calculo']));
-        $this->assertSame('2', self::txt($linhas[1]['semantica_calculo']));
+        $this->assertSame((string) HashConferencia::SEMANTICA_CALCULO, self::txt($linhas[1]['semantica_calculo']));
         $this->assertNotSame($linhas[0]['entrada_hash'], $linhas[1]['entrada_hash']);
         $this->assertNull($linhas[1]['esperado_centavos']);
     }
@@ -712,7 +752,7 @@ final class RevisaoCodexTest extends TestCase
         $this->app->forgetScopedInstances(); // próxima requisição: a leitura de regra é refeita
 
         // A reavaliação lê a tolerância em uso: com a regra malformada o motor para, em vez de assumir 0/0.
-        $this->postJson('/fatos', ['titular_id' => 'TCX70', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'teste', 'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => 100])
+        $this->postJson('/fatos', ['titular_id' => 'TCX70', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes', 'fonte' => 'intranet', 'observado_em' => '2026-10-01T09:00:00-03:00', 'valor_centavos' => 100])
             ->assertStatus(500)
             ->assertJsonPath('erro', 'regra_invalida')
             ->assertJsonPath('mensagem', fn (string $m): bool => str_contains($m, 'fiscal.tolerancia') && str_contains($m, "'padrao' ausente"));

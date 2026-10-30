@@ -8,6 +8,7 @@ use App\Aplicacao\Conferencias\Conferidor;
 use App\Aplicacao\Conferencias\FatosDoCaso;
 use App\Aplicacao\Conferencias\Formulas;
 use App\Aplicacao\Conferencias\ParametrosDeConferencia;
+use App\Aplicacao\Fatos\PublicacaoDeFato;
 use App\Aplicacao\Fatos\PublicarFato;
 use App\Aplicacao\Fatos\PublicarFatoComando;
 use App\Aplicacao\Fatos\ResultadoFato;
@@ -45,6 +46,10 @@ final class Mundo
 
     public FatosMemoria $fatos;
 
+    public ContratosMemoria $contratos;
+
+    public RecebimentosMemoria $recebimentos;
+
     public TarefasMemoria $tarefas;
 
     public EventosMemoria $eventos;
@@ -73,6 +78,8 @@ final class Mundo
 
     public Acompanhar $acompanhar;
 
+    public PublicacaoDeFato $publicacao;
+
     public AbrirCompetencias $abrir;
 
     public PublicarFato $publicar;
@@ -90,6 +97,8 @@ final class Mundo
         $this->entregaveis = new EntregaveisMemoria;
         $this->dependencias = new DependenciasMemoria($this->entregaveis);
         $this->fatos = new FatosMemoria;
+        $this->contratos = new ContratosMemoria;
+        $this->recebimentos = new RecebimentosMemoria;
         $this->tarefas = new TarefasMemoria;
         $this->eventos = new EventosMemoria;
         $this->conferencias = new ConferenciasMemoria;
@@ -111,17 +120,20 @@ final class Mundo
             $this->eventos, $this->transicionador,
         );
         $this->acompanhar = new Acompanhar($this->entregaveis, $this->excecoes, $this->abertura, $this->eventos, $this->fatos, $this->regras);
+        $this->publicacao = new PublicacaoDeFato(
+            $this->contratos, $this->fatos, $this->recebimentos, $this->eventos, $this->abertura,
+        );
         $this->abrir = new AbrirCompetencias(
             $this->uow, $this->casos, $this->entregaveis, $this->dependencias, $this->eventos, $this->regras,
             $this->catalogo, $this->transicionador, $this->avaliar,
         );
         $this->publicar = new PublicarFato(
-            $this->uow, $this->fatos, $this->casos, $this->entregaveis, $this->eventos, $this->avaliar,
+            $this->uow, $this->fatos, $this->casos, $this->entregaveis, $this->publicacao, $this->avaliar,
             $this->invalidador, $this->acompanhar,
         );
         $this->concluir = new ConcluirTarefa(
-            $this->uow, $this->casos, $this->entregaveis, $this->tarefas, $this->fatos, $this->eventos, $this->regras,
-            $this->transicionador, $this->avaliar, $this->invalidador, $this->relogio,
+            $this->uow, $this->casos, $this->entregaveis, $this->tarefas, $this->fatos, $this->regras,
+            $this->publicacao, $this->transicionador, $this->avaliar, $this->invalidador, $this->relogio,
         );
         $this->override = new RegistrarOverride(
             $this->uow, $this->casos, $this->entregaveis, $this->conferencias, $this->excecoes, $this->eventos,
@@ -146,10 +158,10 @@ final class Mundo
     }
 
     /** Publica um fato (PublicarFato real) e devolve o resultado. */
-    public function fato(string $tipo, ?int $valor, mixed $payload = null, string $tributo = '', string $titular = 'T1', string $competencia = self::COMP): ResultadoFato
+    public function fato(string $tipo, ?int $valor, mixed $payload = null, string $tributo = '', string $titular = 'T1', string $competencia = self::COMP, string $observadoEm = '2026-01-10T09:00:00-03:00'): ResultadoFato
     {
         return $this->publicar->publicar(new PublicarFatoComando(
-            $titular, $competencia, $tipo, $tributo, $valor, $payload ?? new \stdClass, 'teste', null, '2026-01-10T09:00:00-03:00',
+            $titular, $competencia, $tipo, $tributo, $valor, $payload ?? new \stdClass, 'teste', null, $observadoEm,
         ));
     }
 

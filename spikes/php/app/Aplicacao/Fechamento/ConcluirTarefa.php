@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Aplicacao\Fechamento;
 
+use App\Aplicacao\Fatos\PublicacaoDeFato;
 use App\Aplicacao\Portas\Relogio;
 use App\Aplicacao\Portas\RepositorioCaso;
 use App\Aplicacao\Portas\RepositorioEntregavel;
-use App\Aplicacao\Portas\RepositorioEvento;
 use App\Aplicacao\Portas\RepositorioFato;
 use App\Aplicacao\Portas\RepositorioRegras;
 use App\Aplicacao\Portas\RepositorioTarefa;
 use App\Aplicacao\Portas\UnidadeDeTrabalho;
 use App\Aplicacao\Suporte\ErroDeNegocio;
-use App\Dominio\Fatos\HashFato;
 use App\Dominio\Fechamento\Caso;
 use App\Dominio\Fechamento\Competencia;
 use App\Dominio\Fechamento\Entregavel;
@@ -30,8 +29,8 @@ final readonly class ConcluirTarefa
         private RepositorioEntregavel $entregaveis,
         private RepositorioTarefa $tarefas,
         private RepositorioFato $fatos,
-        private RepositorioEvento $eventos,
         private RepositorioRegras $regras,
+        private PublicacaoDeFato $publicacao,
         private Transicionador $transicionador,
         private AvaliarCaso $avaliar,
         private Invalidador $invalidador,
@@ -68,6 +67,15 @@ final readonly class ConcluirTarefa
                 throw ErroDeNegocio::invalido('saida_invalida', 'entregável sem saída na regra, ou saídas vazias');
             }
 
+            // §8 passo 3a: cada saída validada contra o contrato ativo de saida.tipo (fonte=tarefa),
+            // TODAS antes de gravar qualquer uma. Erro => 403/422 e nada gravado; a tarefa segue aberta.
+            foreach ($comando->saidas as $i => $saida) {
+                $this->publicacao->validar(
+                    $item->saidaTipo, $saida->tributo, $saida->valorCentavos, $saida->payload,
+                    'tarefa', "saidas[{$i}]",
+                );
+            }
+
             // Publica cada saída como fato (fonte=tarefa) e liga como 'saida'.
             foreach ($comando->saidas as $saida) {
                 $this->publicarSaida($caso, $entregavel, $item->saidaTipo, $saida);
@@ -95,30 +103,20 @@ final readonly class ConcluirTarefa
 
     private function publicarSaida(Caso $caso, Entregavel $entregavel, string $saidaTipo, SaidaDaTarefa $saida): void
     {
-        $hash = HashFato::hash($saida->payload, $saida->valorCentavos);
-        $this->fatos->travarChave($caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo);
-        $vigente = $this->fatos->vigente($caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo);
-
-        if ($vigente !== null && $vigente->hash === $hash) {
-            // sem_mudanca: liga a versão vigente mesmo assim (§8 item 4).
-            $this->entregaveis->ligarFato($entregavel->id, $vigente->id, 'saida');
-
-            return;
-        }
-
-        $versao = $vigente !== null ? $vigente->versao + 1 : 1;
-        $fato = $this->fatos->inserir(
-            $caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo, $versao,
-            // observado_em das saídas = instante atual do banco (design: hora sempre do banco, nunca do PHP).
-            $saida->valorCentavos, $saida->payload, 'tarefa', null, $hash, $vigente?->id, $this->relogio->agora(),
+        // observado_em das saídas = instante atual do banco (design: hora sempre do banco, nunca do PHP).
+        $pub = $this->publicacao->publicar(
+            $caso->titularId, $caso->competencia->valor, $saidaTipo, $saida->tributo,
+            $saida->valorCentavos, $saida->payload, 'tarefa', null, $this->relogio->agora(),
+            null, $caso, '',
         );
-        $this->eventos->gravar('fato.publicado', $caso->id, null, ['fato_id' => $fato->id]);
-        $this->entregaveis->ligarFato($entregavel->id, $fato->id, 'saida');
+
+        // Liga a versão vigente devolvida como 'saida', inclusive quando sem_mudanca (§8 item 4).
+        $this->entregaveis->ligarFato($entregavel->id, $pub->fato->id, 'saida');
 
         // Se nova_versao e o fato anterior estava ligado, invalida (§11) — exceto o
         // próprio entregável que está sendo concluído (§8 item 4).
-        if ($vigente !== null) {
-            $this->invalidador->invalidar($vigente->id, $fato->id, $entregavel->id);
+        if ($pub->efeito === 'nova_versao' && $pub->fatoAnteriorId !== null) {
+            $this->invalidador->invalidar($pub->fatoAnteriorId, $pub->fato->id, $entregavel->id);
         }
     }
 }

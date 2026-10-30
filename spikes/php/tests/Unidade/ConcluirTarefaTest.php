@@ -129,15 +129,21 @@ it('observado_em da saída vem do relógio do banco (port Relogio), não do PHP'
         ->and($m->relogio->leituras)->toBe($leiturasAntes + 1);
 });
 
-it('saída idêntica ao fato vigente não consulta o relógio (nada é gravado)', function (): void {
+it('saída idêntica ao fato vigente não gera versão nova, mas grava o recebimento (§6.4 v5)', function (): void {
     $m = new Mundo;
     casoComE03Pronto($m);
     $m->fato('apurado', 300000, new stdClass, 'DAS');
-    $leiturasAntes = $m->relogio->leituras;
+    $recebimentosAntes = count($m->recebimentos->linhas);
 
     concluirE03($m);
 
-    expect($m->relogio->leituras)->toBe($leiturasAntes);
+    // Uma só versão vigente de apurado[DAS] (efeito sem_mudanca na saída, §8 item 4), mas a
+    // publicação válida gera um recebimento com o relógio do banco (§6.4: inclusive as saídas).
+    $apurado = $m->fatos->vigente('T1', Mundo::COMP, 'apurado', 'DAS') ?? throw new RuntimeException;
+    $ultimo = end($m->recebimentos->linhas);
+    expect($apurado->versao)->toBe(1)
+        ->and(count($m->recebimentos->linhas))->toBe($recebimentosAntes + 1)
+        ->and(is_array($ultimo) ? $ultimo['efeito'] : null)->toBe('sem_mudanca');
 });
 
 it('ordem de locks: titular, depois as chaves dos fatos de saída ordenadas, antes da linha do entregável (§13)', function (): void {

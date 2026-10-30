@@ -14,8 +14,21 @@ interface RepositorioFato
      */
     public function travarChave(string $titularId, string $competencia, string $tipo, string $tributo): void;
 
+    /**
+     * Serializa, até o fim da transação, publicações que compartilham a mesma
+     * (fonte, chave_idempotencia) — mesmo entre titulares diferentes (§6.5). Tomado
+     * ANTES da trava do titular, pois o índice único recebimento_idempotencia é global:
+     * sem isso, dois titulares com a mesma chave veriam ambos "sem recebimento anterior"
+     * e o segundo INSERT violaria o índice (500). A chave é a string 'idem|' || fonte ||
+     * '|' || chave, a mesma nas três spikes.
+     */
+    public function travarIdempotencia(string $fonte, string $chaveIdempotencia): void;
+
     /** Fato vigente (maior versão) de uma chave, ou null. */
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato;
+
+    /** Fato por id (qualquer versão), ou null. Usado pela idempotência de requisição (§6.5). */
+    public function porId(string $fatoId): ?Fato;
 
     /**
      * Insere uma nova versão do fato. $substituiId = id da versão anterior (ou null).
@@ -35,6 +48,7 @@ interface RepositorioFato
         string $hash,
         ?string $substituiId,
         string $observadoEm,
+        int $tipoVersao,
     ): Fato;
 
     /**

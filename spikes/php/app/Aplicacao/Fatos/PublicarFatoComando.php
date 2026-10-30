@@ -18,5 +18,6 @@ final readonly class PublicarFatoComando
         public string $fonte,
         public ?string $origemRef,
         public string $observadoEm,
+        public ?string $chaveIdempotencia = null,
     ) {}
 }

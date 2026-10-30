@@ -6,8 +6,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Extensões: Postgres (pdo_pgsql) e zip (extração de pacotes pelo composer).
-RUN install-php-extensions pdo_pgsql zip
+# Extensões: Postgres (pdo_pgsql), zip (extração de pacotes pelo composer) e intl
+# (Normalizer::normalize FORM_C para o NFC do hash v2, §6.3 — M2).
+RUN install-php-extensions pdo_pgsql zip intl
 
 # Composer, a partir da imagem oficial.
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

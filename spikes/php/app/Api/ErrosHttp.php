@@ -27,6 +27,14 @@ final class ErrosHttp
         });
 
         $exceptions->render(function (ErroDeNegocio $e): JsonResponse {
+            if ($e->violacoes !== []) {
+                return new JsonResponse([
+                    'erro' => $e->codigo,
+                    'mensagem' => $e->getMessage(),
+                    'violacoes' => array_map(static fn ($v) => $v->paraArray(), $e->violacoes),
+                ], $e->status);
+            }
+
             return self::corpo($e->codigo, $e->getMessage(), $e->status);
         });
 

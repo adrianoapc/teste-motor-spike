@@ -170,6 +170,112 @@ A idempotência (req 21.6) não exigiu código novo: o `PublicarFato` já só gr
 
 ---
 
+## Manutenção M2 (fase 4.5 — cenários C19–C23 + regressão C1–C13, C6)
+
+- **Hora de início (tarefa 25):** 2026-10-28 23:56 UTC (20:56 -03) — relógio do banco (`select now()` em `spike_php`).
+- Branch: `m2/spike-php`, a partir de `origin/main` `72b7d4e` (V009, contrato 1.4.0, semântica v5, contratos de tipo de fato, cenários C19–C23).
+
+- **Hora de fim (18/18):** 2026-10-29 01:03 UTC (28/10 22:03 -03) — relógio do banco. **Tempo de relógio: ~1h07 (23:56 → 01:03 UTC).**
+
+### Resumo da manutenção M2
+
+| Medida | Valor |
+|---|---|
+| Tempo de relógio (tarefa 25 → 18/18) | ~1h07 |
+| Retrabalhos (verificador rodado e falhou, exigindo correção no motor) | 1 — C20 falhou com HTTP 500 `properties must be an object`: o esquema do contrato era decodificado com `json_decode(..., true)`, que troca `{}` por `[]` e o opis recusa. Corrigido decodificando o esquema como objeto (`stdClass`) em `RepositorioContratoTipoFatoDb` |
+| Intervenções humanas (durante a execução) | 0 — o plano foi dado uma vez no início; nenhuma decisão humana bloqueou a execução das tarefas 25–30 |
+| Erros barrados pelo PHPStan antes de teste | 15 (tarefa 26: 11; tarefa 27: 2; tarefa 29: 2) — todos em `REGISTRO-COMPILADOR.md`, nenhum `@phpstan-ignore` nem baseline |
+| Testes ao fim | **301 passando** (1398 asserções), suíte inteira (Unidade + Arquitetura + Integração) com `memory_limit=512M`; PHPStan `max` sem erro; Pint limpo |
+| `--todos cenarios --fase 4.5 --limpar` | **18/18** (relatório em `resultado-fase45-php.json`), só a spike PHP no ar |
+
+`git diff --stat origin/main` da fase (código + testes; os 15 arquivos novos abaixo são contados à parte por serem *untracked* até o commit):
+
+```
+ spikes/php/Dockerfile                              |   5 +-   (intl)
+ spikes/php/composer.json                           |   4 +-   (ext-intl, opis/json-schema ^2.4)
+ spikes/php/composer.lock                           | 195 ++++  (opis/json-schema 2.6.0 como dep direta)
+ app/Api/Controllers/FatosController.php            |   7 +-   (chave_idempotencia, repetido)
+ app/Api/ErrosHttp.php                              |   8 +    (violacoes no corpo de erro)
+ app/Aplicacao/Fatos/PublicarFato.php               |  58 +-   (núcleo PublicacaoDeFato + idempotência)
+ app/Aplicacao/Fatos/PublicarFatoComando.php        |   1 +
+ app/Aplicacao/Fatos/ResultadoFato.php              |   3 +-   (repetido)
+ app/Aplicacao/Fechamento/ConcluirTarefa.php        |  44 +-   (§8 passo 3a + núcleo)
+ app/Aplicacao/Portas/RepositorioFato.php           |   4 +    (porId, tipoVersao)
+ app/Aplicacao/Suporte/ErroDeNegocio.php            |  28 +-   (tipo_desconhecido/fonte/payload_invalido)
+ app/Dominio/Fatos/Fato.php                         |   5 +    (fonte, observadoEm, tipoVersao)
+ app/Infraestrutura/Persistencia/RepositorioCasoDb.php  | 5 +-  (chave do lock §13: 'titular|'||id)
+ app/Infraestrutura/Persistencia/RepositorioFatoDb.php  | 35 +  (tipo_versao, porId)
+ app/Providers/AppServiceProvider.php               |   6 +    (bind dos novos repositórios)
+ tests/Integracao/InfraBancoTest.php                |   6 +-   (base M2: entregaveis v3, tolerância 10)
+ tests/Integracao/RevisaoCodexTest.php              | 119 +-   (fonte por tipo, valor obrigatório, §13)
+ tests/Integracao/VetoresFatosTest.php              |  48 +-   (recorte v5: forma do corpo)
+ tests/Unidade/AcompanharTest.php                   |   4 +-
+ tests/Unidade/ConcluirTarefaTest.php               |  12 +-
+ tests/Unidade/Fakes/FatosMemoria.php               |  17 +-
+ tests/Unidade/Fakes/Mundo.php                      |  22 +-
+ 22 files changed, 483 insertions(+), 153 deletions(-)
+```
+
+Arquivos novos (não aparecem no `--stat` acima até o commit), 1 435 linhas no total:
+
+```
+ app/Dominio/Fatos/ContratoTipoFato.php             |  51   app/Dominio/Fatos/Violacao.php                     |  23
+ app/Dominio/Fatos/ValidadorContrato.php            | 151   app/Dominio/Fatos/HashFatoV2.php                   | 165
+ app/Aplicacao/Portas/RepositorioContratoTipoFato.php | 17  app/Aplicacao/Portas/RepositorioRecebimento.php    |  39
+ app/Aplicacao/Fatos/PublicacaoDeFato.php           | 247   app/Aplicacao/Fatos/Publicacao.php                 |  23
+ app/Infraestrutura/Persistencia/RepositorioContratoTipoFatoDb.php | 99
+ app/Infraestrutura/Persistencia/RepositorioRecebimentoDb.php      |  70
+ tests/Unidade/HashV2Test.php                       |  74   tests/Unidade/Fakes/ContratosMemoria.php           |  54
+ tests/Unidade/Fakes/RecebimentosMemoria.php        |  52   tests/Integracao/ConcorrenciaTitularTest.php       |  85
+ tests/fixtures/vetores-hash-v2.json                | 362  (cópia do contrato, fixture dos testes)
+```
+
+### Desempenho — C6 antes e depois da trava por titular (só a spike PHP no ar)
+
+| Medida | Fase 4 (v4, sem trava) | Fase 4.5 (v5, com trava §13 + contrato + recebimento) |
+|---|---|---|
+| C6 abertura de 4.500 casos | 53,3 s | 48,46 s |
+| C6 p95 das 300 publicações em lote | 0,030 s | 0,173 s |
+| Abertura de 10.000 empresas numa requisição (SN puras) | 245,1 s (pior caso, host ocupado) | 73,3 s |
+
+Relatórios: `resultado-fase4-php.json` (fase 4) e `resultado-c6-m2-php.json` (C6 isolado da M2).
+
+**Leitura honesta:** o p95 por publicação **sobe** de 0,030 s para 0,173 s na M2 — é o custo esperado do que a M2 acrescenta a cada `/fatos`: a trava consultiva do titular (§13), a leitura do contrato ativo do banco a cada publicação (§6.1, nada em memória), a validação de esquema com `opis/json-schema`, o cálculo do hash v2 e a gravação do recebimento. A abertura em massa não piora (até melhora, dentro do ruído do host). O número de 10.000 (73,3 s contra 245,1 s) **não é comparável**: o 245,1 s da fase 4 foi medido com o host ocupado e é o "pior caso" único; a medida da M2 saiu com carga ~6 (10 CPUs). Tempo de parede continua sendo ordem de grandeza, não comparação fina.
+
+### Concorrência — C21 três execuções seguidas
+
+`--cenario cenarios/c21-m2-concorrencia-por-titular.json --limpar`, três vezes:
+
+| Execução | Resultado |
+|---|---|
+| 1 | PASSOU (318 checagens, 0 falha) |
+| 2 | PASSOU (318 checagens, 0 falha) |
+| 3 | PASSOU (318 checagens, 0 falha) |
+
+Teste de integração dedicado (`ConcorrenciaTitularTest`): duas conexões, o mesmo titular serializa (a segunda não obtém `pg_try_advisory_xact_lock` enquanto a primeira segura), titulares diferentes não se bloqueiam, e a chave do lock do spike é idêntica a `hashtextextended('titular|' || titular_id, 0)`.
+
+### Tarefa 25 — regressão sem mudar código
+
+Rodado contra o código v4 inalterado, banco na V009.
+
+- **`--todos cenarios --fase 4 --limpar`: 13/13** (guardrail da tarefa 25 cumprido — a semântica v4 segue intacta; os cenários C1–C13 só mudaram o `observado_em` e a v4 o ignora).
+- **`--todos cenarios --fase 4.5 --limpar`: 0/18** — todos os 18 cenários quebram pela **mesma raiz**: a `--fase 4.5` liga as invariantes INV-16/17/18 e as checagens de contrato (C19–C23) que a v4 ainda não atende.
+
+**Medida de impacto da M2** (o que o código v4 não faz e a fase 4.5 cobra):
+
+| Lacuna v4 | Onde (semântica v5) | Como aparece na falha |
+|---|---|---|
+| Não grava `fatos.recebimento` em nenhuma publicação | §6.4 | INV-16 (todo fato sem recebimento `novo`/`nova_versao`); `recebimentos ...: [], esperado ['novo']` |
+| Não grava `tipo_versao` no fato nem no recebimento | §6.1, §6.4 | `vigente ...: tipo_versao None, esperado 1`; INV-17 |
+| Não valida o payload contra o contrato de tipo de fato | §6.1, §6.2 | `erro None, esperado 'payload_invalido' / 'tipo_desconhecido' / 'fonte_nao_autorizada'`; saída de `/concluir` grava o fato em vez de recusar (`estado 'validado', esperado 'pronto'`) |
+| Hash v1 (sem projeção por `campos_hash`, sem normalização de texto, sem ordenação de arrays) | §6.3 | C19/C23: `efeito 'nova_versao', esperado 'novo'` / versões a mais numa chave |
+| Sem efeitos `obsoleto`/`conflito_fonte` nem exceção `conflito_fonte` | §6.4, §9.4 | C22 |
+| Sem `chave_idempotencia` nem trava consultiva por titular | §6.5, §13 | C21 |
+
+As tarefas 26–29 fecham essas lacunas; a tarefa 30 fecha com 18/18.
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.

@@ -23,6 +23,11 @@ final class FatosMemoria implements RepositorioFato
         $this->travas[] = "{$tipo}|{$tributo}";
     }
 
+    public function travarIdempotencia(string $fonte, string $chaveIdempotencia): void
+    {
+        $this->travas[] = "idem|{$fonte}|{$chaveIdempotencia}";
+    }
+
     public function vigente(string $titularId, string $competencia, string $tipo, string $tributo): ?Fato
     {
         $vigente = null;
@@ -34,6 +39,17 @@ final class FatosMemoria implements RepositorioFato
         }
 
         return $vigente;
+    }
+
+    public function porId(string $fatoId): ?Fato
+    {
+        foreach ($this->versoes as $f) {
+            if ($f->id === $fatoId) {
+                return $f;
+            }
+        }
+
+        return null;
     }
 
     public function inserir(
@@ -49,8 +65,12 @@ final class FatosMemoria implements RepositorioFato
         string $hash,
         ?string $substituiId,
         string $observadoEm,
+        int $tipoVersao = 1,
     ): Fato {
-        $fato = new Fato('fato-'.(count($this->versoes) + 1), $titularId, $competencia, $tipo, $tributo, $versao, $valorCentavos, $payload, $hash);
+        $fato = new Fato(
+            'fato-'.(count($this->versoes) + 1), $titularId, $competencia, $tipo, $tributo, $versao,
+            $valorCentavos, $payload, $hash, $fonte, $observadoEm, $tipoVersao,
+        );
         $this->versoes[] = $fato;
         $this->observadoEm[$fato->id] = $observadoEm;
 
