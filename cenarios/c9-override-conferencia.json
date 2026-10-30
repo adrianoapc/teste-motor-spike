@@ -135,7 +135,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-01",
-        "motivo": "ok"
+        "motivo": "ok",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 422
@@ -150,7 +151,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-01",
-        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 404
@@ -165,7 +167,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-01",
-        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 409
@@ -180,7 +183,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-04",
-        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 409
@@ -195,7 +199,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-01",
-        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 200
@@ -210,7 +215,8 @@
       "corpo": {
         "ator": "coord-fiscal",
         "cf": "CF-01",
-        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura"
+        "motivo": "Nota emitida fora do OneFlow, conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
       },
       "espera": {
         "status": 409

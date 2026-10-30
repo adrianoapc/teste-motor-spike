@@ -175,3 +175,49 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - Push da branch e PR para a `main`.
   - _Requisitos: 23.10, 24_
 
+## Fase 4.6 · manutenção M3 (terceiro teste comum de manutenção)
+
+Antes da tarefa 31: criar a branch `m3/spike-php` a partir da `main` atualizada (traz a V010, o contrato 1.5.0, a semântica v6 e os cenários C27 a C29) e recriar o banco (`docker compose down -v && docker compose --profile php up -d --build`; confirmar em `docker compose logs migrar` que a V010 foi aplicada). Ler `docs/semantica-do-motor.md` §18 inteiro, §5, §8.1 e §9.4 antes de mudar código.
+
+**Regras de medição (requisito 26):** o tempo da M3 é o dos commits. Implementar do zero: não copiar nada de outra branch, de outra spike ou de outra sessão.
+
+- [ ] 31. Regressão da v5.1 (FORA da medição)
+  - `--todos cenarios --fase 4.5 --limpar`: tem de dar 18/18, exceto o C9, que agora manda `motivo_codigo` (é da M3). Se outro cenário falhar, corrigir antes de seguir.
+  - **Específico do PHP:** a tarefa 31 inclui trocar o arredondamento do `observado_em` por truncamento (semântica §6.4, v5.1), que o C22 cobra. Isso fica **fora** da medição da M3.
+  - Commit `M3 t31`. Depois: `git commit --allow-empty -m "M3 inicio"`. **A medição começa aqui.**
+
+- [ ] 32. Regressão da M3 sem mudar código
+  - `--todos cenarios --fase 4.6 --limpar`: registrar em `METRICAS.md` quais cenários quebram e por quê (esperado: C9, C27, C28 e C29).
+  - Commit `M3 t32`.
+  - _Requisitos: 25_
+
+- [ ] 33. Prazos na abertura
+  - Funções puras de data (§18.2) com os testes unitários do requisito 25.2; versão de `fechamento.prazos` no caso; datas e `entregavel_prazo` na abertura.
+  - Verificador: C27, depois C1 e C7.
+  - Commit `M3 t33`.
+  - _Requisitos: 25.1, 25.2, 25.7_
+
+- [ ] 34. AplicarCalendario
+  - Rota `POST /admin/calendario/aplicar` (§18.3). Uma transação por titular, com a trava do §13.
+  - Verificador: C28.
+  - Commit `M3 t34`.
+  - _Requisitos: 25.3_
+
+- [ ] 35. VerificarPrazos e cumprimento
+  - Rota `POST /admin/prazos/verificar` (§18.4); resolução do `prazo_em_risco` na função única de transição.
+  - Verificador: C29 (os passos de override e impedimento ainda falham; anotar).
+  - Commit `M3 t35`.
+  - _Requisitos: 25.4_
+
+- [ ] 36. Motivo de catálogo e impedimento
+  - `motivo_codigo` no override; rotas de impedimento (§18.5).
+  - Verificador: C29 e C9.
+  - Commit `M3 t36`.
+  - _Requisitos: 25.5, 25.6_
+
+- [ ] 37. Fechamento da fase 4.6
+  - `--todos cenarios --fase 4.6 --limpar --relatorio resultado-fase46-php.json` com 21/21, só esta spike no ar. C6 isolado, registrando a abertura, o p95 e I7 e I8.
+  - `METRICAS.md` (seção Manutenção M3: tempo ativo pelos commits, retrabalhos, intervenções humanas, `git diff --stat`), `DUVIDAS.md`, `REGISTRO-COMPILADOR.md`.
+  - Commit `M3 t37`, push da branch `m3/spike-php` e PR para a `main`.
+  - _Requisitos: 25.8, 26_
+

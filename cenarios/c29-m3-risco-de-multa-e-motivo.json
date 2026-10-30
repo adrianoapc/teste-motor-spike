@@ -1,0 +1,589 @@
+{
+  "id": "C29",
+  "fase": 4.6,
+  "nome": "M3: risco de multa, impedimento e motivo de catálogo",
+  "descricao": "Dois Simples sem folha em 10/2026. VerificarPrazos só abre risco de multa a partir da data de ação, uma vez por entregável, e rodar de novo não duplica. O impedimento com motivo de catálogo abre exceção sem mudar estado e aparece no I8; o motivo errado ou sem texto é recusado. Os insumos chegam, a causa no I8 muda para falta de ação, o impedimento é resolvido e a apuração é cumprida: o risco se resolve na mesma transação. Uma alíquota recalculada invalida a apuração, e o risco volta. Override só com motivo de catálogo do tipo certo. Nenhum comando de prazo grava transição.",
+  "secoes_semantica": [
+    "§8.1",
+    "§18.4",
+    "§18.5",
+    "§18.6"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)",
+    "calendario.vencimentos v1",
+    "obrigacoes.catalogo v1",
+    "fechamento.prazos v1"
+  ],
+  "titulares": [
+    "T029",
+    "T029B"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202610",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T029",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-08",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T029B",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-08",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 2,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "verificar_prazos",
+      "corpo": {},
+      "espera": {
+        "status": 422
+      },
+      "descricao": "sem data_ref"
+    },
+    {
+      "acao": "verificar_prazos",
+      "corpo": {
+        "data_ref": "2026-11-15"
+      },
+      "espera": {
+        "status": 200,
+        "abertas": 0
+      },
+      "descricao": "véspera da data de ação: nada"
+    },
+    {
+      "acao": "verificar_prazos",
+      "corpo": {
+        "data_ref": "2026-11-16"
+      },
+      "espera": {
+        "status": 200,
+        "abertas": 6
+      },
+      "descricao": "data de ação do E03, do E10 e do E11 dos dois casos"
+    },
+    {
+      "acao": "verificar_prazos",
+      "corpo": {
+        "data_ref": "2026-11-16"
+      },
+      "espera": {
+        "status": 200,
+        "abertas": 0
+      },
+      "descricao": "rodar de novo no mesmo dia não duplica"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "corpo_invalido"
+      },
+      "descricao": "sem motivo_codigo"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "motivo_codigo": "acordo_coordenacao"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "motivo_invalido"
+      },
+      "descricao": "motivo de override"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "motivo_codigo": "terceiro_pendente"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "corpo_invalido"
+      },
+      "descricao": "motivo exige texto"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T999",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "motivo_codigo": "cliente_sem_retorno"
+      },
+      "espera": {
+        "status": 404
+      },
+      "descricao": "caso inexistente"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "motivo_codigo": "cliente_sem_retorno"
+      },
+      "espera": {
+        "status": 200
+      },
+      "descricao": "cliente não mandou o extrato"
+    },
+    {
+      "acao": "impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "motivo_codigo": "portal_indisponivel"
+      },
+      "espera": {
+        "status": 409
+      },
+      "descricao": "já há impedimento aberto"
+    },
+    {
+      "acao": "verificar",
+      "nome": "impedimento não muda estado e aparece no I8",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "tipo": "E03",
+            "estado": "aguardando_insumo",
+            "transicoes": [
+              "aguardando_insumo"
+            ]
+          }
+        ],
+        "i8": [
+          {
+            "data_ref": "2026-11-16",
+            "titulares": [
+              "T029"
+            ],
+            "itens": [
+              "E03:falta_insumo:impedido",
+              "E10:falta_insumo",
+              "E11:falta_insumo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T029",
+        "competencia": "202610",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T029",
+        "competencia": "202610",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T029",
+        "competencia": "202610",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "insumos chegaram: a causa muda para falta de ação",
+      "esperado": {
+        "i8": [
+          {
+            "data_ref": "2026-11-16",
+            "titulares": [
+              "T029"
+            ],
+            "itens": [
+              "E03:falta_acao:impedido",
+              "E10:falta_insumo",
+              "E11:falta_insumo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "acao": "resolver_impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08"
+      },
+      "espera": {
+        "status": 200
+      },
+      "descricao": "extrato recebido"
+    },
+    {
+      "acao": "resolver_impedimento",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08"
+      },
+      "espera": {
+        "status": 409
+      },
+      "descricao": "nada a resolver"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T029",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c08",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "cumprir resolve o risco de multa",
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "tipo": "E03",
+            "estado": "validado"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "entregavel": "E03",
+            "tipo": "prazo_em_risco",
+            "estados": [
+              "resolvida:cumprido"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "entregavel": "E03",
+            "tipo": "impedimento_externo",
+            "estados": [
+              "resolvida:resolvido"
+            ],
+            "classe": "S"
+          }
+        ],
+        "i7": [
+          {
+            "data_ref": "2026-11-16",
+            "titular_id": "T029",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa_prefixo": "cumprido_"
+          }
+        ],
+        "i8": [
+          {
+            "data_ref": "2026-11-16",
+            "titulares": [
+              "T029"
+            ],
+            "itens": [
+              "E10:falta_insumo",
+              "E11:falta_insumo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "alíquota recalculada invalida a apuração já cumprida",
+      "corpo": {
+        "titular_id": "T029",
+        "competencia": "202610",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 601
+        }
+      },
+      "espera": {
+        "efeito": "nova_versao"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar_prazos",
+      "corpo": {
+        "data_ref": "2026-11-17"
+      },
+      "espera": {
+        "status": 200,
+        "abertas": 1
+      },
+      "descricao": "o E03 deixou de estar cumprido: o risco volta"
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T029B",
+        "competencia": "202610",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "OneFlow sem uma nota de R$ 50,00",
+      "corpo": {
+        "titular_id": "T029B",
+        "competencia": "202610",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 4995000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T029B",
+      "competencia": "202610",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota conferida no portal da prefeitura"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "corpo_invalido"
+      },
+      "descricao": "override sem motivo_codigo"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T029B",
+      "competencia": "202610",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota conferida no portal da prefeitura",
+        "motivo_codigo": "cliente_sem_retorno"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "motivo_invalido"
+      },
+      "descricao": "código de impedimento no override"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T029B",
+      "competencia": "202610",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota conferida no portal da prefeitura",
+        "motivo_codigo": "nao_existe"
+      },
+      "espera": {
+        "status": 422,
+        "erro": "motivo_invalido"
+      },
+      "descricao": "código inexistente"
+    },
+    {
+      "acao": "override",
+      "titular_id": "T029B",
+      "competencia": "202610",
+      "tipo": "E01",
+      "corpo": {
+        "ator": "coord-fiscal",
+        "cf": "CF-01",
+        "motivo": "Nota conferida no portal da prefeitura",
+        "motivo_codigo": "nota_fora_da_fonte"
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "entregaveis": [
+          {
+            "titular_id": "T029B",
+            "competencia": "202610",
+            "tipo": "E01",
+            "estado": "validado"
+          }
+        ],
+        "excecoes": [
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "entregavel": "E03",
+            "tipo": "prazo_em_risco",
+            "estados": [
+              "resolvida:cumprido",
+              "aberta:"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "entregavel": "E10",
+            "tipo": "prazo_em_risco",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T029",
+            "competencia": "202610",
+            "entregavel": "E11",
+            "tipo": "prazo_em_risco",
+            "estados": [
+              "aberta:"
+            ],
+            "classe": "O"
+          },
+          {
+            "titular_id": "T029B",
+            "competencia": "202610",
+            "entregavel": "E01",
+            "tipo": "CF-01",
+            "estados": [
+              "resolvida:override"
+            ]
+          }
+        ],
+        "conferencias": [
+          {
+            "titular_id": "T029B",
+            "competencia": "202610",
+            "tipo": "E01",
+            "cf": "CF-01",
+            "resultados": [
+              "divergente:B"
+            ],
+            "override": [
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

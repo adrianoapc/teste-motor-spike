@@ -1,0 +1,647 @@
+{
+  "id": "C28",
+  "fase": 4.6,
+  "nome": "M3: prorrogação como versão do calendário",
+  "descricao": "Três Simples sem folha em 10/2026: um só aberto, um com a apuração (E03) já validada e um encerrado. A Receita prorroga o DAS de 10/2026 para 30/11: a versão 2 do calendário é publicada e AplicarCalendario recalcula só o que cabe. Muda o E03, o E10 e o E11 do caso aberto; no caso com o E03 cumprido, só o E10 e o E11; no encerrado, nada. Cada mudança grava histórico e o evento prazo.alterado, sem nenhuma transição. Aplicar de novo não grava nada. Caso aberto depois da prorrogação já nasce com a data nova.",
+  "secoes_semantica": [
+    "§18.1",
+    "§18.2",
+    "§18.3"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)",
+    "calendario.vencimentos v1",
+    "obrigacoes.catalogo v1",
+    "fechamento.prazos v1",
+    "calendario.vencimentos v2 de teste"
+  ],
+  "titulares": [
+    "T028A",
+    "T028B",
+    "T028C",
+    "T028D"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202610",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T028A",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-07",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T028B",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-07",
+            "municipio": "3549805"
+          },
+          {
+            "titular_id": "T028C",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-07",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 3,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028B",
+        "competencia": "202610",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028B",
+        "competencia": "202610",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028B",
+        "competencia": "202610",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T028B",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c07",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "faturamento_mes",
+        "fonte": "intranet",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "$agora",
+        "valor_centavos": 5000000
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "aliquota_mes",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "aliquota_bp": 600
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "concluir_entregavel",
+      "titular_id": "T028C",
+      "competencia": "202610",
+      "tipo": "E03",
+      "corpo": {
+        "ator": "analista-c01",
+        "saidas": [
+          {
+            "tributo": "DAS",
+            "valor_centavos": 300000
+          }
+        ]
+      },
+      "espera": {
+        "status": 200
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "divisao_socios",
+        "fonte": "calculo",
+        "observado_em": "$agora",
+        "payload": {
+          "parcelas": [
+            {
+              "socio": "S1",
+              "valor_centavos": 180000
+            },
+            {
+              "socio": "S2",
+              "valor_centavos": 120000
+            }
+          ]
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "recibo_obrigacao",
+        "fonte": "integra",
+        "observado_em": "$agora",
+        "tributo": "PGDAS-D",
+        "payload": {
+          "numero_recibo": "R-T028C"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "guia",
+        "fonte": "porta_documental",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "valor_centavos": 300000,
+        "payload": {
+          "competencia_impressa": "202610",
+          "vencimento": "2026-10-20"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T028C",
+        "competencia": "202610",
+        "tipo": "documento_disponibilizado",
+        "fonte": "entrega",
+        "observado_em": "$agora",
+        "tributo": "DAS",
+        "payload": {
+          "canal": "app"
+        }
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "antes da prorrogação",
+      "esperado": {
+        "casos": [
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "estado": "encerrado"
+          }
+        ],
+        "entregaveis": [
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E03",
+            "estado": "validado"
+          }
+        ],
+        "prazos": [
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "aplicar_calendario",
+      "corpo": {},
+      "espera": {
+        "status": 200,
+        "alterados": 0
+      },
+      "descricao": "sem versão nova do calendário, nada muda"
+    },
+    {
+      "acao": "publicar_regra",
+      "chave": "calendario.vencimentos",
+      "arquivo": "calendario-v2-prorroga-das-202610.json",
+      "descricao": "Receita prorroga o DAS de 10/2026 para 30/11: versão 2 do calendário"
+    },
+    {
+      "acao": "aplicar_calendario",
+      "corpo": {},
+      "espera": {
+        "status": 200,
+        "alterados": 5
+      },
+      "descricao": "T028A: E03, E10, E11; T028B: E10, E11 (o E03 já foi cumprido); T028C encerrado: nada"
+    },
+    {
+      "acao": "aplicar_calendario",
+      "corpo": {},
+      "espera": {
+        "status": 200,
+        "alterados": 0
+      },
+      "descricao": "aplicar de novo não grava nada"
+    },
+    {
+      "acao": "abrir_competencias",
+      "descricao": "caso aberto depois da prorrogação já nasce com a data nova",
+      "corpo": {
+        "competencia": "202610",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T028D",
+            "regime": "SN",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-07",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "final",
+      "final": true,
+      "esperado": {
+        "prazos": [
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T028D",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028D",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          },
+          {
+            "titular_id": "T028D",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-30",
+            "meta": "2026-11-25",
+            "acao": "2026-11-23"
+          }
+        ],
+        "prazo_historico": [
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "motivos": [
+              "abertura",
+              "calendario_v2"
+            ]
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E03",
+            "motivos": [
+              "abertura"
+            ]
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E11",
+            "motivos": [
+              "abertura",
+              "calendario_v2"
+            ]
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E11",
+            "motivos": [
+              "abertura"
+            ]
+          },
+          {
+            "titular_id": "T028D",
+            "competencia": "202610",
+            "tipo": "E03",
+            "motivos": [
+              "abertura"
+            ]
+          }
+        ],
+        "i7": [
+          {
+            "data_ref": "2026-11-20",
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa": "ate_3_dias"
+          },
+          {
+            "data_ref": "2026-11-20",
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa_prefixo": "cumprido_"
+          },
+          {
+            "data_ref": "2026-11-20",
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "tipo": "E11",
+            "faixa_prefixo": "cumprido_"
+          }
+        ],
+        "eventos": [
+          {
+            "titular_id": "T028A",
+            "competencia": "202610",
+            "nome": "prazo.alterado",
+            "quantidade": 3
+          },
+          {
+            "titular_id": "T028B",
+            "competencia": "202610",
+            "nome": "prazo.alterado",
+            "quantidade": 2
+          },
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "nome": "prazo.alterado",
+            "quantidade": 0
+          },
+          {
+            "titular_id": "T028D",
+            "competencia": "202610",
+            "nome": "prazo.alterado",
+            "quantidade": 0
+          }
+        ],
+        "casos": [
+          {
+            "titular_id": "T028C",
+            "competencia": "202610",
+            "estado": "encerrado"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,342 @@
+{
+  "id": "C27",
+  "fase": 4.6,
+  "nome": "M3: prazos na abertura",
+  "descricao": "Simples com folha na competência 10/2026 e Presumido no 3º mês do trimestre (09/2026). As três datas de cada entregável saem do catálogo de obrigações, do calendário e da regra de prazos. O DAS de 20/11 (Consciência Negra, sexta) posterga para 23/11; DCTFWeb, IRRF e FGTS antecipam para 19/11. Meta de 14/11 (sábado) antecipa para 13/11. No Presumido, PIS e COFINS de 25/10 (domingo) antecipam para 23/10, e a DCTFWeb vai para o último dia útil (30/10). E01, E02, E04, E06 e E12 não têm prazo. Reabrir o caso não recalcula. I7 e I8 com várias datas de referência.",
+  "secoes_semantica": [
+    "§5",
+    "§18.1",
+    "§18.2",
+    "§18.6"
+  ],
+  "regras_usadas": [
+    "fechamento.entregaveis v3",
+    "fiscal.tolerancia v2",
+    "contratos de tipo de fato v1 (V009)",
+    "calendario.vencimentos v1",
+    "obrigacoes.catalogo v1",
+    "fechamento.prazos v1"
+  ],
+  "titulares": [
+    "T027A",
+    "T027B"
+  ],
+  "passos": [
+    {
+      "acao": "abrir_competencias",
+      "corpo": {
+        "competencia": "202610",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T027A",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-06",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "abrir_competencias",
+      "descricao": "Presumido no 3º mês do trimestre (setembro)",
+      "corpo": {
+        "competencia": "202609",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T027B",
+            "regime": "LP",
+            "tem_folha": false,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-06",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 1,
+        "existentes": 0
+      }
+    },
+    {
+      "acao": "abrir_competencias",
+      "descricao": "reabrir não recalcula nem grava histórico",
+      "corpo": {
+        "competencia": "202610",
+        "ator": "agenda",
+        "empresas": [
+          {
+            "titular_id": "T027A",
+            "regime": "SN",
+            "tem_folha": true,
+            "tem_prolabore": false,
+            "tem_taxa_municipal": false,
+            "filial": false,
+            "carteira": "C-06",
+            "municipio": "3549805"
+          }
+        ]
+      },
+      "espera": {
+        "status": 200,
+        "criados": 0,
+        "existentes": 1
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
+      "acao": "verificar",
+      "nome": "datas na abertura",
+      "final": true,
+      "esperado": {
+        "prazos": [
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E08",
+            "vencimento": "2026-11-19",
+            "meta": "2026-11-13",
+            "acao": "2026-11-11"
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E10",
+            "vencimento": "2026-11-23",
+            "meta": "2026-11-18",
+            "acao": "2026-11-16"
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E11",
+            "vencimento": "2026-11-19",
+            "meta": "2026-11-13",
+            "acao": "2026-11-11"
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E01",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E02",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E04",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E06",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E12",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E03",
+            "vencimento": "2026-10-23",
+            "meta": "2026-10-16",
+            "acao": "2026-10-14"
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E10",
+            "vencimento": "2026-10-30",
+            "meta": "2026-10-23",
+            "acao": "2026-10-21"
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E11",
+            "vencimento": "2026-10-23",
+            "meta": "2026-10-16",
+            "acao": "2026-10-14"
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E01",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E04",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E12",
+            "vencimento": null,
+            "meta": null,
+            "acao": null
+          }
+        ],
+        "prazo_historico": [
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "motivos": [
+              "abertura"
+            ]
+          },
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E01",
+            "motivos": []
+          },
+          {
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E10",
+            "motivos": [
+              "abertura"
+            ]
+          }
+        ],
+        "i7": [
+          {
+            "data_ref": "2026-11-10",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa": "no_prazo"
+          },
+          {
+            "data_ref": "2026-11-10",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E08",
+            "faixa": "ate_3_dias"
+          },
+          {
+            "data_ref": "2026-11-11",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E08",
+            "faixa": "hoje"
+          },
+          {
+            "data_ref": "2026-11-16",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa": "hoje"
+          },
+          {
+            "data_ref": "2026-11-16",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E08",
+            "faixa": "atrasado_meta"
+          },
+          {
+            "data_ref": "2026-11-17",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E03",
+            "faixa": "atrasado_acao"
+          },
+          {
+            "data_ref": "2026-11-20",
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E08",
+            "faixa": "atrasado_vencimento"
+          },
+          {
+            "data_ref": "2026-10-15",
+            "titular_id": "T027B",
+            "competencia": "202609",
+            "tipo": "E03",
+            "faixa": "atrasado_acao"
+          }
+        ],
+        "i8": [
+          {
+            "data_ref": "2026-11-16",
+            "titulares": [
+              "T027A"
+            ],
+            "itens": [
+              "E03:falta_insumo",
+              "E08:falta_insumo",
+              "E10:falta_insumo",
+              "E11:falta_insumo"
+            ]
+          },
+          {
+            "data_ref": "2026-11-10",
+            "titulares": [
+              "T027A"
+            ],
+            "itens": []
+          }
+        ],
+        "tarefas_abertas": [
+          {
+            "titular_id": "T027A",
+            "competencia": "202610",
+            "tipo": "E06"
+          }
+        ]
+      }
+    }
+  ]
+}

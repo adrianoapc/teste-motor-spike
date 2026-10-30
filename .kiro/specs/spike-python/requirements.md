@@ -232,6 +232,28 @@ Tudo das fases 2 e 3 abaixo.
 1. `METRICAS.md` DEVE ganhar a seção "Manutenção M2" (modelo em `docs/regras-do-jogo.md` §4): tempo de relógio do início da tarefa 25 até 18/18, retrabalhos, intervenções humanas, `git diff --stat` da fase, erros barrados por o mypy antes de teste, C6 antes e depois da trava, e o resultado das três execuções do C21.
 2. `DUVIDAS.md` DEVE registrar as decisões da fase 4.5; erro na base comum é registrado e a spike para (`docs/regras-do-jogo.md` §1).
 
+## Fase 4.6 · manutenção M3 (terceiro teste comum de manutenção)
+
+**Escopo:** cenários **C27 a C29** (`"fase": 4.6`), o C9 com `motivo_codigo` e a regressão de C1 a C23. Semântica **v6** (`docs/semantica-do-motor.md`): §2, §5 passo 3, §8.1, §9.4, §12 e **§18 inteiro**. Migração **V010**; contrato HTTP **1.5.0**.
+
+### Requisito 25 · Prazos, risco de multa e motivo de catálogo
+
+1. Na abertura (§5 passo 3), O SISTEMA DEVE guardar no caso a versão em uso de `fechamento.prazos` e gravar `vencimento`, `meta` e `acao` dos entregáveis com prazo, calculados exatamente como no §18.2, com uma linha em `fechamento.entregavel_prazo` (motivo `abertura`). *Verificador:* C27.
+2. O cálculo de datas DEVE ser função pura do domínio (sem banco), com testes unitários para, no mínimo: `posterga`, `antecipa`, `ultimo_dia_util`, prorrogação, virada de ano (competência 202612), meta no fim de semana, ação atravessando feriado e o exemplo do §18.2.
+3. `POST /admin/calendario/aplicar` DEVE recalcular só entregáveis com prazo, não cumpridos, de casos abertos, com histórico `calendario_v<N>` e evento `prazo.alterado`, ser idempotente e não gravar transição (§18.3). *Verificador:* C28.
+4. `POST /admin/prazos/verificar` DEVE abrir `prazo_em_risco` conforme o §18.4, sem duplicar e sem gravar transição; e a transição para o `estado_cumprimento` DEVE resolver a exceção aberta (`resolucao = 'cumprido'`) na mesma transação, dentro da função única de transição (§4.1). *Verificador:* C29.
+5. O override DEVE exigir `motivo_codigo` do catálogo com `aplica_a = 'override'` (`422 corpo_invalido` sem ele; `422 motivo_invalido` com código errado) e gravá-lo na conferência (§8.1, §18.5). *Verificador:* C9, C29.
+6. `RegistrarImpedimento` e `ResolverImpedimento` DEVEM seguir a ordem de validação e os efeitos do §18.5, sem mudar estado. *Verificador:* C29.
+7. As versões das regras DEVEM ser lidas pelo `status`, nunca por número no código. O calendário e o catálogo são lidos a cada cálculo; o verificador publica versões novas no meio do C28.
+8. *Verificador:* `python verificador/verificador.py --api http://localhost:8082 --db postgresql://spike:spike@localhost:5432/spike_python --todos cenarios --fase 4.6 --limpar --relatorio resultado-fase46-python.json` DEVE terminar com **21/21**, com INV-1 a INV-21.
+
+### Requisito 26 · Entrega e medição da fase 4.6
+
+1. O tempo da M3 DEVE sair dos commits: um commit vazio `M3 inicio` logo depois da tarefa 31, um commit `M3 tNN` ao fim de cada tarefa de 32 a 37, e commits vazios `M3 pausa: <motivo>` e `M3 retomada` em qualquer parada.
+2. A implementação DEVE ser feita do zero nesta branch: nada copiado de outra branch, de outra spike ou de outra sessão.
+3. `METRICAS.md` DEVE ganhar a seção "Manutenção M3": tempo ativo (pelos commits, descontadas as pausas), retrabalhos, intervenções humanas, `git diff --stat` da fase, erros barrados por o mypy antes de teste e o C6 com I7 e I8.
+4. `DUVIDAS.md` DEVE registrar as decisões da fase; erro na base comum é registrado e a spike para (`docs/regras-do-jogo.md` §1).
+
 ### Fora do escopo (todas as fases)
 
-Reabertura de competência encerrada; resolução das exceções `substituicao`, `competencia_encerrada` e `conflito_fonte`; precedência entre fontes; fila de mortos; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.
+Reabertura de competência encerrada; resolução das exceções `substituicao`, `competencia_encerrada` e `conflito_fonte`; obrigação como item do caso (M4); feriado estadual ou municipal; fato manual por tela; precedência entre fontes; fila de mortos; canal, disparo e leitura da entrega (fluxo de Entrega ao cliente); checagem de pagamento (Regularidade Fiscal); autenticação; RLS; conectores reais; qualquer tela.

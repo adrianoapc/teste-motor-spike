@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Motor do fechamento — contrato comum do spike
-  version: "1.4.0"
+  version: "1.5.0"
   description: |
     Contrato que as TRES spikes (.NET 10, Python e PHP) implementam exatamente igual.
     Semântica: docs/semantica-do-motor.md. O verificador chama só estas rotas.
@@ -10,6 +10,8 @@ info:
     1.4.0 (semântica v5, fase 4.5): contrato de tipo de fato na entrada (403 fonte_nao_autorizada,
     422 tipo_desconhecido e payload_invalido com violacoes), chave_idempotencia, efeitos obsoleto e
     conflito_fonte, campo repetido.
+    1.5.0 (semântica v6, M3): motivo_codigo obrigatório no override (422 motivo_invalido),
+    POST /admin/calendario/aplicar, POST /admin/prazos/verificar, impedimento e resolver impedimento.
 servers:
   - url: http://localhost:8081
     description: spike .NET
@@ -143,6 +145,95 @@ paths:
         "409": { $ref: "#/components/responses/Conflito" }
         "422": { $ref: "#/components/responses/Invalido" }
 
+  /admin/calendario/aplicar:
+    post:
+      summary: AplicarCalendario (semântica §18.3). Recalcula prazos de casos abertos não cumpridos; nunca grava transição
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Quantos entregáveis tiveram as datas alteradas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alterados]
+                properties:
+                  alterados: { type: integer, minimum: 0 }
+
+  /admin/prazos/verificar:
+    post:
+      summary: VerificarPrazos (semântica §18.4). Abre prazo_em_risco a partir da data de ação; nunca grava transição
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data_ref]
+              properties:
+                data_ref: { type: string, format: date }
+      responses:
+        "200":
+          description: Quantas exceções prazo_em_risco foram abertas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [abertas]
+                properties:
+                  abertas: { type: integer, minimum: 0 }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /casos/{titular_id}/{competencia}/entregaveis/{tipo}/impedimento:
+    post:
+      summary: RegistrarImpedimento (semântica §18.5). Exceção impedimento_externo sem mudar estado
+      parameters:
+        - $ref: "#/components/parameters/TitularId"
+        - $ref: "#/components/parameters/Competencia"
+        - $ref: "#/components/parameters/TipoEntregavel"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ator, motivo_codigo]
+              properties:
+                ator: { type: string, minLength: 1 }
+                motivo_codigo: { type: string, minLength: 1, description: "código de trabalho.motivo_catalogo com aplica_a = impedimento" }
+                texto: { type: string, description: "obrigatório (≥ 5 caracteres) quando o código exige texto" }
+      responses:
+        "200": { $ref: "#/components/responses/ExcecaoId" }
+        "404": { $ref: "#/components/responses/NaoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflito" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
+  /casos/{titular_id}/{competencia}/entregaveis/{tipo}/impedimento/resolver:
+    post:
+      summary: ResolverImpedimento (semântica §18.5)
+      parameters:
+        - $ref: "#/components/parameters/TitularId"
+        - $ref: "#/components/parameters/Competencia"
+        - $ref: "#/components/parameters/TipoEntregavel"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ator]
+              properties:
+                ator: { type: string, minLength: 1 }
+      responses:
+        "200": { $ref: "#/components/responses/ExcecaoId" }
+        "404": { $ref: "#/components/responses/NaoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflito" }
+        "422": { $ref: "#/components/responses/Invalido" }
+
   /admin/fila:
     get:
       summary: Estado da fila. pendentes = 0 só quando todo efeito já está gravado (semântica §13)
@@ -177,6 +268,15 @@ components:
       schema: { type: string, enum: [E01, E02, E03, E04, E05, E06, E07, E08, E10, E11, E12] }
 
   responses:
+    ExcecaoId:
+      description: Exceção aberta ou resolvida
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [excecao_id]
+            properties:
+              excecao_id: { type: string, format: uuid }
     NaoEncontrado:
       description: Caso ou entregável inexistente
       content:
@@ -201,6 +301,7 @@ components:
         U+0000 em parâmetro de caminho é rejeitado com este 422 ou com 400 do servidor web (ambos conformes).
         v5: erro = tipo_desconhecido (tipo sem contrato ativo) ou payload_invalido (qualificador,
         valor_centavos ou payload fora do contrato ativo; vem com violacoes).
+        v6: erro = motivo_invalido (motivo_codigo fora do catálogo ou de outro aplica_a).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
@@ -336,11 +437,12 @@ components:
     OverrideRequest:
       type: object
       additionalProperties: false
-      required: [ator, cf, motivo]
+      required: [ator, cf, motivo, motivo_codigo]
       properties:
         ator: { type: string, minLength: 1 }
         cf: { type: string, pattern: "^CF-[0-9]{2}$" }
         motivo: { type: string, minLength: 5 }
+        motivo_codigo: { type: string, minLength: 1, description: "v6: código de trabalho.motivo_catalogo com aplica_a = override; fora disso 422 motivo_invalido" }
 
     EntregavelEstado:
       type: object

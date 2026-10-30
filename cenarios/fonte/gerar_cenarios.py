@@ -76,9 +76,14 @@ def concluir(tit: str, comp: str, tipo: str, saidas: list[dict[str, Any]], statu
 
 
 def override(tit: str, comp: str, tipo: str, cf: str, motivo: str, status: int, ator: str = "coord-fiscal",
-             descricao: str | None = None) -> dict[str, Any]:
+             descricao: str | None = None, motivo_codigo: str | None = "nota_fora_da_fonte", erro: str | None = None) -> dict[str, Any]:
+    corpo: dict[str, Any] = {"ator": ator, "cf": cf, "motivo": motivo}
+    if motivo_codigo is not None:  # v6 §18.5: obrigatório
+        corpo["motivo_codigo"] = motivo_codigo
     p: dict[str, Any] = {"acao": "override", "titular_id": tit, "competencia": comp, "tipo": tipo,
-                         "corpo": {"ator": ator, "cf": cf, "motivo": motivo}, "espera": {"status": status}}
+                         "corpo": corpo, "espera": {"status": status}}
+    if erro:
+        p["espera"]["erro"] = erro
     if descricao:
         p["descricao"] = descricao
     return p
@@ -1213,6 +1218,209 @@ def c23() -> dict[str, Any]:
                    ["§6.1", "§6.3", "§6.4"], R_V5 + ["contratos de teste notas_oneflow v2 e v3"], [t], passos)
 
 
+# ---------------------------------------------------------------------------
+# Fase 4.6 · semântica v6 (manutenção M3): prazos, risco de multa e motivo de catálogo
+# ---------------------------------------------------------------------------
+R_V6 = R_V5 + ["calendario.vencimentos v1", "obrigacoes.catalogo v1", "fechamento.prazos v1"]
+F46 = 4.6
+OUT = "202610"  # competência de outubro: vencimentos em novembro de 2026 (Finados 02/11, 15/11 e Consciência Negra 20/11)
+
+
+def prazo(tit: str, comp: str, tipo: str, datas: tuple[str, str, str] | None) -> dict[str, Any]:
+    v, m, a = datas if datas else (None, None, None)
+    return {"titular_id": tit, "competencia": comp, "tipo": tipo, "vencimento": v, "meta": m, "acao": a}
+
+
+def historico(tit: str, comp: str, tipo: str, motivos: list[str]) -> dict[str, Any]:
+    return {"titular_id": tit, "competencia": comp, "tipo": tipo, "motivos": motivos}
+
+
+def i7(data_ref: str, tit: str, comp: str, tipo: str, faixa: str | None = None, prefixo: str | None = None) -> dict[str, Any]:
+    x: dict[str, Any] = {"data_ref": data_ref, "titular_id": tit, "competencia": comp, "tipo": tipo}
+    if faixa:
+        x["faixa"] = faixa
+    if prefixo:
+        x["faixa_prefixo"] = prefixo
+    return x
+
+
+def aplicar_calendario(alterados: int, descricao: str | None = None) -> dict[str, Any]:
+    p: dict[str, Any] = {"acao": "aplicar_calendario", "corpo": {}, "espera": {"status": 200, "alterados": alterados}}
+    if descricao:
+        p["descricao"] = descricao
+    return p
+
+
+def verificar_prazos(data_ref: str | None, abertas: int | None = None, status: int = 200, descricao: str | None = None) -> dict[str, Any]:
+    corpo: dict[str, Any] = {} if data_ref is None else {"data_ref": data_ref}
+    p: dict[str, Any] = {"acao": "verificar_prazos", "corpo": corpo, "espera": {"status": status}}
+    if abertas is not None:
+        p["espera"]["abertas"] = abertas
+    if descricao:
+        p["descricao"] = descricao
+    return p
+
+
+def impedimento(tit: str, comp: str, tipo: str, corpo: dict[str, Any], status: int, erro: str | None = None,
+                descricao: str | None = None, resolver: bool = False) -> dict[str, Any]:
+    p: dict[str, Any] = {"acao": "resolver_impedimento" if resolver else "impedimento", "titular_id": tit, "competencia": comp,
+                         "tipo": tipo, "corpo": corpo, "espera": {"status": status}}
+    if erro:
+        p["espera"]["erro"] = erro
+    if descricao:
+        p["descricao"] = descricao
+    return p
+
+
+def sn_ate_encerrar(t: str, comp: str) -> list[dict[str, Any]]:
+    """Simples sem folha da abertura ao encerramento (caminho do C4, sem divergência)."""
+    return [
+        fato(t, comp, "faturamento_mes", 5000000, fonte="intranet"),
+        fato(t, comp, "notas_oneflow", 5000000, fonte="oneflow"),
+        fato(t, comp, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        AGUARDAR,
+        concluir(t, comp, "E03", [{"tributo": "DAS", "valor_centavos": 300000}]),
+        fato(t, comp, "divisao_socios", None, payload={"parcelas": [{"socio": "S1", "valor_centavos": 180000}, {"socio": "S2", "valor_centavos": 120000}]}, fonte="calculo"),
+        fato(t, comp, "recibo_obrigacao", None, tributo="PGDAS-D", payload={"numero_recibo": f"R-{t}"}, fonte="integra"),
+        fato(t, comp, "guia", 300000, tributo="DAS", payload=guia_payload(comp), fonte="porta_documental"),
+        AGUARDAR,
+        fato(t, comp, "documento_disponibilizado", None, tributo="DAS", payload={"canal": "app"}, fonte="entrega"),
+        AGUARDAR,
+    ]
+
+
+def c27() -> dict[str, Any]:
+    a, b = "T027A", "T027B"
+    SN_E03, SN_E08 = ("2026-11-23", "2026-11-18", "2026-11-16"), ("2026-11-19", "2026-11-13", "2026-11-11")
+    LP_E03, LP_E10 = ("2026-10-23", "2026-10-16", "2026-10-14"), ("2026-10-30", "2026-10-23", "2026-10-21")
+    passos = [
+        abrir(OUT, empresa(a, "SN", folha=True, carteira="C-06")),
+        abrir(C, empresa(b, "LP", carteira="C-06"), descricao="Presumido no 3º mês do trimestre (setembro)"),
+        abrir(OUT, empresa(a, "SN", folha=True, carteira="C-06"), criados=0, existentes=1, descricao="reabrir não recalcula nem grava histórico"),
+        AGUARDAR,
+        verificar("datas na abertura", {
+            "prazos": [prazo(a, OUT, "E03", SN_E03), prazo(a, OUT, "E08", SN_E08), prazo(a, OUT, "E10", SN_E03), prazo(a, OUT, "E11", SN_E08)]
+                      + [prazo(a, OUT, x, None) for x in ["E01", "E02", "E04", "E06", "E12"]]
+                      + [prazo(b, C, "E03", LP_E03), prazo(b, C, "E10", LP_E10), prazo(b, C, "E11", LP_E03)]
+                      + [prazo(b, C, x, None) for x in ["E01", "E04", "E12"]],
+            "prazo_historico": [historico(a, OUT, "E03", ["abertura"]), historico(a, OUT, "E01", []), historico(b, C, "E10", ["abertura"])],
+            "i7": [i7("2026-11-10", a, OUT, "E03", "no_prazo"), i7("2026-11-10", a, OUT, "E08", "ate_3_dias"),
+                   i7("2026-11-11", a, OUT, "E08", "hoje"), i7("2026-11-16", a, OUT, "E03", "hoje"),
+                   i7("2026-11-16", a, OUT, "E08", "atrasado_meta"), i7("2026-11-17", a, OUT, "E03", "atrasado_acao"),
+                   i7("2026-11-20", a, OUT, "E08", "atrasado_vencimento"), i7("2026-10-15", b, C, "E03", "atrasado_acao")],
+            "i8": [{"data_ref": "2026-11-16", "titulares": [a], "itens": ["E03:falta_insumo", "E08:falta_insumo", "E10:falta_insumo", "E11:falta_insumo"]},
+                   {"data_ref": "2026-11-10", "titulares": [a], "itens": []}],
+            "tarefas_abertas": [tarefa(a, OUT, "E06")],
+        }, final=True),
+    ]
+    return cenario("C27", F46, "M3: prazos na abertura",
+                   "Simples com folha na competência 10/2026 e Presumido no 3º mês do trimestre (09/2026). As três datas de cada entregável saem do catálogo de obrigações, do calendário e da regra de prazos. O DAS de 20/11 (Consciência Negra, sexta) posterga para 23/11; DCTFWeb, IRRF e FGTS antecipam para 19/11. Meta de 14/11 (sábado) antecipa para 13/11. No Presumido, PIS e COFINS de 25/10 (domingo) antecipam para 23/10, e a DCTFWeb vai para o último dia útil (30/10). E01, E02, E04, E06 e E12 não têm prazo. Reabrir o caso não recalcula. I7 e I8 com várias datas de referência.",
+                   ["§5", "§18.1", "§18.2", "§18.6"], R_V6, [a, b], passos)
+
+
+def c28() -> dict[str, Any]:
+    a, b, c, d = "T028A", "T028B", "T028C", "T028D"
+    ANTES, DEPOIS = ("2026-11-23", "2026-11-18", "2026-11-16"), ("2026-11-30", "2026-11-25", "2026-11-23")
+    passos = [
+        abrir(OUT, empresa(a, "SN", carteira="C-07"), empresa(b, "SN", carteira="C-07"), empresa(c, "SN", carteira="C-07")),
+        fato(b, OUT, "faturamento_mes", 5000000, fonte="intranet"),
+        fato(b, OUT, "notas_oneflow", 5000000, fonte="oneflow"),
+        fato(b, OUT, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        AGUARDAR,
+        concluir(b, OUT, "E03", [{"tributo": "DAS", "valor_centavos": 300000}], ator="analista-c07"),
+    ] + sn_ate_encerrar(c, OUT) + [
+        verificar("antes da prorrogação", {
+            "casos": [{"titular_id": c, "competencia": OUT, "estado": "encerrado"}],
+            "entregaveis": [ent(b, OUT, "E03", "validado")],
+            "prazos": [prazo(x, OUT, t, ANTES) for x in (a, b, c) for t in ("E03", "E10", "E11")]}),
+        aplicar_calendario(0, descricao="sem versão nova do calendário, nada muda"),
+        {"acao": "publicar_regra", "chave": "calendario.vencimentos", "arquivo": "calendario-v2-prorroga-das-202610.json",
+         "descricao": "Receita prorroga o DAS de 10/2026 para 30/11: versão 2 do calendário"},
+        aplicar_calendario(5, descricao="T028A: E03, E10, E11; T028B: E10, E11 (o E03 já foi cumprido); T028C encerrado: nada"),
+        aplicar_calendario(0, descricao="aplicar de novo não grava nada"),
+        abrir(OUT, empresa(d, "SN", carteira="C-07"), descricao="caso aberto depois da prorrogação já nasce com a data nova"),
+        AGUARDAR,
+        verificar("final", {
+            "prazos": [prazo(a, OUT, t, DEPOIS) for t in ("E03", "E10", "E11")]
+                      + [prazo(b, OUT, "E03", ANTES), prazo(b, OUT, "E10", DEPOIS), prazo(b, OUT, "E11", DEPOIS)]
+                      + [prazo(c, OUT, t, ANTES) for t in ("E03", "E10", "E11")]
+                      + [prazo(d, OUT, t, DEPOIS) for t in ("E03", "E10", "E11")],
+            "prazo_historico": [historico(a, OUT, "E03", ["abertura", "calendario_v2"]), historico(b, OUT, "E03", ["abertura"]),
+                                historico(b, OUT, "E11", ["abertura", "calendario_v2"]), historico(c, OUT, "E11", ["abertura"]),
+                                historico(d, OUT, "E03", ["abertura"])],
+            "i7": [i7("2026-11-20", a, OUT, "E03", "ate_3_dias"), i7("2026-11-20", b, OUT, "E03", prefixo="cumprido_"),
+                   i7("2026-11-20", c, OUT, "E11", prefixo="cumprido_")],
+            "eventos": eventos(a, OUT, prazo__alterado=3) + eventos(b, OUT, prazo__alterado=2) + eventos(c, OUT, prazo__alterado=0)
+                       + eventos(d, OUT, prazo__alterado=0),
+            "casos": [{"titular_id": c, "competencia": OUT, "estado": "encerrado"}],
+        }, final=True),
+    ]
+    return cenario("C28", F46, "M3: prorrogação como versão do calendário",
+                   "Três Simples sem folha em 10/2026: um só aberto, um com a apuração (E03) já validada e um encerrado. A Receita prorroga o DAS de 10/2026 para 30/11: a versão 2 do calendário é publicada e AplicarCalendario recalcula só o que cabe. Muda o E03, o E10 e o E11 do caso aberto; no caso com o E03 cumprido, só o E10 e o E11; no encerrado, nada. Cada mudança grava histórico e o evento prazo.alterado, sem nenhuma transição. Aplicar de novo não grava nada. Caso aberto depois da prorrogação já nasce com a data nova.",
+                   ["§18.1", "§18.2", "§18.3"], R_V6 + ["calendario.vencimentos v2 de teste"], [a, b, c, d], passos)
+
+
+def c29() -> dict[str, Any]:
+    t, u = "T029", "T029B"
+    passos = [
+        abrir(OUT, empresa(t, "SN", carteira="C-08"), empresa(u, "SN", carteira="C-08")),
+        verificar_prazos(None, status=422, descricao="sem data_ref"),
+        verificar_prazos("2026-11-15", 0, descricao="véspera da data de ação: nada"),
+        verificar_prazos("2026-11-16", 6, descricao="data de ação do E03, do E10 e do E11 dos dois casos"),
+        verificar_prazos("2026-11-16", 0, descricao="rodar de novo no mesmo dia não duplica"),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08"}, 422, "corpo_invalido", "sem motivo_codigo"),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08", "motivo_codigo": "acordo_coordenacao"}, 422, "motivo_invalido", "motivo de override"),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08", "motivo_codigo": "terceiro_pendente"}, 422, "corpo_invalido", "motivo exige texto"),
+        impedimento("T999", OUT, "E03", {"ator": "analista-c08", "motivo_codigo": "cliente_sem_retorno"}, 404, descricao="caso inexistente"),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08", "motivo_codigo": "cliente_sem_retorno"}, 200, descricao="cliente não mandou o extrato"),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08", "motivo_codigo": "portal_indisponivel"}, 409, descricao="já há impedimento aberto"),
+        verificar("impedimento não muda estado e aparece no I8", {
+            "entregaveis": [ent(t, OUT, "E03", "aguardando_insumo", ["aguardando_insumo"])],
+            "i8": [{"data_ref": "2026-11-16", "titulares": [t], "itens": ["E03:falta_insumo:impedido", "E10:falta_insumo", "E11:falta_insumo"]}]}),
+        fato(t, OUT, "faturamento_mes", 5000000, fonte="intranet"),
+        fato(t, OUT, "notas_oneflow", 5000000, fonte="oneflow"),
+        fato(t, OUT, "aliquota_mes", None, payload={"aliquota_bp": 600}, fonte="calculo"),
+        AGUARDAR,
+        verificar("insumos chegaram: a causa muda para falta de ação", {
+            "i8": [{"data_ref": "2026-11-16", "titulares": [t], "itens": ["E03:falta_acao:impedido", "E10:falta_insumo", "E11:falta_insumo"]}]}),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08"}, 200, descricao="extrato recebido", resolver=True),
+        impedimento(t, OUT, "E03", {"ator": "analista-c08"}, 409, descricao="nada a resolver", resolver=True),
+        concluir(t, OUT, "E03", [{"tributo": "DAS", "valor_centavos": 300000}], ator="analista-c08"),
+        AGUARDAR,
+        verificar("cumprir resolve o risco de multa", {
+            "entregaveis": [ent(t, OUT, "E03", "validado")],
+            "excecoes": [exc(t, OUT, "E03", "prazo_em_risco", ["resolvida:cumprido"], "O"),
+                         exc(t, OUT, "E03", "impedimento_externo", ["resolvida:resolvido"], "S")],
+            "i7": [i7("2026-11-16", t, OUT, "E03", prefixo="cumprido_")],
+            "i8": [{"data_ref": "2026-11-16", "titulares": [t], "itens": ["E10:falta_insumo", "E11:falta_insumo"]}]}),
+        fato(t, OUT, "aliquota_mes", None, payload={"aliquota_bp": 601}, fonte="calculo", efeito="nova_versao",
+             descricao="alíquota recalculada invalida a apuração já cumprida"),
+        AGUARDAR,
+        verificar_prazos("2026-11-17", 1, descricao="o E03 deixou de estar cumprido: o risco volta"),
+        fato(u, OUT, "faturamento_mes", 5000000, fonte="intranet"),
+        fato(u, OUT, "notas_oneflow", 4995000, fonte="oneflow", descricao="OneFlow sem uma nota de R$ 50,00"),
+        AGUARDAR,
+        override(u, OUT, "E01", "CF-01", "Nota conferida no portal da prefeitura", 422, erro="corpo_invalido", motivo_codigo=None,
+                 descricao="override sem motivo_codigo"),
+        override(u, OUT, "E01", "CF-01", "Nota conferida no portal da prefeitura", 422, erro="motivo_invalido", motivo_codigo="cliente_sem_retorno",
+                 descricao="código de impedimento no override"),
+        override(u, OUT, "E01", "CF-01", "Nota conferida no portal da prefeitura", 422, erro="motivo_invalido", motivo_codigo="nao_existe",
+                 descricao="código inexistente"),
+        override(u, OUT, "E01", "CF-01", "Nota conferida no portal da prefeitura", 200, motivo_codigo="nota_fora_da_fonte"),
+        AGUARDAR,
+        verificar("final", {
+            "entregaveis": [ent(u, OUT, "E01", "validado")],
+            "excecoes": [exc(t, OUT, "E03", "prazo_em_risco", ["resolvida:cumprido", "aberta:"], "O"),
+                         exc(t, OUT, "E10", "prazo_em_risco", ["aberta:"], "O"), exc(t, OUT, "E11", "prazo_em_risco", ["aberta:"], "O"),
+                         exc(u, OUT, "E01", "CF-01", ["resolvida:override"])],
+            "conferencias": [conf_seq(u, OUT, "E01", "CF-01", ["divergente:B"], override=[0])],
+        }, final=True),
+    ]
+    return cenario("C29", F46, "M3: risco de multa, impedimento e motivo de catálogo",
+                   "Dois Simples sem folha em 10/2026. VerificarPrazos só abre risco de multa a partir da data de ação, uma vez por entregável, e rodar de novo não duplica. O impedimento com motivo de catálogo abre exceção sem mudar estado e aparece no I8; o motivo errado ou sem texto é recusado. Os insumos chegam, a causa no I8 muda para falta de ação, o impedimento é resolvido e a apuração é cumprida: o risco se resolve na mesma transação. Uma alíquota recalculada invalida a apuração, e o risco volta. Override só com motivo de catálogo do tipo certo. Nenhum comando de prazo grava transição.",
+                   ["§8.1", "§18.4", "§18.5", "§18.6"], R_V6, [t, u], passos)
+
+
 def main() -> None:
     fabricas = {
         "c1-feliz-simples-com-folha.json": c1,
@@ -1233,6 +1441,9 @@ def main() -> None:
         "c21-m2-concorrencia-por-titular.json": c21,
         "c22-m2-fora-de-ordem-e-conflito.json": c22,
         "c23-m2-troca-de-campos-hash.json": c23,
+        "c27-m3-prazos-na-abertura.json": c27,
+        "c28-m3-prorrogacao-do-calendario.json": c28,
+        "c29-m3-risco-de-multa-e-motivo.json": c29,
     }
     gerados: dict[str, dict[str, Any]] = {}
     for nome, fabrica in fabricas.items():
