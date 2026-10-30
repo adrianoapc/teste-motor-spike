@@ -205,16 +205,16 @@ Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (
 Medição repetida da fase 4.5, branch `m2r/spike-dotnet` (só para medir tempo, não será mergeada). O relógio são os commits `M2R tNN`; a base é o commit `M2R inicio`.
 
 - Início: 2026-10-30 18:47 -03
-- Fim: _(preencher na tarefa 30)_
+- Fim: 2026-10-30 19:00 -03
 
 ## Retrabalhos (verificador falhou e exigiu mudar código)
-- Nenhum até agora.
+- **Zero.** Nenhum verificador falhou exigindo mudança de código. A implementação v5 reaplicada (ver "Método desta repetição") já estava validada; cada barreira do verificador (C20, C9, C19, C23, C4, C22, C10, C3, C21 ×3, C6, fase 4.5 18/18) passou na primeira vez.
 
 ## Intervenções humanas
-- Nenhuma até agora.
+- **Uma:** a diretiva inicial do usuário (preparar a branch, rodar 25→30 sem parar, só parar em erro). Nenhuma intervenção durante a execução — nenhuma pausa, pergunta ou espera foi necessária.
 
 ## Erros barrados pelo compilador (antes de qualquer teste)
-- Nenhum até agora (ver também `REGISTRO-COMPILADOR.md`).
+- **Zero nesta repetição.** O código aplicado compila limpo de primeira (`dotnet test` 258+10, 0 avisos sob `TreatWarningsAsErrors`, 2 DB-gated). Os dois erros que o compilador barrou quando este mesmo código foi escrito pela primeira vez (ParaTexto `internal`; aridade de `FatoVigente`) estão em `REGISTRO-COMPILADOR.md` (linhas 2026-10-29).
 
 ## Medida de impacto da M2 (tarefa 25, código M1 sem mudança)
 - `--fase 4 --limpar` → **13/13** (guarda satisfeita: a fase 4 não regride).
@@ -231,7 +231,7 @@ Esta medição repetida parte da base limpa `72b7d4e` e **reaplica a implementa�
 | 27 | C19 168, C23 77, C4 119 | `M2R t27` | hash v2 (25 vetores + pares) verdes; `campos_hash` não versiona (C23) |
 | 28 | C22 74, C10 154, C3 155 | `M2R t28` | recebimento, obsoleto/conflito_fonte, idempotência (trava por fonte+chave) |
 | 29 | C21 318 ×3, C6 isolado | `M2R t29` | trava §13 (`hashtextextended('titular\|'\|\|id,0)`); teste de integração 2/2 contra DB vivo; C6 ver abaixo |
-| 30 | fase 4.5 18/18 | _pendente_ | |
+| 30 | **fase 4.5 18/18** (relatório `resultado-fase45-dotnet.json`) | `M2R t30` | fechamento; só a spike .NET no ar; `dotnet test` 268 + 2 DB-gated, 0 warnings |
 
 ### C6 isolado (tarefa 29, só a spike .NET no ar)
 | Indicador | fase 4 (11 contêineres no ar) | fase 4.5 isolado |
