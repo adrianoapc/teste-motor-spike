@@ -1,6 +1,6 @@
 # Semântica do motor do fechamento (normativa para as três spikes)
 
-**v5 · 27/10/2026** (manutenção M2, fase 4.5: contrato de fato, hash v2, recebimento, fora de ordem, idempotência e trava por titular: §6.1 a §6.5, §8 passo 3a, §9.4, §13, §17). v4 · 15/10/2026 (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
+**v5.1 · 30/10/2026** (achados da revisão da M2: §6.2 todas as violações de `required`, §6.5 trava por chave de idempotência, §6.4 precisão de `observado_em` em aberto). **v5 · 27/10/2026** (manutenção M2, fase 4.5: contrato de fato, hash v2, recebimento, fora de ordem, idempotência e trava por titular: §6.1 a §6.5, §8 passo 3a, §9.4, §13, §17). v4 · 15/10/2026 (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
 
 Fontes do domínio: spec do spike v0.3, spec da saga do fechamento (CF-01..18, R1–R10), catálogo de capacidades (E01–E12). Tudo o que é regra fiscal aqui é **provisório** (status `provisoria` no banco) e não foi validado pelas áreas.
 
@@ -155,6 +155,7 @@ Todo `tipo` de fato tem um **contrato versionado**. A fonte da verdade são os a
 3. **Fonte** fora de `fontes_permitidas` → `403 fonte_nao_autorizada`.
 4. **Qualificador**, **`valor_centavos`** e **`payload`** contra o contrato → `422 payload_invalido`, com **todas** as violações em `violacoes: [{"campo", "regra"}]`:
    - `campo`: `tributo`, `valor_centavos` ou o caminho no payload (`payload.competencia_impressa`, `payload.parcelas[0].socio`); para campo obrigatório ausente, o caminho do campo que falta;
+   - **uma violação por campo**: dois campos `required` ausentes = duas entradas (v5.1; as três spikes só reportavam o primeiro);
    - `regra`: `obrigatorio` (tributo, valor ou campo `required` ausente), `proibido` (tributo ou valor que o contrato não aceita), `fora_da_lista` (tributo fora de `valores`), `tipo` (falha de `type` do esquema), `esquema` (qualquer outra falha do esquema: `pattern`, `minimum`, `minLength`...).
 
 Em qualquer erro, **nada é gravado** (nem fato, nem recebimento, nem evento, nem nada nos casos).
@@ -185,7 +186,7 @@ Sejam `V` a vigente da chave, `h` o hash do que chegou e `hV` o hash de `V` **re
 | `h ≠ hV`, `observado_em` = `V.observado_em` e **mesma fonte** de `V` | **`conflito_fonte`** | não | exceção `conflito_fonte` (abaixo) |
 | `h ≠ hV`, `observado_em` = `V.observado_em` e **fonte diferente** | `nova_versao` | sim | passos 1 a 4 acima |
 
-- Comparação de `observado_em` como instante (`timestamptz`), não como texto.
+- Comparação de `observado_em` como instante (`timestamptz`), não como texto. **Precisão (aberto, v5.1):** o `timestamptz` guarda microssegundos. Uma fração com 7 ou mais dígitos precisa virar microssegundo do mesmo jeito na comparação e na gravação, senão a mesma observação cai em `obsoleto` ou `nova_versao` em vez de `conflito_fonte`. Na revisão, o .NET passou a truncar e o PHP a arredondar como o Postgres (meio para o par). Cada spike ficou coerente consigo, mas as duas não dão o mesmo resultado para a mesma entrada. Decisão pendente para a fase 5: recusar mais de 6 dígitos (`422`), ou fixar uma regra única.
 - **Por que `obsoleto` não entra em `fatos.fato`:** a vigente é a maior versão (view `fatos.fato_vigente`); gravar uma leitura antiga como versão nova a tornaria vigente por engano.
 - **`conflito_fonte`:** abre exceção `tipo = 'conflito_fonte'`, classe `S`, `entregavel_id` nulo, `dono` = carteira, no caso **aberto** do titular e competência (abertura única por caso, §9.4), com o evento `excecao.aberta`. Sem caso, ou com caso encerrado, fica só o recebimento. O spike não resolve essa exceção (§9.4).
 - **Saídas de tarefa** (§8) usam `observado_em` = relógio do servidor (o mesmo `agora` da conclusão), então seguem a regra normal. Por isso os cenários publicam fatos com `observado_em` = instante do envio (`"$agora"`, resolvido pelo verificador com o relógio do banco da spike, o mesmo que carimba as tarefas), na mesma linha do tempo das tarefas; instantes fixos só onde o cenário testa ordem (C21, C22).
@@ -193,7 +194,7 @@ Sejam `V` a vigente da chave, `h` o hash do que chegou e `hV` o hash de `V` **re
 
 ### 6.5 · Idempotência de requisição (v5)
 
-`PublicarFato` aceita `chave_idempotencia` (texto opcional, 1 a 200 caracteres). Depois das validações do §6.2 e já sob a trava do titular (§13): se existe recebimento com a mesma (`fonte`, `chave_idempotencia`), a resposta é `200` com o **mesmo `efeito`, `fato_id` e `versao` da primeira vez** e `repetido: true`, **sem gravar nada** (nem recebimento). Sem a chave, vale só a comparação de hash. O corpo repetido não é comparado com o original: a chave manda.
+`PublicarFato` aceita `chave_idempotencia` (texto opcional, 1 a 200 caracteres; `null` = ausente). A chave é **global por fonte**, não por titular: a mesma (`fonte`, `chave_idempotencia`) vinda de titulares diferentes também é repetição. Por isso a trava do titular (§13) não basta: **v5.1** exige, antes da trava do titular, `SELECT pg_advisory_xact_lock(hashtextextended('idem|' || fonte || '|' || chave_idempotencia, 0))`, que serializa a mesma chave entre titulares (sem ela, dois titulares em paralelo colidem no índice único `recebimento_idempotencia` e um recebe 500; as três spikes tinham esse defeito, corrigido na revisão). Depois das validações do §6.2 e sob as duas travas: se existe recebimento com a mesma (`fonte`, `chave_idempotencia`), a resposta é `200` com o **mesmo `efeito`, `fato_id` e `versao` da primeira vez** e `repetido: true`, **sem gravar nada** (nem recebimento). Sem a chave, vale só a comparação de hash. O corpo repetido não é comparado com o original: a chave manda.
 
 ## 7 · Prontidão
 

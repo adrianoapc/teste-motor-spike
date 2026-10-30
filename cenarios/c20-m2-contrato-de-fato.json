@@ -197,6 +197,34 @@
     },
     {
       "acao": "publicar_fato",
+      "descricao": "v5.1: dois campos obrigatórios ausentes = duas violações",
+      "corpo": {
+        "titular_id": "T020",
+        "competencia": "202609",
+        "tipo": "folha",
+        "fonte": "dp",
+        "observado_em": "$agora",
+        "valor_centavos": 400000,
+        "payload": {}
+      },
+      "espera": {
+        "status": 422,
+        "erro": "payload_invalido",
+        "nada_gravado": true,
+        "violacoes": [
+          {
+            "campo": "payload.inss_centavos",
+            "regra": "obrigatorio"
+          },
+          {
+            "campo": "payload.fgts_centavos",
+            "regra": "obrigatorio"
+          }
+        ]
+      }
+    },
+    {
+      "acao": "publicar_fato",
       "descricao": "número como texto",
       "corpo": {
         "titular_id": "T020",

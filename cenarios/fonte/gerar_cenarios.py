@@ -1026,6 +1026,9 @@ def c20() -> dict[str, Any]:
                   payload={"aliquota_bp": 600}, fonte="calculo", descricao="alíquota com valor_centavos"),
         rejeitado(t, C, "faturamento_mes", None, 422, "payload_invalido", [{"campo": "valor_centavos", "regra": "obrigatorio"}],
                   fonte="intranet", descricao="faturamento sem valor"),
+        rejeitado(t, C, "folha", 400000, 422, "payload_invalido", [{"campo": "payload.inss_centavos", "regra": "obrigatorio"},
+                                                                   {"campo": "payload.fgts_centavos", "regra": "obrigatorio"}],
+                  payload={}, fonte="dp", descricao="v5.1: dois campos obrigatórios ausentes = duas violações"),
         rejeitado(t, C, "folha", 400000, 422, "payload_invalido", [{"campo": "payload.inss_centavos", "regra": "tipo"}],
                   payload={"inss_centavos": "88000", "fgts_centavos": 32000}, fonte="dp", descricao="número como texto"),
         rejeitado(t, C, "guia", 88000, 422, "payload_invalido", [{"campo": "payload.competencia_impressa", "regra": "esquema"}],
@@ -1097,6 +1100,19 @@ def c21() -> dict[str, Any]:
          "semente": 20261027, "concorrencia": 20, "corpos": corpos,
          "espera": {"efeitos_aceitos": ["novo", "nova_versao", "sem_mudanca", "obsoleto"]}},
         AGUARDAR,
+        # v5.1 (§6.5): a chave de idempotência é global por fonte. Dez titulares mandam, ao mesmo tempo, a mesma
+        # chave: um só recebimento, as outras nove respostas repetidas, nenhum 500 no índice único.
+    ] + [
+        # oito rodadas, cada uma com uma chave nova: a corrida é probabilística, e repetir aumenta a chance de pegá-la
+        {"acao": "publicar_paralelo", "descricao": f"rodada {n + 1}: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+         "semente": 20261030 + n, "concorrencia": 10,
+         "corpos": [fato(f"T021{x}", C, "anotacao_interna", None, payload={"texto": f"lote importado {n + 1}"}, fonte="intranet",
+                         observado_em=f"2026-10-01T10:{14 + n:02d}:00-03:00", chave_idempotencia=f"lote-importado-{n + 1}")["corpo"]
+                    for x in "ABCDEFGHIJ"],
+         "espera": {"efeitos_aceitos": ["novo", "nova_versao"]}}  # da 2ª rodada em diante o titular vencedor já tem anotação
+        for n in range(8)
+    ] + [
+        AGUARDAR,
     ]
     passos += [concluir(t, C, "E03", [{"tributo": "DAS", "valor_centavos": 300000}]) for t in tits]
     passos += [
@@ -1108,6 +1124,7 @@ def c21() -> dict[str, Any]:
             "tarefas_abertas": [],
             "vigentes": [v for t in tits for v in (vig(t, C, "notas_oneflow", valor_centavos=5000000), vig(t, C, "guia", "INSS", valor_centavos=88000))],
             "fatos": [versoes(t, C, "guia", 1, "FGTS") for t in tits],
+            "recebimentos_por_chave": [{"fonte": "intranet", "chave": f"lote-importado-{n + 1}", "total": 1} for n in range(8)],
             "recebimentos": [r for t in tits for r in (recebs(t, C, "guia", "FGTS", contagem={"novo": 1}),
                                                         recebs(t, C, "notas_oneflow", total=3), recebs(t, C, "guia", "INSS", total=3))],
         }, final=True),

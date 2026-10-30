@@ -424,6 +424,13 @@ def verificar_esperado(conn: psycopg.Connection, esp: dict[str, Any], titulares:
         if "total" in rc:
             r.checar(len(rows) == rc["total"], f"[{rotulo}] recebimentos {ident}: {len(rows)}, esperado {rc['total']}")
 
+    for rk in esp.get("recebimentos_por_chave", []):
+        # v5.1 §6.5: a chave de idempotência é global por (fonte, chave), mesmo entre titulares diferentes
+        cur.execute("SELECT count(*) AS n FROM fatos.recebimento WHERE fonte = %s AND chave_idempotencia = %s",
+                    (rk["fonte"], rk["chave"]))
+        n = cur.fetchone()["n"]
+        r.checar(n == rk["total"], f"[{rotulo}] recebimentos com chave {rk['fonte']}/{rk['chave']}: {n}, esperado {rk['total']}")
+
     for vg in esp.get("vigentes", []):
         # v5 §6.4: a vigente é a de maior observado_em, qualquer que seja a ordem de chegada
         cur.execute(
@@ -894,6 +901,7 @@ def rodar_cenario(api: str, dsn: str, caminho: Path, limpar_antes: bool, v5: boo
         conn.rollback()
         verificar_invariantes(conn, r, v5)
         medir_indicadores(conn, r)
+        restaurar_contratos(conn)  # v5.1: o banco volta a espelhar o repositório também ao fim (C23 ativa contratos de teste)
     return r
 
 
