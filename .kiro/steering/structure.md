@@ -8,7 +8,7 @@ inclusion: always
 docker-compose.yml          base comum (SÓ LEITURA)
 db/
   init/                     cria os bancos spike_dotnet, spike_python e spike_php (SÓ LEITURA)
-  migrations/V001..V009     esquema, regras provisórias e contratos de fato (SÓ LEITURA)
+  migrations/V001..V010     esquema, regras provisórias, contratos de fato e prazos (SÓ LEITURA)
   scripts/gerar_v009_tipos.py  gera a V009 a partir de contrato/tipos-fato (SÓ LEITURA)
   scripts/migrar.sh         aplica as migrações (SÓ LEITURA)
 contrato/tipos-fato/        contratos de tipo de fato, fonte da verdade da V009 (SÓ LEITURA)

@@ -1315,6 +1315,1001 @@
       "acao": "aguardar_fila"
     },
     {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 1: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261030,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:14:00-03:00",
+          "chave_idempotencia": "lote-importado-1",
+          "payload": {
+            "texto": "lote importado 1"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 2: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261031,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:15:00-03:00",
+          "chave_idempotencia": "lote-importado-2",
+          "payload": {
+            "texto": "lote importado 2"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 3: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261032,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:16:00-03:00",
+          "chave_idempotencia": "lote-importado-3",
+          "payload": {
+            "texto": "lote importado 3"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 4: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261033,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:17:00-03:00",
+          "chave_idempotencia": "lote-importado-4",
+          "payload": {
+            "texto": "lote importado 4"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 5: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261034,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:18:00-03:00",
+          "chave_idempotencia": "lote-importado-5",
+          "payload": {
+            "texto": "lote importado 5"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 6: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261035,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:19:00-03:00",
+          "chave_idempotencia": "lote-importado-6",
+          "payload": {
+            "texto": "lote importado 6"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 7: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261036,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:20:00-03:00",
+          "chave_idempotencia": "lote-importado-7",
+          "payload": {
+            "texto": "lote importado 7"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "publicar_paralelo",
+      "descricao": "rodada 8: a mesma chave_idempotencia de 10 titulares, ao mesmo tempo",
+      "semente": 20261037,
+      "concorrencia": 10,
+      "corpos": [
+        {
+          "titular_id": "T021A",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021B",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021C",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021D",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021E",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021F",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021G",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021H",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021I",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        },
+        {
+          "titular_id": "T021J",
+          "competencia": "202609",
+          "tipo": "anotacao_interna",
+          "fonte": "intranet",
+          "observado_em": "2026-10-01T10:21:00-03:00",
+          "chave_idempotencia": "lote-importado-8",
+          "payload": {
+            "texto": "lote importado 8"
+          }
+        }
+      ],
+      "espera": {
+        "efeitos_aceitos": [
+          "novo",
+          "nova_versao"
+        ]
+      }
+    },
+    {
+      "acao": "aguardar_fila"
+    },
+    {
       "acao": "concluir_entregavel",
       "titular_id": "T021A",
       "competencia": "202609",
@@ -1793,6 +2788,48 @@
             "tipo": "guia",
             "tributo": "FGTS",
             "versoes": 1
+          }
+        ],
+        "recebimentos_por_chave": [
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-1",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-2",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-3",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-4",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-5",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-6",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-7",
+            "total": 1
+          },
+          {
+            "fonte": "intranet",
+            "chave": "lote-importado-8",
+            "total": 1
           }
         ],
         "recebimentos": [

@@ -211,3 +211,17 @@ BEGIN
 COMMIT
 ```
 
+## Fase 4.6 · acréscimos (semântica v6, M3)
+
+| Peça | Onde | Observação |
+|---|---|---|
+| Cálculo das datas | `dominio` (funções puras) | Dia útil, data de obrigação, vencimento (a mais cedo que se aplica), meta e ação, exatamente como no §18.2. Recebe o conteúdo das regras e o contexto do caso; não lê banco |
+| Regras de prazo | aplicação + infraestrutura | `fechamento.prazos` fixada no caso (`regra_prazos_versao_id`); `calendario.vencimentos` e `obrigacoes.catalogo` lidas pelo `status` a cada cálculo |
+| Abertura | módulo `fechamento` | Datas e `entregavel_prazo` (motivo `abertura`) na mesma transação da criação |
+| `AplicarCalendario` | módulo `fechamento` | Uma transação por titular, com a trava do §13; só entregáveis com prazo e não cumpridos de casos abertos |
+| `VerificarPrazos` | módulo `trabalho` | `prazo_em_risco` com abertura única; a resolução fica na **função única de transição** |
+| Motivo e impedimento | módulos `conferencias` e `trabalho` | `trabalho.motivo_catalogo`; impedimento é exceção, nunca estado |
+| I7 e I8 | — | Já existem na V010 (base). A spike não escreve consulta de indicador |
+
+Nada desta fase cria estado, transição ou regra de prontidão. `AplicarCalendario`, `VerificarPrazos` e o impedimento **nunca** chamam a função de transição.
+

@@ -1,6 +1,6 @@
 # Semântica do motor do fechamento (normativa para as três spikes)
 
-**v5 · 27/10/2026** (manutenção M2, fase 4.5: contrato de fato, hash v2, recebimento, fora de ordem, idempotência e trava por titular: §6.1 a §6.5, §8 passo 3a, §9.4, §13, §17). v4 · 15/10/2026 (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
+**v6 · 30/10/2026** (manutenção M3: prazos, risco de multa e motivo de catálogo: §2, §5 passo 3, §8.1, §9.4, §12, §18). **v5.1 · 30/10/2026** (achados da revisão da M2: §6.2 todas as violações de `required`, §6.5 trava por chave de idempotência, §6.4 `observado_em` truncado para microssegundo). **v5 · 27/10/2026** (manutenção M2, fase 4.5: contrato de fato, hash v2, recebimento, fora de ordem, idempotência e trava por titular: §6.1 a §6.5, §8 passo 3a, §9.4, §13, §17). v4 · 15/10/2026 (manutenção M1: §2, §3, §6 passo 2, §9.1 CF-07/CF-08/CF-09, §9.2, §16; v1 de 06/10; v2 com as regras da fase 2: §8 item 4, §8.1, §9.1 CF-09, §9.4, §11 e §12; **v3: o fechamento termina no protocolo de entrega**, o pagamento sai do fechamento, e entra o acompanhamento depois do protocolo: §4, §7.4, §10, §10.3, §11.2, §12, §15). Este documento define **o que** o motor faz. As três spikes implementam exatamente isto. Onde houver dúvida, **não invente comportamento**: registre a dúvida em `spikes/<linguagem>/DUVIDAS.md` e siga o que está escrito aqui.
 
 Fontes do domínio: spec do spike v0.3, spec da saga do fechamento (CF-01..18, R1–R10), catálogo de capacidades (E01–E12). Tudo o que é regra fiscal aqui é **provisório** (status `provisoria` no banco) e não foi validado pelas áreas.
 
@@ -30,6 +30,9 @@ O motor lê, na abertura do caso, a versão **em uso** de cada regra: a única l
 | `fechamento.entregaveis` | Quais entregáveis existem, dependências, entradas, saída, conferências, pós-validação, acompanhamento. **Em uso: v3** (V008; a v1 está `aposentada` desde a V006 e a v2 desde a V008) |
 | `fiscal.tolerancia` | Tolerância das conferências numéricas. **Em uso: v2** (V008: alerta até 10 centavos; a v1 está `aposentada`) |
 | `fiscal.parametros` | Percentual do pró-labore (CF-08) |
+| `fechamento.prazos` | (v6) Prazos por tipo de entregável (§18.1). **Fixada no caso**, como `fechamento.entregaveis`: `regra_prazos_versao_id` |
+| `calendario.vencimentos` | (v6) Feriados e prorrogações (§18.1). **Não fixada no caso**: lida a cada cálculo |
+| `obrigacoes.catalogo` | (v6) Obrigações e regra de vencimento (§18.1). **Não fixada no caso**: lida a cada cálculo |
 
 - **Nunca fixe a versão no código.** Leia a versão em uso pelo `status`. A V006 trocou a v1 pela v2 e a V008 trocou a v2 pela v3 sem mudar a chave; código que procura uma versão fixa quebra.
 - O caso guarda o `id` da versão de `fechamento.entregaveis` usada (`regra_entregaveis_versao_id`) e **sempre** usa essa versão, mesmo que outra seja publicada depois.
@@ -104,7 +107,7 @@ Para cada empresa do corpo da requisição, em **uma transação por empresa**:
 
 1. Se já existe caso (`titular_id`, `competencia`): **não faz nada** e reporta em `existentes`. (Idempotente.)
 2. Cria o caso: `estado = 'aberto'`, `snapshot` = empresa recebida, `carteira` = `snapshot.carteira`, `regra_entregaveis_versao_id` = versão em uso.
-3. Para cada item de `entregaveis` da regra cujo `quando` casa: cria o entregável em `aguardando_insumo` com `executor` da regra e `area` de `fechamento.entregavel_tipo`; grava a transição de criação.
+3. Para cada item de `entregaveis` da regra cujo `quando` casa: cria o entregável em `aguardando_insumo` com `executor` da regra e `area` de `fechamento.entregavel_tipo`; grava a transição de criação. **v6:** o caso guarda `regra_prazos_versao_id` = versão em uso de `fechamento.prazos`, e cada entregável com prazo recebe `vencimento`, `meta` e `acao` (§18.2), com uma linha em `fechamento.entregavel_prazo` (motivo `abertura`). Nenhuma transição a mais.
 4. Para cada `depende_de` de cada entregável criado: se o `quando` da dependência casa **e** o entregável alvo **existe no caso**, grava em `entregavel_dependencia` com `estado_minimo` = o do item ou `estado_minimo_padrao` (`validado`). **Dependência para entregável inexistente no caso é ignorada.**
 5. Evento `competencia.aberta` (`payload`: `{"caso_id": ...}`).
 6. Avalia a prontidão (§7) de **todos** os entregáveis do caso.
@@ -155,6 +158,7 @@ Todo `tipo` de fato tem um **contrato versionado**. A fonte da verdade são os a
 3. **Fonte** fora de `fontes_permitidas` → `403 fonte_nao_autorizada`.
 4. **Qualificador**, **`valor_centavos`** e **`payload`** contra o contrato → `422 payload_invalido`, com **todas** as violações em `violacoes: [{"campo", "regra"}]`:
    - `campo`: `tributo`, `valor_centavos` ou o caminho no payload (`payload.competencia_impressa`, `payload.parcelas[0].socio`); para campo obrigatório ausente, o caminho do campo que falta;
+   - **uma violação por campo**: dois campos `required` ausentes = duas entradas (v5.1; as três spikes só reportavam o primeiro);
    - `regra`: `obrigatorio` (tributo, valor ou campo `required` ausente), `proibido` (tributo ou valor que o contrato não aceita), `fora_da_lista` (tributo fora de `valores`), `tipo` (falha de `type` do esquema), `esquema` (qualquer outra falha do esquema: `pattern`, `minimum`, `minLength`...).
 
 Em qualquer erro, **nada é gravado** (nem fato, nem recebimento, nem evento, nem nada nos casos).
@@ -185,7 +189,7 @@ Sejam `V` a vigente da chave, `h` o hash do que chegou e `hV` o hash de `V` **re
 | `h ≠ hV`, `observado_em` = `V.observado_em` e **mesma fonte** de `V` | **`conflito_fonte`** | não | exceção `conflito_fonte` (abaixo) |
 | `h ≠ hV`, `observado_em` = `V.observado_em` e **fonte diferente** | `nova_versao` | sim | passos 1 a 4 acima |
 
-- Comparação de `observado_em` como instante (`timestamptz`), não como texto.
+- Comparação de `observado_em` como instante (`timestamptz`), não como texto. **Precisão (decidido, v5.1, Adriano 30/10): truncar para microssegundo.** O `timestamptz` guarda microssegundos. O motor **trunca** a fração de `observado_em` para 6 dígitos (descarta o 7º em diante, sem arredondar) **antes de comparar e antes de gravar**, e grava esse valor já truncado. Assim o Postgres sempre recebe 6 dígitos e nunca arredonda (o arredondamento dele é meio para o par, e `.9999996` iria para o segundo seguinte). Exemplos: `.1234569` → `.123456`; `.9999996` → `.999999`; `.12` → `.120000`. Fração com até 9 dígitos é aceita; com mais de 9, `422 corpo_invalido`. Antes da v5.1, o Python e o .NET já truncavam; o PHP arredondava como o Postgres.
 - **Por que `obsoleto` não entra em `fatos.fato`:** a vigente é a maior versão (view `fatos.fato_vigente`); gravar uma leitura antiga como versão nova a tornaria vigente por engano.
 - **`conflito_fonte`:** abre exceção `tipo = 'conflito_fonte'`, classe `S`, `entregavel_id` nulo, `dono` = carteira, no caso **aberto** do titular e competência (abertura única por caso, §9.4), com o evento `excecao.aberta`. Sem caso, ou com caso encerrado, fica só o recebimento. O spike não resolve essa exceção (§9.4).
 - **Saídas de tarefa** (§8) usam `observado_em` = relógio do servidor (o mesmo `agora` da conclusão), então seguem a regra normal. Por isso os cenários publicam fatos com `observado_em` = instante do envio (`"$agora"`, resolvido pelo verificador com o relógio do banco da spike, o mesmo que carimba as tarefas), na mesma linha do tempo das tarefas; instantes fixos só onde o cenário testa ordem (C21, C22).
@@ -193,7 +197,7 @@ Sejam `V` a vigente da chave, `h` o hash do que chegou e `hV` o hash de `V` **re
 
 ### 6.5 · Idempotência de requisição (v5)
 
-`PublicarFato` aceita `chave_idempotencia` (texto opcional, 1 a 200 caracteres). Depois das validações do §6.2 e já sob a trava do titular (§13): se existe recebimento com a mesma (`fonte`, `chave_idempotencia`), a resposta é `200` com o **mesmo `efeito`, `fato_id` e `versao` da primeira vez** e `repetido: true`, **sem gravar nada** (nem recebimento). Sem a chave, vale só a comparação de hash. O corpo repetido não é comparado com o original: a chave manda.
+`PublicarFato` aceita `chave_idempotencia` (texto opcional, 1 a 200 caracteres; `null` = ausente). A chave é **global por fonte**, não por titular: a mesma (`fonte`, `chave_idempotencia`) vinda de titulares diferentes também é repetição. Por isso a trava do titular (§13) não basta: **v5.1** exige, antes da trava do titular, `SELECT pg_advisory_xact_lock(hashtextextended('idem|' || fonte || '|' || chave_idempotencia, 0))`, que serializa a mesma chave entre titulares (sem ela, dois titulares em paralelo colidem no índice único `recebimento_idempotencia` e um recebe 500; as três spikes tinham esse defeito, corrigido na revisão). Depois das validações do §6.2 e sob as duas travas: se existe recebimento com a mesma (`fonte`, `chave_idempotencia`), a resposta é `200` com o **mesmo `efeito`, `fato_id` e `versao` da primeira vez** e `repetido: true`, **sem gravar nada** (nem recebimento). Sem a chave, vale só a comparação de hash. O corpo repetido não é comparado com o original: a chave manda.
 
 ## 7 · Prontidão
 
@@ -256,17 +260,18 @@ Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/concluir`.
 
 ### 8.1 · `RegistrarOverride`
 
-Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override`, corpo `{"ator", "cf", "motivo"}`.
+Rota: `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/override`, corpo `{"ator", "cf", "motivo", "motivo_codigo"}` (v6: `motivo_codigo` obrigatório, §18.5).
 
 A **conferência vigente** de uma CF num entregável é a mais recente daquela CF naquele entregável (maior `em`).
 
 Validação, nesta ordem:
-1. Corpo inválido (falta campo, `cf` fora do padrão `CF-nn`, `motivo` com menos de 5 caracteres) → `422`.
+1. Corpo inválido (falta campo, `cf` fora do padrão `CF-nn`, `motivo` com menos de 5 caracteres, `motivo_codigo` ausente ou vazio) → `422 corpo_invalido`.
+1a. (v6) `motivo_codigo` fora de `trabalho.motivo_catalogo` com `aplica_a = 'override'` → `422 motivo_invalido`.
 2. Caso ou entregável inexistente → `404`.
 3. Entregável fora de `divergente`, ou a conferência vigente da `cf` não existe, ou não é `divergente` com severidade `B`, ou já tem override → `409`.
 
 Efeito, numa transação:
-1. Grava `override_autor` (= `ator`), `override_motivo` e `override_em` na conferência vigente da `cf`.
+1. Grava `override_autor` (= `ator`), `override_motivo`, `override_motivo_codigo` (v6) e `override_em` na conferência vigente da `cf`.
 2. Resolve as exceções abertas daquele entregável com `tipo` = `cf` (`estado = 'resolvida'`, `resolucao = 'override'`, `resolvida_em`).
 3. Evento `conferencia.override` (`payload`: `{"conferencia_id"}`).
 4. Se nenhuma outra CF do entregável tiver conferência vigente `divergente`, severidade `B` e sem override: `divergente → validado` (motivo `override`, `causado_por_tipo = 'conferencia'`, id da conferência, `ator` = `corpo.ator`) e o evento do tipo do entregável (§9.3).
@@ -328,7 +333,8 @@ Demais campos: `classe` = `classe_padrao` do catálogo; `fatos_usados` = lista `
 - **Resolução por fato novo:** quando um entregável sai de `divergente` para `invalidado` (§11), todas as suas exceções abertas cujo `tipo` comece com `CF-` passam a `resolvida`, `resolucao = 'fato_alterado'`, `resolvida_em` = agora.
 - **Resolução por override:** §8.1.
 - **Resolução pelo acompanhamento da entrega:** §10.3 (`reenviado`, `recebido`).
-- **Exceções que o spike não resolve:** `substituicao`, `competencia_encerrada` e (v5) `conflito_fonte` ficam `aberta`. Resolver exige ação humana fora do motor (reenvio do documento substituto, serviço retroativo). Elas **não** impedem o encerramento do caso (o E12 só olha estados dos entregáveis).
+- **Exceções que o spike não resolve:** `substituicao`, `competencia_encerrada` e (v5) `conflito_fonte` ficam `aberta`.
+- **(v6) Prazo e impedimento:** `prazo_em_risco` é resolvida pelo cumprimento do entregável (§18.4, `resolucao = 'cumprido'`); `impedimento_externo` pelo comando `ResolverImpedimento` (§18.5, `resolucao = 'resolvido'`). Nenhuma das duas muda estado. Resolver exige ação humana fora do motor (reenvio do documento substituto, serviço retroativo). Elas **não** impedem o encerramento do caso (o E12 só olha estados dos entregáveis).
 - **Exceção aberta em caso encerrado** é normal (§10.3, §11.3): o caso não reabre, e a exceção tem dono.
 
 ## 10 · Depois de `validado`
@@ -424,6 +430,7 @@ Se a semente pertence a um caso com `estado = 'encerrado'`: **nenhuma transiçã
 | `entregavel.invalidado` | → invalidado | `{"entregavel_id"}` |
 | `fechamento.concluido` | caso encerrado | `{"caso_id"}` |
 | `conferencia.override` | override registrado (§8.1) | `{"conferencia_id"}` |
+| `prazo.alterado` | (v6) `AplicarCalendario` mudou as datas de um entregável (§18.3) | `{"entregavel_id"}` |
 
 `recebimento.confirmado` segue o nome do fluxo de Entrega ao cliente. Não confundir com `documento.recebido` do ADR-011, que é o caminho inverso (o cliente enviou um documento à Rissi) e não é emitido pelo motor.
 
@@ -490,4 +497,70 @@ O que mudou da v4 para a v5. É o **segundo teste comum de manutenção** (M2) d
 **Decisões assumidas (spec da fase 4.5, 20/10):** contratos no repositório (D2); sujeito da trava = `titular_id` no spike (D3; raiz do CNPJ × estabelecimento continua aberta para produção); hash sempre sob o contrato ativo, sem migração de hash (D5); a chave fora do hash (D6); `obsoleto` fora de `fatos.fato` (D7).
 
 **Fora da v5:** correção por tela com autor e motivo e precedência entre fontes; referência genérica (fase 6); `observado_em` confiável por fonte (pergunta da fase 5); fila de mortos e espera crescente (fase 5).
+
+## 18 · v6 · Manutenção M3: prazos, risco de multa e motivo de catálogo (30/10/2026)
+
+Terceiro teste comum de manutenção (M3, `docs/regras-do-jogo.md`), com `--fase 4.6`. Origem: adendo da RFC-002 "Lições do G-Click" (29/10). Migração **V010**; cenários **C27 a C29**; C9 passa a mandar `motivo_codigo`.
+
+**Princípio.** Prazo é **atributo** do entregável, não estado: nada desta seção cria estado, transição ou regra de prontidão. O motor continua **sem relógio**: tudo que depende de "hoje" recebe `data_ref` de quem chama (o agendador, em produção; o verificador, no spike).
+
+### 18.1 · As três regras (provisórias, V010)
+
+- **`calendario.vencimentos`** (não fixada no caso): `feriados` (lista de datas `AAAA-MM-DD`, abrangência nacional) e `prorrogacoes` (lista de `{"obrigacao", "competencia", "nova_data", "ato"}`). Feriado novo ou prorrogação = **versão nova** desta regra. A tabela `fechamento.calendario` (V002) não é usada.
+- **`obrigacoes.catalogo`** (não fixada no caso): lista `obrigacoes` com `codigo`, `quando` (§3) e `vencimento`: `{"meses_apos": n, "dia": d, "dia_nao_util": "antecipa" | "posterga"}` ou `{"meses_apos": n, "dia": "ultimo_dia_util"}`. Os outros campos são informativos.
+- **`fechamento.prazos`** (fixada no caso, `regra_prazos_versao_id`): `padrao` (`meta`, `acao`, `estado_cumprimento`) e `entregaveis`, um item por tipo com prazo: `vencimento_ref` (códigos do catálogo), `gera_multa`, `esforco_estimado_min` e, opcionais, `meta`, `acao` e `estado_cumprimento` que substituem os do `padrao`. `meta` e `acao` são **listas** de `{"quando"?, "dias_corridos"}` e `{"quando"?, "dias_uteis"}`: vale o primeiro item cujo `quando` casa (ausente = sempre). **Tipo fora da lista não tem prazo.**
+
+### 18.2 · Cálculo das datas (o mesmo nas três spikes, até o dia)
+
+- **Dia útil:** não é sábado, não é domingo e não está em `feriados` da versão em uso do calendário.
+- **Data de uma obrigação** para a competência `AAAAMM` do caso:
+  1. Se há prorrogação com a mesma `obrigacao` e `competencia`: é a `nova_data`, sem ajuste.
+  2. Senão, mês-base = competência + `meses_apos` meses.
+  3. `dia` numérico: dia `min(dia, último dia do mês-base)`; se não for útil, `antecipa` volta ao dia útil anterior e `posterga` avança ao próximo.
+  4. `dia = "ultimo_dia_util"`: último dia do mês-base; se não for útil, volta até o dia útil anterior.
+- **Vencimento do entregável:** a **mais cedo** entre as obrigações de `vencimento_ref` que existem no catálogo e cujo `quando` casa com o contexto do caso (§3). Nenhuma se aplica = o entregável **não tem prazo** (as três datas ficam nulas e não há linha em `entregavel_prazo`).
+- **Meta:** vencimento + `dias_corridos`; se não for útil, volta ao dia útil anterior.
+- **Ação:** a partir da meta, anda `|dias_uteis|` dias úteis para trás (cada passo vai ao dia útil anterior); `0` = a própria meta.
+- Garantido pelo banco: `acao ≤ meta ≤ vencimento`, e as três nulas ou as três preenchidas.
+
+Exemplo (C27, competência 202610, Simples com folha, feriados 02/11, 15/11 e 20/11/2026): SN-01 = 20/11 (sexta, feriado) → **posterga** → 23/11; PJ-02, PJ-03 e PJ-04 = 20/11 → **antecipa** → 19/11. E03: vencimento 23/11, meta 18/11, ação 16/11. E08: vencimento 19/11, meta 14/11 (sábado) → 13/11, ação 11/11. E11 (todas as guias): vencimento 19/11, meta 13/11, ação 11/11.
+
+### 18.3 · `AplicarCalendario`
+
+Rota: `POST /admin/calendario/aplicar`, corpo `{}`. Resposta `200 {"alterados": n}`.
+
+- Para cada caso `aberto` que tem `regra_prazos_versao_id`, sob a trava do titular (§13), uma transação por titular: para cada entregável **com prazo** e **não cumprido** (§18.4), recalcula as datas com as versões em uso do calendário e do catálogo e a versão de prazos **do caso**.
+- Se alguma das três datas mudou: atualiza o entregável, grava `entregavel_prazo` com `motivo = 'calendario_v<N>'` (`N` = versão em uso do calendário) e o evento `prazo.alterado` (`{"entregavel_id"}`, com `caso_id` e `entregavel_id` na linha do evento).
+- Caso encerrado e entregável cumprido: **não mudam**. Nenhuma transição é gravada.
+- **Idempotente:** aplicar de novo sem versão nova não grava nada (`alterados = 0`).
+
+### 18.4 · Cumprimento, `VerificarPrazos` e a exceção `prazo_em_risco`
+
+- **Cumprido:** o estado atual do entregável tem `ordem` (tabela `fechamento.estado_entregavel`) **maior ou igual** à do `estado_cumprimento` do item (padrão `validado`; E11 = `disponibilizado`). Invalidado depois de cumprido volta a ser "não cumprido".
+- **`VerificarPrazos`:** rota `POST /admin/prazos/verificar`, corpo `{"data_ref": "AAAA-MM-DD"}` (ausente ou inválido → `422 corpo_invalido`). Resposta `200 {"abertas": n}`. Para cada entregável de caso `aberto`, com `gera_multa`, **não cumprido** e com `acao ≤ data_ref`: se não houver `prazo_em_risco` aberta nele, abre uma (classe `O`, `dono` = carteira do caso, `prazo` = vencimento) e grava `excecao.aberta`. Sob a trava do titular. **Idempotente** no mesmo `data_ref`. Nenhuma transição.
+- **Resolução:** quando o entregável **transiciona para o seu `estado_cumprimento`**, a `prazo_em_risco` aberta dele passa a `resolvida`, `resolucao = 'cumprido'`, na mesma transação. Deve ficar na função única de transição (§4.1), para nenhum caminho esquecer.
+
+### 18.5 · Motivo de catálogo e impedimento
+
+- `trabalho.motivo_catalogo` (V010): `codigo`, `aplica_a` (`override`, `impedimento`, `fato_manual`), `descricao`, `exige_texto`.
+- **Override** (§8.1): `motivo_codigo` obrigatório, de um código com `aplica_a = 'override'`; o `motivo` em texto continua obrigatório (≥ 5 caracteres).
+- **`RegistrarImpedimento`:** `POST /casos/{titular_id}/{competencia}/entregaveis/{tipo}/impedimento`, corpo `{"ator", "motivo_codigo", "texto"?}`. Validação, nesta ordem:
+  1. `ator` ou `motivo_codigo` ausente ou vazio → `422 corpo_invalido`;
+  2. código fora do catálogo ou com `aplica_a` diferente de `impedimento` → `422 motivo_invalido`;
+  3. código com `exige_texto` e `texto` ausente ou com menos de 5 caracteres → `422 corpo_invalido`;
+  4. caso ou entregável inexistente → `404`;
+  5. caso encerrado, ou impedimento já aberto no entregável → `409`.
+  Efeito: exceção `impedimento_externo` (classe `S`, dono = carteira, `motivo_codigo`) e evento `excecao.aberta`, **sem mudar o estado** do entregável. Resposta `200 {"excecao_id"}`.
+- **`ResolverImpedimento`:** `POST .../impedimento/resolver`, corpo `{"ator"}`: `422` sem `ator`; `404` como acima; `409` se não há impedimento aberto. Efeito: `resolvida`, `resolucao = 'resolvido'`. Resposta `200 {"excecao_id"}`.
+- **Fato manual:** fato publicado por pessoa exigirá `motivo_codigo` com `aplica_a = 'fato_manual'`. Previsto, mas **fora do spike** (não há fonte `tela`).
+
+### 18.6 · Indicadores e invariantes
+
+- **I7** `indicadores.i7_status_prazo(data_ref)` e **I8** `indicadores.i8_multas_em_risco(data_ref)` são funções da V010, como as views I1–I6: **as spikes não as escrevem**, só gravam as datas, o histórico e as exceções que elas leem. Faixas do I7 e causas do I8 estão nos comentários da V010.
+- **INV-19:** todo entregável com prazo tem linha em `entregavel_prazo`, e a mais recente tem as mesmas três datas do entregável.
+- **INV-20:** nenhuma `prazo_em_risco` aberta em entregável cumprido.
+- **INV-21:** todo override tem `override_motivo_codigo` do catálogo com `aplica_a = 'override'`, e toda `impedimento_externo` tem `motivo_codigo` com `aplica_a = 'impedimento'`.
+- Os cenários também cobram que `AplicarCalendario` e `VerificarPrazos` não gravam transição.
+
+**Fora da M3:** obrigação como item do caso (M4), feriado estadual e municipal, ISS por município, I9 (esforço × tempo real), fato manual por tela, tela de prazos.
 
