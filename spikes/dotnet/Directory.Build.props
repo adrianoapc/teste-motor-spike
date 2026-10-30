@@ -5,6 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>latest</LangVersion>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- M2 (§6.3): o hash v2 normaliza strings do payload em NFC. Sob InvariantGlobalization=true o ICU
+         é removido e String.Normalize(FormC) vira no-op (não funde "e"+U+0301 em "é"), quebrando os
+         vetores-hash-v2. Desligado para carregar os dados Unicode; a ordenação do canônico continua por
+         code point explícito (não depende de cultura). Ver DUVIDAS.md. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 </Project>

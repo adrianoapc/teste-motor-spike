@@ -2,4 +2,10 @@
   <PropertyGroup>
     <RootNamespace>Motor.Dominio</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Validação do payload contra o esquema do contrato de tipo de fato (§6.2),
+         JSON Schema draft 2020-12 sobre System.Text.Json. Biblioteca pura: não viola
+         a regra de camada (o domínio só não pode depender de Npgsql/Dapper/ASP.NET). -->
+    <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
 </Project>

@@ -39,7 +39,7 @@ public sealed record NovaTransicao(
     string Ator,
     Guid RegraVersaoId);
 
-/// <summary>Pedido de publicação de fato (§6).</summary>
+/// <summary>Pedido de publicação de fato (§6). <c>ChaveIdempotencia</c>: §6.5 (opcional, 1..200).</summary>
 public sealed record PublicarFatoCmd(
     string TitularId,
     Competencia Competencia,
@@ -49,8 +49,25 @@ public sealed record PublicarFatoCmd(
     JsonElement Payload,
     string Fonte,
     string? OrigemRef,
-    DateTimeOffset ObservadoEm);
+    DateTimeOffset ObservadoEm,
+    string? ChaveIdempotencia = null);
 
-public enum EfeitoFato { Novo, NovaVersao, SemMudanca }
+/// <summary>Efeito da publicação (§6.4). <c>Obsoleto</c> e <c>ConflitoFonte</c> entraram na v5.</summary>
+public enum EfeitoFato { Novo, NovaVersao, SemMudanca, Obsoleto, ConflitoFonte }
 
-public sealed record ResultadoFato(Guid FatoId, int Versao, EfeitoFato Efeito);
+/// <summary>Erro de validação de contrato (§6.2) devolvido ao API para virar 422/403.</summary>
+public enum FatoErro { None, TipoDesconhecido, FonteNaoAutorizada, PayloadInvalido }
+
+/// <summary>Resultado da publicação. Em sucesso: <c>FatoId</c>, <c>Versao</c>, <c>Efeito</c> e
+/// <c>Repetido</c> (§6.5). Em erro de contrato (§6.2): <c>Erro</c> e, no caso de payload, <c>Violacoes</c>.</summary>
+public sealed record ResultadoFato(
+    Guid FatoId,
+    int Versao,
+    EfeitoFato Efeito,
+    bool Repetido = false,
+    FatoErro Erro = FatoErro.None,
+    IReadOnlyList<Motor.Dominio.Fatos.Violacao>? Violacoes = null)
+{
+    public static ResultadoFato DeErro(FatoErro erro, IReadOnlyList<Motor.Dominio.Fatos.Violacao>? violacoes = null) =>
+        new(Guid.Empty, 0, EfeitoFato.SemMudanca, false, erro, violacoes);
+}

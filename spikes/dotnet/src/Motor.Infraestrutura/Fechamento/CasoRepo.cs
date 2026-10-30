@@ -39,18 +39,20 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
 
     public async Task TravarCasoAsync(string titularId)
     {
-        // Lock por TITULAR. A reavaliação de um caso aberto lê
+        // Lock por TITULAR (§13 v5). A reavaliação de um caso aberto lê
         // fatos de OUTRAS competências do mesmo titular (entradas competencia_relativa -1/-2 do C7),
         // então publicar o fato de 202607 pode destravar o E03 do caso 202609. Travar só
         // (titular,competência) deixaria publisher e opener de competências diferentes em locks
         // distintos — um não veria o estado não-comitado do outro, e o E03 ficaria preso em
         // aguardando_insumo. O lock por titular garante exclusão mútua entre QUALQUER abertura e
         // QUALQUER publicação do titular; liberado no fim da transação.
-        var chave = $"caso|{titularId}";
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(chave));
-        var k1 = BitConverter.ToInt32(bytes, 0);
-        var k2 = BitConverter.ToInt32(bytes, 4);
-        await Conn.ExecuteAsync("SELECT pg_advisory_xact_lock(@k1, @k2)", new { k1, k2 }, Tx);
+        //
+        // A chave é calculada NO POSTGRES por hashtextextended('titular|' || titular_id, 0): o §13 exige
+        // esse texto exato para que a chave seja IDÊNTICA nas três spikes e a qualquer ferramenta externa
+        // que precise pegar o mesmo lock sem saber a linguagem.
+        await Conn.ExecuteAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended('titular|' || @t, 0))",
+            new { t = titularId }, Tx);
     }
 
     public async Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
