@@ -229,6 +229,6 @@ Esta medição repetida parte da base limpa `72b7d4e` e **reaplica a implementa�
 | 25 | fase 4 13/13, fase 4.5 0/18 (impacto) | `M2R t25` | regressão read-only; nenhuma mudança de código |
 | 26 | C20 171, C9 86 | `M2R t26` | motor v5 aplicado (contrato §6.2 + violacoes + tipo_versao); dotnet test 258+10, 0 warnings |
 | 27 | C19 168, C23 77, C4 119 | `M2R t27` | hash v2 (25 vetores + pares) verdes; `campos_hash` não versiona (C23) |
-| 28 | C22, C10, C3 | _pendente_ | |
+| 28 | C22 74, C10 154, C3 155 | `M2R t28` | recebimento, obsoleto/conflito_fonte, idempotência (trava por fonte+chave) |
 | 29 | C21 ×3, C6 isolado | _pendente_ | |
 | 30 | fase 4.5 18/18 | _pendente_ | |

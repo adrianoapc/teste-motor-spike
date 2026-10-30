@@ -159,7 +159,7 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - Verificador: C19, depois C23, depois C4.
   - _Requisitos: 23.4, 23.5_
 
-- [ ] 28. Recebimento, fora de ordem e idempotência
+- [x] 28. Recebimento, fora de ordem e idempotência
   - `fatos.recebimento` em toda publicação válida (inclusive saídas de tarefa); efeitos `obsoleto` e `conflito_fonte` (§6.4); exceção `conflito_fonte`; `chave_idempotencia` com resposta repetida (§6.5).
   - Verificador: C22, depois C10 e C3.
   - _Requisitos: 23.6, 23.7_
