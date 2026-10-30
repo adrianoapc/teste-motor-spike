@@ -38,6 +38,17 @@ TABELAS = (
     "fatos.fato",
 )
 COMPETENCIAS = ["202601", "202602", "202603"]  # 202603 = 3º mês (entradas com competência relativa)
+# §6.2 passo 3: cada tipo só aceita fontes de `fontes_permitidas`. Uma fonte autorizada por tipo
+# para o `/fatos` direto — senão a validação de contrato rejeita tudo com 403 e o diferencial
+# nunca exercita publicação de fato. `/concluir` publica suas saídas com fonte fixa 'tarefa'.
+FONTE_POR_TIPO = {
+    "faturamento_mes": "intranet", "notas_oneflow": "oneflow", "aliquota_mes": "calculo",
+    "apurado": "tarefa", "divisao_socios": "calculo", "taxa_municipal": "intranet",
+    "guia": "porta_documental", "recibo_obrigacao": "integra", "folha": "dp",
+    "prolabore": "tarefa", "documento_disponibilizado": "entrega",
+    "entrega_falhou": "entrega", "entrega_confirmada": "entrega",
+    "recebimento_pendente": "agendador",
+}
 SELECTS = (
     "SELECT k.titular_id, k.competencia, e.tipo, t.de_estado, t.para_estado, t.motivo, t.ator "
     "FROM fechamento.entregavel_transicao t JOIN fechamento.entregavel e ON e.id = t.entregavel_id "
@@ -63,15 +74,23 @@ SELECTS = (
 def limpar() -> None:
     with psycopg.connect(DSN, autocommit=True) as c:
         for t in TABELAS:
-            c.execute(f"TRUNCATE {t} CASCADE")  # type: ignore[call-overload]
+            c.execute(f"TRUNCATE {t} CASCADE")
 
 
 def snapshot() -> list[tuple[str, ...]]:
     linhas: list[tuple[str, ...]] = []
     with psycopg.connect(DSN) as c:
         for sql in SELECTS:
-            linhas += [tuple(map(str, r)) for r in c.execute(sql).fetchall()]  # type: ignore[call-overload]
+            linhas += [tuple(map(str, r)) for r in c.execute(sql).fetchall()]
     return linhas
+
+
+def _observado(rng: random.Random) -> str:
+    """Instante que avança a cada publicação, para que fatos mais novos substituam vigentes
+    (§6.4: nova_versao quando o instante é mais recente; obsoleto quando é mais antigo)."""
+    dia = rng.randint(1, 28)
+    hora = rng.randint(0, 23)
+    return f"2026-10-{dia:02d}T{hora:02d}:00:00Z"
 
 
 def fato(rng: random.Random, regime: str) -> dict[str, Any]:
@@ -106,8 +125,8 @@ def fato(rng: random.Random, regime: str) -> dict[str, Any]:
         )]
     tipo, tributo, valor, payload = rng.choice(opcoes)
     return {"titular_id": "TX", "competencia": comp, "tipo": tipo, "tributo": tributo,
-            "valor_centavos": valor, "payload": payload, "fonte": "dif",
-            "observado_em": "2026-10-01T00:00:00Z"}
+            "valor_centavos": valor, "payload": payload, "fonte": FONTE_POR_TIPO[tipo],
+            "observado_em": _observado(rng)}
 
 
 def roteiro(rng: random.Random, empresa: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
@@ -120,7 +139,7 @@ def roteiro(rng: random.Random, empresa: dict[str, Any]) -> list[tuple[str, dict
           payload: dict[str, Any] | None = None) -> tuple[str, dict[str, Any]]:
         return "/fatos", {"titular_id": "TX", "competencia": comp, "tipo": tipo,
                           "tributo": tributo, "valor_centavos": valor, "payload": payload or {},
-                          "fonte": "dif", "observado_em": "2026-10-01T00:00:00Z"}
+                          "fonte": FONTE_POR_TIPO[tipo], "observado_em": "2026-10-01T00:00:00Z"}
 
     fatos = [
         f("faturamento_mes", valor=fat), f("notas_oneflow", valor=fat),
@@ -155,7 +174,7 @@ def roteiro(rng: random.Random, empresa: dict[str, Any]) -> list[tuple[str, dict
     return passos
 
 
-def sequencia(seed: int, operacoes: int) -> list[int]:
+def sequencia(seed: int, operacoes: int) -> tuple[list[int], int, int]:
     rng = random.Random(seed)
     regime = rng.choice(["SN", "LP"])
     empresa = {"titular_id": "TX", "regime": regime, "tem_folha": rng.random() < 0.7,
@@ -163,17 +182,32 @@ def sequencia(seed: int, operacoes: int) -> list[int]:
                "filial": False, "carteira": "C-01", "municipio": "1"}
     trib = "DAS" if regime == "SN" else "IRPJ"
     status: list[int] = []
+    fatos_ok = 0  # publicações /fatos aceitas (2xx)
+    fatos_total = 0
+
+    def publicar_fato_http(cl: TestClient, corpo: dict[str, Any]) -> int:
+        nonlocal fatos_ok, fatos_total
+        fatos_total += 1
+        sc = cl.post("/fatos", json=corpo).status_code
+        if sc in (200, 201):
+            fatos_ok += 1
+        return sc
+
     with TestClient(app) as cl:
         if seed % 3 != 0:  # 2 de 3 sequências começam por um caminho feliz até o protocolo
             for caminho, corpo in roteiro(rng, empresa):
-                status.append(cl.post(caminho, json=corpo).status_code)
+                if caminho == "/fatos":
+                    status.append(publicar_fato_http(cl, corpo))
+                else:
+                    status.append(cl.post(caminho, json=corpo).status_code)
         for _ in range(operacoes):
             r, comp = rng.random(), rng.choice(COMPETENCIAS)
             if r < 0.10:
                 resp = cl.post("/competencias/abrir", json={
                     "competencia": comp, "ator": "dif", "empresas": [empresa]})
             elif r < 0.72:
-                resp = cl.post("/fatos", json=fato(rng, regime))
+                status.append(publicar_fato_http(cl, fato(rng, regime)))
+                continue
             elif r < 0.90:
                 tipo = rng.choice(["E03", "E06", "E07"])
                 saida = {
@@ -190,7 +224,7 @@ def sequencia(seed: int, operacoes: int) -> list[int]:
                 resp = cl.post(f"/casos/TX/{comp}/entregaveis/{tipo}/override",
                                json={"ator": "dif", "cf": cf, "motivo": "motivo valido"})
             status.append(resp.status_code)
-    return status
+    return status, fatos_ok, fatos_total
 
 
 def completo(uow: UnidadeDeTrabalho, titular_id: str, _pend: object) -> None:
@@ -203,10 +237,12 @@ def completo(uow: UnidadeDeTrabalho, titular_id: str, _pend: object) -> None:
             mf.avaliar_caso(uow, caso, regra)
 
 
-def rodar(modo: Any, seed: int, operacoes: int) -> tuple[list[int], list[tuple[str, ...]]]:
+def rodar(modo: Any, seed: int, operacoes: int
+          ) -> tuple[list[int], list[tuple[str, ...]], int, int]:
     mf._reavaliar_titular = modo
     limpar()
-    return sequencia(seed, operacoes), snapshot()
+    status, fatos_ok, fatos_total = sequencia(seed, operacoes)
+    return status, snapshot(), fatos_ok, fatos_total
 
 
 def main() -> int:
@@ -215,21 +251,36 @@ def main() -> int:
     recorte = mf._reavaliar_titular
     ruins = 0
     cobertura: dict[str, int] = {}
+    publicacoes_ok = 0
+    publicacoes = 0
     for seed in range(n):
         a = rodar(completo, seed, operacoes)
         b = rodar(recorte, seed, operacoes)
         c = rodar(completo, seed, operacoes)
+        # Só o estado do motor conta para divergência/determinismo: status HTTP + snapshot.
+        ea, eb, ec = (a[0], a[1]), (b[0], b[1]), (c[0], c[1])
         for linha in b[1]:
             if len(linha) == 7:  # transição: (titular, competência, tipo, de, para, motivo, ator)
                 cobertura[linha[4]] = cobertura.get(linha[4], 0) + 1
-        if a != c:
+        publicacoes_ok += b[2]
+        publicacoes += b[3]
+        if ea != ec:
             print(f"seed {seed}: NAO DETERMINISTICO (completo x completo)")
             ruins += 1
-        if a != b:
+        if ea != eb:
             print(f"seed {seed}: DIVERGE (recorte x completo): "
                   f"{len(a[1])} x {len(b[1])} linhas; status iguais: {a[0] == b[0]}")
             ruins += 1
     print(f"transicoes por estado de destino (modo recorte): {dict(sorted(cobertura.items()))}")
+    print(f"publicacoes /fatos aceitas: {publicacoes_ok}/{publicacoes}")
+    # Critério de aceite: o diferencial precisa exercitar publicações reais e transições reais,
+    # senão um "0 divergências" é vazio (todas as publicações rejeitadas por 403).
+    if publicacoes_ok == 0:
+        print("FALHA: nenhuma publicacao /fatos aceita — contratos nao exercitados")
+        ruins += 1
+    if not cobertura:
+        print("FALHA: nenhuma transicao exercitada")
+        ruins += 1
     print(f"{n} sequencias x {operacoes} operacoes: {ruins} problema(s)")
     return 1 if ruins else 0
 

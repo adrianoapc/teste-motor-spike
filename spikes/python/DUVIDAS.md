@@ -347,3 +347,15 @@ vetores (`vetores-hash-v2.json`) e com a V009; a spike não precisou parar
   `'<nome>' is a required property`), com fallback determinístico na diferença required −
   instância. Testes em `test_contrato.py` (dois required ausentes → duas violações distintas;
   required parcial → só o que falta).
+- **Diferencial exercitando publicações reais (§6 passo 2).** `scripts/diferencial_reavaliacao.py`
+  publicava todo `/fatos` com `fonte: "dif"`, que nenhum contrato ativo permite; a validação de
+  fonte (§6.2 passo 3) rejeitava tudo com 403. O harness comparava status iguais sem exigir
+  publicação aceita, então reportava 0 divergências sem nunca testar substituição, invalidação
+  nem os efeitos novos (`nova_versao`/`obsoleto`/`conflito_fonte`). Corrigido: mapa
+  `FONTE_POR_TIPO` com uma fonte autorizada por tipo (`guia→porta_documental`,
+  `faturamento_mes→intranet`, …), `observado_em` que avança a cada publicação (para que fatos
+  mais novos substituam vigentes), e critério de aceite em `main()` que FALHA se nenhuma
+  publicação `/fatos` for aceita ou nenhuma transição for exercitada. Re-rodado 150×150:
+  7392/14942 publicações aceitas, transições reais em todos os estados, 0 problema(s).
+  (`/concluir` já publicava com fonte fixa `tarefa`, autorizada para `apurado`/`folha`/`prolabore`,
+  então só os `/fatos` diretos quebravam.)

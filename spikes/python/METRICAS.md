@@ -410,6 +410,12 @@ Dois achados P2 do Codex corrigidos após o PR (detalhe em DUVIDAS.md):
    único `recebimento_idempotencia`);
 2. todos os campos `required` ausentes reportados separadamente (antes repetia o primeiro).
 
+Terceiro achado P2 (review do commit `0b9ba2c`), corrigido em seguida:
+3. `diferencial_reavaliacao.py` publicava tudo com `fonte: "dif"` (403 em todo `/fatos`), logo
+   reportava 0 divergências sem exercitar publicação. Corrigido com `FONTE_POR_TIPO`,
+   `observado_em` crescente e critério de aceite que falha sem publicação aceita. 150×150:
+   7392/14942 publicações aceitas, 0 problema(s).
+
 Re-verificação após as correções (só a spike Python no ar):
 - `--todos cenarios --fase 4.5 --limpar`: **18/18**
 - C21 (`--limpar`): **PASSOU** (318 checagens, 0 falha)
