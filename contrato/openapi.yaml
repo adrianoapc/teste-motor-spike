@@ -300,7 +300,7 @@ components:
           description: "Objeto livre cujos números são só inteiros int64 (sem fração, expoente ou -0), sem chave duplicada, até 64 níveis; caso contrário 422 corpo_invalido. Ver semântica §6."
         fonte: { type: string, minLength: 1 }
         origem_ref: { type: string, nullable: true }
-        observado_em: { type: string, format: date-time, description: "v5: decide a ordem entre versões da mesma chave (§6.4)" }
+        observado_em: { type: string, format: date-time, description: "v5: decide a ordem entre versões da mesma chave (§6.4). v5.1: fração truncada para microssegundo (6 dígitos) antes de comparar e de gravar; aceita até 9 dígitos" }
         chave_idempotencia: { type: string, minLength: 1, maxLength: 200, nullable: true, description: "v5 (§6.5): mesma (fonte, chave) devolve a primeira resposta, com repetido = true, sem gravar nada" }
 
     FatoResponse:

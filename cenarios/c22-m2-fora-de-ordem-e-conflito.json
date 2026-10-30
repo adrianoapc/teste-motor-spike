@@ -14,7 +14,9 @@
     "contrato de teste notas_oneflow v2"
   ],
   "titulares": [
-    "T022"
+    "T022",
+    "T022P",
+    "T022Q"
   ],
   "passos": [
     {
@@ -192,6 +194,65 @@
       }
     },
     {
+      "acao": "publicar_fato",
+      "descricao": "7 dígitos de fração: grava .123456",
+      "corpo": {
+        "titular_id": "T022P",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00.1234569-03:00",
+        "valor_centavos": 100
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "mesmo microssegundo depois de truncar: conflito, não obsoleto",
+      "corpo": {
+        "titular_id": "T022P",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00.123456-03:00",
+        "valor_centavos": 200
+      },
+      "espera": {
+        "efeito": "conflito_fonte"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "descricao": "arredondar levaria para o segundo seguinte; truncar mantém .999999",
+      "corpo": {
+        "titular_id": "T022Q",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00.9999996-03:00",
+        "valor_centavos": 100
+      },
+      "espera": {
+        "efeito": "novo"
+      }
+    },
+    {
+      "acao": "publicar_fato",
+      "corpo": {
+        "titular_id": "T022Q",
+        "competencia": "202609",
+        "tipo": "notas_oneflow",
+        "fonte": "oneflow",
+        "observado_em": "2026-10-01T10:00:00.999999-03:00",
+        "valor_centavos": 200
+      },
+      "espera": {
+        "efeito": "conflito_fonte"
+      }
+    },
+    {
       "acao": "aguardar_fila"
     },
     {
@@ -264,6 +325,26 @@
               "conflito_fonte",
               "conflito_fonte",
               "nova_versao"
+            ]
+          },
+          {
+            "titular_id": "T022P",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "conflito_fonte"
+            ]
+          },
+          {
+            "titular_id": "T022Q",
+            "competencia": "202609",
+            "tipo": "notas_oneflow",
+            "tributo": "",
+            "efeitos": [
+              "novo",
+              "conflito_fonte"
             ]
           }
         ],

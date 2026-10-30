@@ -1135,7 +1135,7 @@ def c21() -> dict[str, Any]:
 
 
 def c22() -> dict[str, Any]:
-    t = "T022"
+    t, p, q = "T022", "T022P", "T022Q"
     h10, h09 = "2026-10-01T10:00:00-03:00", "2026-10-01T09:00:00-03:00"
     passos = [
         abrir(C, empresa(t, "SN", carteira="C-05")),
@@ -1157,6 +1157,15 @@ def c22() -> dict[str, Any]:
         fato(t, C, "notas_oneflow", 4800000, fonte="oneflow_api", observado_em=h10, efeito="nova_versao",
              descricao="outra fonte no mesmo instante: vale a regra normal"),
         fato(t, C, "faturamento_mes", 4800000, fonte="intranet"),
+        # v5.1 (§6.4): observado_em truncado para microssegundo antes de comparar e de gravar. Titulares sem caso:
+        # só o recebimento conta. Arredondando (como o Postgres), os dois pares dariam obsoleto.
+        fato(p, C, "notas_oneflow", 100, fonte="oneflow", observado_em="2026-10-01T10:00:00.1234569-03:00",
+             descricao="7 dígitos de fração: grava .123456"),
+        fato(p, C, "notas_oneflow", 200, fonte="oneflow", observado_em="2026-10-01T10:00:00.123456-03:00", efeito="conflito_fonte",
+             descricao="mesmo microssegundo depois de truncar: conflito, não obsoleto"),
+        fato(q, C, "notas_oneflow", 100, fonte="oneflow", observado_em="2026-10-01T10:00:00.9999996-03:00",
+             descricao="arredondar levaria para o segundo seguinte; truncar mantém .999999"),
+        fato(q, C, "notas_oneflow", 200, fonte="oneflow", observado_em="2026-10-01T10:00:00.999999-03:00", efeito="conflito_fonte"),
         AGUARDAR,
         verificar("final", {
             "entregaveis": [ent(t, C, "E01", "validado", SEQ4), ent(t, C, "E02", "validado")],
@@ -1164,13 +1173,15 @@ def c22() -> dict[str, Any]:
             "excecoes_total": 1,
             "fatos": [versoes(t, C, "notas_oneflow", 2)],
             "vigentes": [vig(t, C, "notas_oneflow", versao=2, valor_centavos=4800000, tipo_versao=2)],
-            "recebimentos": [recebs(t, C, "notas_oneflow", efeitos=["novo", "obsoleto", "conflito_fonte", "conflito_fonte", "nova_versao"])],
+            "recebimentos": [recebs(t, C, "notas_oneflow", efeitos=["novo", "obsoleto", "conflito_fonte", "conflito_fonte", "nova_versao"]),
+                             recebs(p, C, "notas_oneflow", efeitos=["novo", "conflito_fonte"]),
+                             recebs(q, C, "notas_oneflow", efeitos=["novo", "conflito_fonte"])],
             "eventos": eventos(t, C, excecao__aberta=1, entregavel__invalidado=0),
         }, final=True),
     ]
     return cenario("C22", F45, "M2: fato fora de ordem e conflito de fonte",
                    "Simples sem folha. A vigente de uma chave é a observação mais nova. Uma leitura antiga que chega atrasada fica só no recebimento (obsoleto) e não mexe em nada. A mesma fonte dizendo outro valor no mesmo instante é conflito_fonte: não vira versão e abre uma única exceção no caso, classe S. Outra fonte autorizada no mesmo instante segue a regra normal.",
-                   ["§6.4", "§9.4"], R_V5 + ["contrato de teste notas_oneflow v2"], [t], passos)
+                   ["§6.4", "§9.4"], R_V5 + ["contrato de teste notas_oneflow v2"], [t, p, q], passos)
 
 
 def c23() -> dict[str, Any]:
