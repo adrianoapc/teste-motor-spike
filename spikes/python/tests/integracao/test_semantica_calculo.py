@@ -55,7 +55,7 @@ def _cenario(uow: UnidadeDeTrabalhoSQL) -> tuple[Caso, Entregavel, list[dict[str
     for tipo, valor in (("faturamento_mes", 1000), ("notas_oneflow", 1000)):
         f = uow.inserir_fato(
             titular, "202609", tipo, "", 1, valor, {}, "teste", "2026-09-01T00:00:00+00:00",
-            hash_fato({}, valor), None,
+            hash_fato({}, valor), None, 1,
         )
         usados.append({"fato_id": f.id, "versao": f.versao})
     return caso, ent, sorted(usados, key=lambda d: str(d["fato_id"]))

@@ -58,6 +58,7 @@ class FatoRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
     fonte: str = Field(min_length=1)
     origem_ref: str | None = None
+    chave_idempotencia: str | None = Field(default=None, min_length=1, max_length=200)
     observado_em: AwareDatetime
 
     @field_validator("observado_em", mode="before")
@@ -72,7 +73,8 @@ class FatoRequest(BaseModel):
 class FatoResponse(BaseModel):
     fato_id: str
     versao: int
-    efeito: Literal["novo", "nova_versao", "sem_mudanca"]
+    efeito: Literal["novo", "nova_versao", "sem_mudanca", "obsoleto", "conflito_fonte"]
+    repetido: bool = False
 
 
 class SaidaItem(BaseModel):

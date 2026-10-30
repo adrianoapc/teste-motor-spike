@@ -24,6 +24,7 @@ from motor.aplicacao.registros import (
     TipoConferencia,
     Tolerancia,
 )
+from motor.dominio.contrato import Contrato
 from motor.dominio.dinheiro import ValorForaDoIntervalo
 
 
@@ -58,6 +59,7 @@ class _Fake:
     inseridos: list[dict[str, object]] = field(default_factory=list)
     versoes_pedidas: list[str] = field(default_factory=list)
     confs: list[dict[str, object]] = field(default_factory=list)
+    recebimentos: list[dict[str, object]] = field(default_factory=list)
 
     def regra_entregaveis_da_versao(self, versao_id: str) -> RegraEntregaveis:
         self.versoes_pedidas.append(versao_id)
@@ -84,6 +86,9 @@ class _Fake:
     def travar_chave_fato(self, titular_id: str, competencia: str, tipo: str, tributo: str) -> None:
         self.chamadas.append("lock")
 
+    def travar_idempotencia(self, fonte: str, chave_idempotencia: str) -> None:
+        self.chamadas.append("lock-idemp")
+
     def fato_vigente(
         self, titular_id: str, competencia: str, tipo: str, tributo: str
     ) -> Fato | None:
@@ -94,10 +99,43 @@ class _Fake:
         self, titular_id: str, competencia: str, tipo: str, tributo: str, versao: int,
         valor_centavos: int | None, payload: dict[str, object], fonte: str,
         observado_em: str, hash_valor: str, substitui_id: str | None,
-        origem_ref: str | None = None,
+        tipo_versao: int, origem_ref: str | None = None,
     ) -> Fato:
         self.inseridos.append({"origem_ref": origem_ref, "versao": versao})
-        return _fato(tipo, tributo, versao, hash_valor)
+        f = _fato(tipo, tributo, versao, hash_valor)
+        f.fonte = fonte
+        f.observado_em = observado_em
+        return f
+
+    def versao_do_fato(self, fato_id: str) -> int:
+        return 1
+
+    # contrato / recebimento / idempotência (v5)
+    def contrato_ativo(self, tipo: str) -> Contrato | None:
+        # Contrato permissivo: a validação do §6.2 não é o foco destes testes.
+        return Contrato(
+            tipo=tipo, versao=1,
+            esquema={"$schema": "https://json-schema.org/draft/2020-12/schema",
+                     "type": "object"},
+            qualificador_usa=True, qualificador_valores=(),
+            valor_centavos="opcional", campos_hash=(), ordenar_arrays={},
+            fontes_permitidas=("api", "tarefa", "porta_documental", "oneflow", "intranet",
+                               "dp", "calculo", "integra", "equiparacao", "agendador",
+                               "intranet-legado", "entrega"),
+        )
+
+    def inserir_recebimento(
+        self, titular_id: str, competencia: str, tipo: str, tributo: str, fonte: str,
+        chave_idempotencia: str | None, observado_em: str, tipo_versao: int,
+        hash_valor: str, efeito: str, fato_id: str, payload: dict[str, object],
+        valor_centavos: int | None,
+    ) -> None:
+        self.recebimentos.append({"tipo": tipo, "efeito": efeito, "fato_id": fato_id})
+
+    def recebimento_por_idempotencia(
+        self, fonte: str, chave_idempotencia: str
+    ) -> tuple[str, int, str] | None:
+        return None
 
     def gravar_evento(
         self, nome: str, caso_id: str | None, entregavel_id: str | None,

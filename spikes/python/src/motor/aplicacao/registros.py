@@ -39,6 +39,8 @@ class Fato:
     valor_centavos: int | None
     payload: dict[str, object]
     hash: str
+    fonte: str = ""
+    observado_em: str = ""
 
 
 @dataclass(slots=True)

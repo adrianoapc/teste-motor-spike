@@ -306,3 +306,120 @@ Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (
 - O ranking de SQLs muda entre operação isolada e lote: o PHP faz mais SQLs ao abrir 1 caso (94 contra 79 e 85), mas menos por empresa em lote (65,99 contra 68,94 e 69,75). A causa (memo por requisição amortizado em lote) é **hipótese não provada**.
 - A anomalia do .NET (108–125 s no mix contra ~70 s em 10.000 SN puras) **não foi investigada**.
 - Tempo de parede continua sendo ordem de grandeza: máquina não totalmente quieta, 11 contêineres alheios no ar, cliente no host.
+
+# Manutenção M2 — semântica v5 / fase 4.5 (segundo teste comum de manutenção)
+
+## Ambiente
+- Branch: `m2/spike-python` (criada a partir de `main` com V009, contrato 1.4.0, semântica v5, contratos de tipo de fato, C19–C23).
+- Banco recriado com `docker compose down -v && docker compose --profile python up -d --build`; `migrar` aplicou V009 (`V009__contrato_de_fato_e_concorrencia.sql`) e terminou com "migrações ok" em `spike_python` (saída 0).
+- Porta da spike: 8082. `GET /health` → `{"status":"ok"}`.
+
+## Hora de início
+- Início da M2: 2026-10-28 20:53 (-03).
+
+## Tarefa 25 — regressão sem mudar código
+
+- `--todos cenarios --fase 4 --limpar`: **13/13** (guardrail da M2: a v4 continua passando a fase 4 sem tocar o código).
+- `--todos cenarios --fase 4.5 --limpar`: **0/18** (todos os 18 cenários falham).
+
+**Causa raiz única (impacto da M2):** o código v4 não implementa nada da v5 de fatos/recebimento. Em concreto:
+- Nunca grava `fatos.recebimento` → quebra INV-16 (todo fato precisa do recebimento `novo`/`nova_versao` que o criou) em todos os cenários.
+- Nunca grava `tipo_versao` nem lê o contrato de tipo de fato (`fatos.tipo_fato`) → quebra INV-17 (fato/recebimento apontando para contrato existente) em todos os cenários.
+- Não valida o `observado_em` como instante nem distingue os efeitos novos `obsoleto`/`conflito_fonte` → quebra INV-18 e os passos específicos do C22.
+- Não valida o payload contra o contrato (JSON Schema, qualificador, `valor_centavos`) → C20.
+- Não projeta/normaliza/ordena para o hash v2 nem recalcula o hash sob o contrato ativo → C19, C23.
+- Não aceita `chave_idempotencia` nem a trava consultiva por titular → C21.
+
+Os 13 cenários antigos (C1–C13) passam na fase 4 e falham na fase 4.5 apenas porque a fase 4.5 liga INV-16/17/18 e os cenários passam a usar `observado_em = "$agora"`; o motor v4 ignora `observado_em` e não grava recebimento nem `tipo_versao`.
+
+## Tarefas 26–29 — o que cada uma mudou (resumo)
+
+- **26 · Contrato de fato na entrada.** Novo módulo de domínio `dominio/contrato.py` (JSON Schema draft 2020-12 via `jsonschema`, sem framework no domínio), validação na ordem do §6.2 (tipo ativo → fonte → qualificador/valor/payload) com todas as `violacoes`; a mesma validação em cada saída de `/concluir` (§8 passo 3a, todas antes de gravar), prefixo `saidas[i].`. `tipo_versao` gravado no fato e no recebimento. Contrato lido do banco a cada publicação. Verificador: C20 e C9 passaram.
+- **27 · Hash v2.** `dominio/hashing.py` ganhou `projetar → normalizar → ordenar → canônico → sha256` como funções puras (o canônico é o da v4). Comparação sempre sob o contrato ativo, recalculando o hash da vigente (`hV`); nada de `UPDATE` em `fatos.fato`. Vetores copiados para `tests/fixtures/vetores-hash-v2.json`; `test_vetores_hash_v2.py` cobre os 21 casos e os 4 pares `iguais`, e `vetores-hash.json` (etapa canônica v4) continua passando. Verificador: C19, C23, C4.
+- **28 · Recebimento, fora de ordem e idempotência.** `fatos.recebimento` em toda publicação válida (inclusive saídas de tarefa); efeitos `obsoleto` e `conflito_fonte` (§6.4, comparação de `observado_em` como instante); exceção `conflito_fonte` (classe S) no caso aberto; `chave_idempotencia` com resposta repetida (§6.5, sob a trava do titular). Verificador: C22, C10, C3.
+- **29 · Concorrência por titular.** `pg_advisory_xact_lock('titular|'||titular_id)` como primeiro comando da transação em `PublicarFato`, `ConcluirTarefa`, `RegistrarOverride` e em cada transação de `AbrirCompetencias` (já existia da v4; reordenado para vir antes da leitura do contrato). Teste de integração acrescentado: titulares diferentes não se bloqueiam (os de serialização/deadlock já existiam). Verificador: C21 ×3 e C6 só com a spike Python no ar.
+
+## Reavaliação recortada (§6 passo 2) — trava e efeitos novos
+
+- O recorte por sementes continua registrado **dentro da função única de transição** (`_transicionar`); o teste de arquitetura `test_recorte_registrado_na_transicao_unica` segue verde (nenhum `.transicionar` fora dela).
+- `scripts/diferencial_reavaliacao.py 150 150` (recorte × percurso completo, com a trava por titular e os efeitos novos `obsoleto`/`conflito_fonte` ativos): **0 problema(s)** — 0 divergência e 0 não determinismo em 450 execuções (completo, recorte, completo de novo por semente).
+  - Saída: `150 sequencias x 150 operacoes: 0 problema(s)` / `transicoes por estado de destino (modo recorte): {'aguardando_insumo': 4182, 'processado': 126, 'pronto': 459, 'validado': 126}`.
+
+## C21 — três execuções seguidas (determinismo da concorrência)
+
+| Execução | Resultado |
+|---|---|
+| 1 | PASSOU (318 checagens, 0 falha) |
+| 2 | PASSOU (318 checagens, 0 falha) |
+| 3 | PASSOU (318 checagens, 0 falha) |
+
+## C6 — antes e depois da trava (p95 das 300 guias, só a spike Python no ar)
+
+| Medição | Fase 4 (código v4, antes da M2) | Fase 4.5 (código v5, com trava + recebimento + hash v2) |
+|---|---|---|
+| p95 do lote de 300 guias | 0,072 s | 0,105 s |
+| Abertura em massa (4.500 casos do cenário C6) | 21,76 s | 30,68 s |
+
+Leitura honesta: o cenário C6 abre 4.500 casos (não 10.000); a medida acima é desse lote. O
+aumento do p95 e da abertura vem do caminho v5 inteiro por publicação (leitura do contrato ativo
+no banco a cada fato + gravação do recebimento + hash v2), não só da trava consultiva (que já
+existia na v4). Máquina não totalmente quieta; ordem de grandeza, não comparação fina.
+
+## Fechamento (Tarefa 30)
+
+- `--todos cenarios --fase 4.5 --limpar --relatorio resultado-fase45-python.json`: **18/18**, só a spike Python no ar.
+- Suíte local (python:3.13-slim, `scripts/checar.sh`): **397 testes passam**; `mypy --strict`, `ruff` e `lint-imports` limpos.
+- **Retrabalhos:** 0 no motor. Ajustes de teste da própria spike para as assinaturas novas: `inserir_fato` ganhou `tipo_versao` (atualizados `test_semantica_calculo.py` e o fake de `test_revisao_codex.py`), e o fake ganhou `contrato_ativo`/`inserir_recebimento`/`recebimento_por_idempotencia`.
+- **Intervenções humanas:** 1 (confirmação do Docker já no ar antes da tarefa 25). Nenhuma decisão de conteúdo foi delegada.
+- **Hora de fim:** 2026-10-28 21:23 (-03).
+
+### Impacto (git diff --stat spikes/python, main..m2/spike-python)
+
+```
+ spikes/python/METRICAS.md                          |  25 ++
+ spikes/python/REGISTRO-COMPILADOR.md               |   8 +
+ spikes/python/pyproject.toml                       |   2 +
+ spikes/python/src/motor/api/app.py                 |   7 +-
+ spikes/python/src/motor/api/erros.py               |  11 +-
+ spikes/python/src/motor/api/modelos.py             |   4 +-
+ spikes/python/src/motor/aplicacao/erros.py         |  28 +-
+ spikes/python/src/motor/aplicacao/motor_fechamento.py | 221 +++++---
+ spikes/python/src/motor/aplicacao/portas.py        |  40 +++
+ spikes/python/src/motor/aplicacao/registros.py     |   2 +
+ spikes/python/src/motor/dominio/contrato.py        | 121 +++++++
+ spikes/python/src/motor/dominio/hashing.py         |  83 +++++
+ spikes/python/src/motor/infraestrutura/unidade_de_trabalho.py |  94 ++-
+ spikes/python/tests/fixtures/vetores-hash-v2.json  | 362 +++++++++++
+ spikes/python/tests/integracao/test_locks.py       |  25 ++
+ spikes/python/tests/integracao/test_semantica_calculo.py |   2 +-
+ spikes/python/tests/unidade/test_contrato.py       | 142 ++++++
+ spikes/python/tests/unidade/test_efeitos_v5.py     |  68 ++++
+ spikes/python/tests/unidade/test_invalidacao.py    |   3 +-
+ spikes/python/tests/unidade/test_revisao_codex.py  |  39 +-
+ spikes/python/tests/unidade/test_vetores_hash_v2.py |  60 ++++
+```
+
+Medida de manutenção M2: o núcleo do motor mudou sobretudo em `motor_fechamento.py`
+(reescrita de `PublicarFato` para o fluxo v5) e ganhou dois módulos de domínio novos
+(`contrato.py`, as funções de hash v2 em `hashing.py`); o resto é fiação de portas/UoW e testes.
+
+### Review P2 (Codex) — correções
+
+Dois achados P2 do Codex corrigidos após o PR (detalhe em DUVIDAS.md):
+1. idempotência serializada entre titulares com `travar_idempotencia` (fecha a corrida no índice
+   único `recebimento_idempotencia`);
+2. todos os campos `required` ausentes reportados separadamente (antes repetia o primeiro).
+
+Terceiro achado P2 (review do commit `0b9ba2c`), corrigido em seguida:
+3. `diferencial_reavaliacao.py` publicava tudo com `fonte: "dif"` (403 em todo `/fatos`), logo
+   reportava 0 divergências sem exercitar publicação. Corrigido com `FONTE_POR_TIPO`,
+   `observado_em` crescente e critério de aceite que falha sem publicação aceita. 150×150:
+   7392/14942 publicações aceitas, 0 problema(s).
+
+Re-verificação após as correções (só a spike Python no ar):
+- `--todos cenarios --fase 4.5 --limpar`: **18/18**
+- C21 (`--limpar`): **PASSOU** (318 checagens, 0 falha)
+- `diferencial_reavaliacao.py 150 150`: **0 problema(s)** (0 divergência, 0 não determinismo)
+- `mypy --strict src`, `ruff`, `lint-imports`: limpos; suíte-alvo (contrato + revisão + locks): 75 passam.
+- Novos testes: `test_contrato.py` (required múltiplo/parcial), `test_locks.py` (idempotência
+  serializa entre titulares; chaves distintas não bloqueiam).

@@ -10,13 +10,18 @@ from motor.aplicacao.erros import ErroNegocio
 from motor.dominio.dinheiro import ValorForaDoIntervalo
 
 
-def _resposta(status: int, codigo: str, mensagem: str) -> JSONResponse:
-    return JSONResponse(status_code=status, content={"erro": codigo, "mensagem": mensagem})
+def _resposta(
+    status: int, codigo: str, mensagem: str, violacoes: list[dict[str, str]] | None = None
+) -> JSONResponse:
+    corpo: dict[str, object] = {"erro": codigo, "mensagem": mensagem}
+    if violacoes is not None:
+        corpo["violacoes"] = violacoes
+    return JSONResponse(status_code=status, content=corpo)
 
 
 async def tratar_erro_negocio(_req: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ErroNegocio)
-    return _resposta(exc.status, exc.codigo, exc.mensagem)
+    return _resposta(exc.status, exc.codigo, exc.mensagem, exc.violacoes)
 
 
 async def tratar_valor_fora_do_intervalo(_req: Request, exc: Exception) -> JSONResponse:

@@ -4,20 +4,30 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from motor.aplicacao.conferencia import conferir, contexto_do_caso
-from motor.aplicacao.erros import conflito, invalido, nao_encontrado
+from motor.aplicacao.erros import (
+    conflito,
+    fonte_nao_autorizada,
+    invalido,
+    nao_encontrado,
+    payload_invalido,
+    tipo_desconhecido,
+)
 from motor.aplicacao.portas import UnidadeDeTrabalho
 from motor.aplicacao.registros import (
     Caso,
     Entregavel,
+    Fato,
     ItemEntregavel,
     RegraEntregaveis,
     SaidaTarefa,
 )
 from motor.dominio.condicao import casa
+from motor.dominio.contrato import Contrato, fonte_autorizada, validar_publicacao
 from motor.dominio.estados import EstadoEntregavel as E
-from motor.dominio.hashing import hash_fato
+from motor.dominio.hashing import hash_fato_v2
 from motor.dominio.prontidao import ChaveFato, entradas_resolvidas, esta_pronto, tributo_da_entrada
 
 # Ator das transições automáticas (prontidão, processamento, conferências, liberação,
@@ -92,6 +102,33 @@ def abrir_caso(
 # =============================================================================
 # PublicarFato (§6)
 # =============================================================================
+def validar_contrato_publicacao(
+    uow: UnidadeDeTrabalho,
+    tipo: str,
+    tributo: str,
+    valor_centavos: int | None,
+    payload: Mapping[str, object],
+    fonte: str,
+    prefixo_campo: str = "",
+) -> Contrato:
+    """§6.2 passos 2-4: tipo ativo, fonte, qualificador/valor/payload. Devolve o contrato ativo.
+
+    `prefixo_campo` prefixa o `campo` das violações (ex.: `saidas[0].` no §8 passo 3a).
+    Levanta tipo_desconhecido (422), fonte_nao_autorizada (403) ou payload_invalido (422).
+    """
+    contrato = uow.contrato_ativo(tipo)
+    if contrato is None:
+        raise tipo_desconhecido(tipo)
+    if not fonte_autorizada(contrato, fonte):
+        raise fonte_nao_autorizada(fonte, tipo)
+    violacoes = validar_publicacao(contrato, tributo, valor_centavos, payload)
+    if violacoes:
+        raise payload_invalido(
+            [{"campo": f"{prefixo_campo}{v.campo}", "regra": v.regra} for v in violacoes]
+        )
+    return contrato
+
+
 def publicar_fato(
     uow: UnidadeDeTrabalho,
     titular_id: str,
@@ -105,61 +142,154 @@ def publicar_fato(
     pendencias: _Pendencias | None = None,
     excluir_entregavel_id: str | None = None,
     origem_ref: str | None = None,
-) -> tuple[str, int, str]:
-    """Devolve (fato_id, versao, efeito). efeito ∈ {novo, nova_versao, sem_mudanca}.
+    chave_idempotencia: str | None = None,
+    contrato: Contrato | None = None,
+) -> tuple[str, int, str, bool]:
+    """Devolve (fato_id, versao, efeito, repetido). efeito ∈ {novo, nova_versao, sem_mudanca,
+    obsoleto, conflito_fonte} (§6.4).
 
     Sem `pendencias`, reavalia o que o fato afeta ao final (§6 passo 2). Com `pendencias`
     (ConcluirTarefa), só acumula: quem chamou reavalia depois, uma vez.
+
+    `contrato` pode vir pré-lido (saídas de /concluir, já validadas no §8 passo 3a); senão é
+    lido e validado aqui (§6.2). A trava do titular (§13) já foi tomada por quem chama.
     """
-    h = hash_fato(payload, valor_centavos)
-    # Ordem global: 1) titular, 2) chave do fato, 3) linhas de entregável (por tipo).
-    # Reentrante: /concluir já travou o titular antes de chamar esta função.
+    # §13: a trava consultiva por titular é o PRIMEIRO comando da transação (em /concluir ela já
+    # foi tomada; é reentrante). Só depois lê o contrato, valida e segue.
     uow.travar_titular(titular_id)
+
+    # §6.2: contrato ativo + validação (a não ser que já tenha vindo validado de /concluir).
+    if contrato is None:
+        contrato = validar_contrato_publicacao(
+            uow, tipo, tributo, valor_centavos, payload, fonte
+        )
+
+    # §6.5: idempotência de requisição, depois das validações e sob a trava do titular.
+    if chave_idempotencia is not None:
+        # A chave é global (índice único por (fonte, chave), não por titular). Travamos por
+        # ela para serializar leitura+inserção entre titulares diferentes e devolver
+        # `repetido: true` em vez de colidir no índice único (§6.5).
+        uow.travar_idempotencia(fonte, chave_idempotencia)
+        repetido = uow.recebimento_por_idempotencia(fonte, chave_idempotencia)
+        if repetido is not None:
+            fato_id, versao, efeito = repetido
+            return (fato_id, versao, efeito, True)
+
+    # Ordem global dos locks seguintes: chave do fato, depois linhas de entregável (por tipo).
     uow.travar_chave_fato(titular_id, competencia, tipo, tributo)
     vigente = uow.fato_vigente(titular_id, competencia, tipo, tributo)
 
-    if vigente is not None and vigente.hash == h:
-        return (vigente.id, vigente.versao, "sem_mudanca")
-
-    if vigente is None:
-        versao, substitui_id, efeito = 1, None, "novo"
-    else:
-        versao, substitui_id, efeito = vigente.versao + 1, vigente.id, "nova_versao"
-
-    fato = uow.inserir_fato(
-        titular_id, competencia, tipo, tributo, versao, valor_centavos,
-        dict(payload), fonte, observado_em, h, substitui_id, origem_ref,
+    # §6.3: hash v2 do que chegou, sob o contrato ativo.
+    h = hash_fato_v2(payload, valor_centavos, contrato.campos_hash, contrato.ordenar_arrays)
+    # §6.4: hV = hash da vigente recalculado AGORA sob o contrato ativo (nunca o hash gravado).
+    hV = (
+        hash_fato_v2(
+            vigente.payload, vigente.valor_centavos,
+            contrato.campos_hash, contrato.ordenar_arrays,
+        )
+        if vigente is not None
+        else None
     )
+
+    efeito, versao_nova, substitui_id = _decidir_efeito(vigente, h, hV, observado_em, fonte)
+
+    fato_novo: Fato | None = None
+    if efeito in ("novo", "nova_versao"):
+        fato_novo = uow.inserir_fato(
+            titular_id, competencia, tipo, tributo, versao_nova, valor_centavos,
+            dict(payload), fonte, observado_em, h, substitui_id, contrato.versao, origem_ref,
+        )
+
+    # O recebimento aponta para o fato criado (novo/nova_versao) ou o vigente (demais).
+    fato_id_rec = fato_novo.id if fato_novo is not None else (vigente.id if vigente else None)
+    versao_rec = fato_novo.versao if fato_novo is not None else (vigente.versao if vigente else 0)
 
     caso_do_fato = uow.buscar_caso(titular_id, competencia)
-    uow.gravar_evento(
-        "fato.publicado",
-        caso_do_fato.id if caso_do_fato else None,
-        None,
-        {"fato_id": fato.id},
+
+    if efeito in ("novo", "nova_versao"):
+        assert fato_novo is not None
+        uow.gravar_evento(
+            "fato.publicado",
+            caso_do_fato.id if caso_do_fato else None,
+            None,
+            {"fato_id": fato_novo.id},
+        )
+        # §10.3: o estado da entrega é lido ANTES da reavaliação desta publicação.
+        regra_do_fato = _regra_do_caso(uow, caso_do_fato) if caso_do_fato else None
+        entrega_antes = _entrega_em_disponibilizado(uow, caso_do_fato, regra_do_fato)
+
+        pend = _Pendencias() if pendencias is None else pendencias
+        pend.fatos.append((competencia, tipo, tributo))
+        if efeito == "nova_versao" and vigente is not None:
+            _invalidar(uow, pend, vigente.id, fato_novo.id, excluir_entregavel_id)
+        if pendencias is None:
+            _reavaliar_titular(uow, titular_id, pend)
+        _acompanhamento_pos_protocolo(
+            uow, caso_do_fato, regra_do_fato, tipo, tributo, efeito, entrega_antes
+        )
+    elif efeito == "conflito_fonte" and vigente is not None:
+        # §6.4/§9.4: abre exceção conflito_fonte no caso ABERTO (sem entregável).
+        if caso_do_fato is not None and caso_do_fato.estado == "aberto":
+            nova = uow.abrir_excecao_unica(
+                caso_do_fato.id, None, "conflito_fonte", "S", caso_do_fato.carteira
+            )
+            if nova is not None:
+                uow.gravar_evento(
+                    "excecao.aberta", caso_do_fato.id, None, {"excecao_id": nova}
+                )
+
+    # §6.4: recebimento de TODA publicação válida (inclusive as que não viram fato).
+    assert fato_id_rec is not None
+    uow.inserir_recebimento(
+        titular_id, competencia, tipo, tributo, fonte, chave_idempotencia,
+        observado_em, contrato.versao, h, efeito, fato_id_rec, dict(payload), valor_centavos,
     )
 
-    # §10.3: o estado da entrega é lido ANTES da reavaliação desta publicação.
-    regra_do_fato = _regra_do_caso(uow, caso_do_fato) if caso_do_fato else None
-    entrega_disponibilizada_antes = _entrega_em_disponibilizado(uow, caso_do_fato, regra_do_fato)
+    return (fato_id_rec, versao_rec, efeito, False)
 
-    pend = _Pendencias() if pendencias is None else pendencias
-    pend.fatos.append((competencia, tipo, tributo))
-    # §11.4 passo 2: invalidação (sementes = entregáveis com a versão ANTERIOR). A função única
-    # de transição registra em `pend` quem foi a invalidado e os dependentes.
-    if efeito == "nova_versao" and vigente is not None:
-        _invalidar(uow, pend, vigente.id, fato.id, excluir_entregavel_id=excluir_entregavel_id)
 
-    if pendencias is None:
-        # §11.4 passo 3: reavaliação do que este fato afeta nos casos abertos do titular.
-        _reavaliar_titular(uow, titular_id, pend)
+def _decidir_efeito(
+    vigente: Fato | None,
+    h: str,
+    hV: str | None,
+    observado_em: str,
+    fonte: str,
+) -> tuple[str, int, str | None]:
+    """Tabela §6.4. Devolve (efeito, versao_nova, substitui_id).
 
-    # §10.3: acompanhamento depois do protocolo (gravado, não sem_mudanca).
-    _acompanhamento_pos_protocolo(
-        uow, caso_do_fato, regra_do_fato, tipo, tributo, efeito, entrega_disponibilizada_antes
-    )
+    versao_nova/substitui_id só valem em novo/nova_versao (quem chama grava o fato).
+    """
+    if vigente is None:
+        return ("novo", 1, None)
+    if h == hV:
+        return ("sem_mudanca", 0, None)
+    # h ≠ hV: desempata por observado_em (instante) e fonte.
+    cmp = _comparar_instantes(observado_em, vigente.observado_em)
+    if cmp > 0:
+        return ("nova_versao", vigente.versao + 1, vigente.id)
+    if cmp < 0:
+        return ("obsoleto", 0, None)
+    # mesmo instante: mesma fonte = conflito; fonte diferente = nova_versao.
+    if fonte == vigente.fonte:
+        return ("conflito_fonte", 0, None)
+    return ("nova_versao", vigente.versao + 1, vigente.id)
 
-    return (fato.id, versao, efeito)
+
+def _comparar_instantes(a: str, b: str) -> int:
+    """Compara dois instantes ISO (timestamptz). -1, 0, 1. Texto igual = mesmo instante."""
+    if a == b:
+        return 0
+    da, db = _parse_instante(a), _parse_instante(b)
+    if da == db:
+        return 0
+    return -1 if da < db else 1
+
+
+def _parse_instante(texto: str) -> datetime:
+    t = texto.strip()
+    if t.endswith(("Z", "z")):
+        t = t[:-1] + "+00:00"
+    return datetime.fromisoformat(t)
 
 
 # =============================================================================
@@ -190,12 +320,25 @@ def concluir_tarefa(
 
     saida_tipo = str(item.saida["tipo"])
     agora = uow.hora()
+
+    # §8 passo 3a (v5): valida CADA saída contra o contrato ativo de saida.tipo com
+    # fonte='tarefa', TODAS antes de gravar qualquer uma. Erro → 403/422, nada gravado.
+    contratos: list[Contrato] = []
+    for i, s in enumerate(saidas):
+        contratos.append(
+            validar_contrato_publicacao(
+                uow, saida_tipo, s.tributo, s.valor_centavos, s.payload, "tarefa",
+                prefixo_campo=f"saidas[{i}].",
+            )
+        )
+
     pend = _Pendencias()
-    for s in saidas:
+    for s, contrato in zip(saidas, contratos, strict=True):
         publicar_fato(
             uow, caso.titular_id, caso.competencia, saida_tipo, s.tributo,
             s.valor_centavos, s.payload,
             "tarefa", agora, pendencias=pend, excluir_entregavel_id=ent.id,
+            contrato=contrato,
         )
         fv = uow.fato_vigente(caso.titular_id, caso.competencia, saida_tipo, s.tributo)
         if fv is not None:

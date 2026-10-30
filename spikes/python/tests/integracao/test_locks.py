@@ -30,6 +30,87 @@ def _travar_linha(u: UnidadeDeTrabalhoSQL, chave: str) -> None:
     u._exec("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"linha|{chave}",))
 
 
+def test_titulares_diferentes_nao_se_bloqueiam() -> None:
+    """§13: a trava é por titular; titulares distintos rodam em paralelo (nunca espera)."""
+    a, b = _conn(), _conn()
+    try:
+        ua, ub = UnidadeDeTrabalhoSQL(a), UnidadeDeTrabalhoSQL(b)
+        ua.travar_titular(f"T-x-{os.getpid()}")
+        pronto = threading.Event()
+
+        def outro() -> None:
+            ub.travar_titular(f"T-y-{os.getpid()}")  # titular diferente: não espera a
+            pronto.set()
+            b.rollback()
+
+        t = threading.Thread(target=outro)
+        t.start()
+        # Com a primeira transação ainda ABERTA, a segunda (outro titular) toma a trava já.
+        assert pronto.wait(timeout=5), "titular diferente não deveria bloquear"
+        t.join(timeout=5)
+        assert not t.is_alive()
+        a.commit()
+    finally:
+        a.close()
+        b.close()
+
+
+def test_idempotencia_serializa_entre_titulares_diferentes() -> None:
+    """§6.5: a chave (fonte, chave_idempotencia) é global; `travar_idempotencia` serializa
+    duas publicações de titulares DIFERENTES que usam a mesma chave, fechando a janela em que
+    ambas leem 'sem recebimento' e a segunda colide no índice único."""
+    fonte, chave = "api", f"idemp-{os.getpid()}"
+    a, b = _conn(), _conn()
+    ordem: list[str] = []
+    try:
+        ua, ub = UnidadeDeTrabalhoSQL(a), UnidadeDeTrabalhoSQL(b)
+        ua.travar_titular(f"T-i-a-{os.getpid()}")
+        ua.travar_idempotencia(fonte, chave)  # primeira segura a chave
+
+        def segunda() -> None:
+            ub.travar_titular(f"T-i-b-{os.getpid()}")  # titular diferente: não serializa aqui
+            ub.travar_idempotencia(fonte, chave)  # MESMA chave: espera a primeira commitar
+            ordem.append("b")
+            b.rollback()
+
+        t = threading.Thread(target=segunda)
+        t.start()
+        time.sleep(0.5)
+        assert t.is_alive() and ordem == [], "a mesma chave deveria serializar entre titulares"
+        ordem.append("a")
+        a.commit()
+        t.join(timeout=5)
+        assert not t.is_alive()
+        assert ordem == ["a", "b"]
+    finally:
+        a.close()
+        b.close()
+
+
+def test_idempotencia_chaves_diferentes_nao_se_bloqueiam() -> None:
+    """Chaves distintas rodam em paralelo (a trava é por (fonte, chave), não global)."""
+    a, b = _conn(), _conn()
+    try:
+        ua, ub = UnidadeDeTrabalhoSQL(a), UnidadeDeTrabalhoSQL(b)
+        ua.travar_idempotencia("api", f"k1-{os.getpid()}")
+        pronto = threading.Event()
+
+        def outro() -> None:
+            ub.travar_idempotencia("api", f"k2-{os.getpid()}")  # chave diferente: não espera
+            pronto.set()
+            b.rollback()
+
+        t = threading.Thread(target=outro)
+        t.start()
+        assert pronto.wait(timeout=5), "chave diferente não deveria bloquear"
+        t.join(timeout=5)
+        assert not t.is_alive()
+        a.commit()
+    finally:
+        a.close()
+        b.close()
+
+
 def test_titular_e_reentrante_e_serializa_a_segunda_conexao() -> None:
     titular = f"T-lock-{os.getpid()}"
     a, b = _conn(), _conn()
