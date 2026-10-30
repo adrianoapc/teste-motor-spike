@@ -230,5 +230,13 @@ Esta medição repetida parte da base limpa `72b7d4e` e **reaplica a implementa�
 | 26 | C20 171, C9 86 | `M2R t26` | motor v5 aplicado (contrato §6.2 + violacoes + tipo_versao); dotnet test 258+10, 0 warnings |
 | 27 | C19 168, C23 77, C4 119 | `M2R t27` | hash v2 (25 vetores + pares) verdes; `campos_hash` não versiona (C23) |
 | 28 | C22 74, C10 154, C3 155 | `M2R t28` | recebimento, obsoleto/conflito_fonte, idempotência (trava por fonte+chave) |
-| 29 | C21 ×3, C6 isolado | _pendente_ | |
+| 29 | C21 318 ×3, C6 isolado | `M2R t29` | trava §13 (`hashtextextended('titular\|'\|\|id,0)`); teste de integração 2/2 contra DB vivo; C6 ver abaixo |
 | 30 | fase 4.5 18/18 | _pendente_ | |
+
+### C6 isolado (tarefa 29, só a spike .NET no ar)
+| Indicador | fase 4 (11 contêineres no ar) | fase 4.5 isolado |
+|---|---|---|
+| abertura de 4.500 casos | 32,4 s | **27,3 s** |
+| lote de 300 guias (p95) | 0,061 s | **0,032 s** |
+
+Com só a spike .NET no ar (python/php parados), tanto a abertura em massa quanto o p95 do lote caem — a máquina está mais quieta. 0 erros no lote. Tempo de parede continua ordem de grandeza, não medida fina.

@@ -164,7 +164,7 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - Verificador: C22, depois C10 e C3.
   - _Requisitos: 23.6, 23.7_
 
-- [ ] 29. Concorrência por titular
+- [x] 29. Concorrência por titular
   - Trava consultiva por titular como primeiro comando da transação em `PublicarFato`, `ConcluirTarefa`, `RegistrarOverride` e em cada transação de `AbrirCompetencias`; consumidor da fila (se houver) com `pg_try_advisory_xact_lock` (§13).
   - Teste de integração: duas transações do mesmo titular não se intercalam; titulares diferentes não se bloqueiam.
   - Verificador: C21 três vezes seguidas; depois C6 só com esta spike no ar, registrando o p95 das 300 guias e a abertura de 10.000 casos (comparar com a fase 4).
