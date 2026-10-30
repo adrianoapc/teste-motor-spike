@@ -220,11 +220,14 @@ Medição repetida da fase 4.5, branch `m2r/spike-dotnet` (só para medir tempo,
 - `--fase 4 --limpar` → **13/13** (guarda satisfeita: a fase 4 não regride).
 - `--fase 4.5 --limpar` → **0/18**. Todos os 18 cenários quebram pela mesma causa: o código M1 nunca grava `fatos.recebimento` nem `tipo_versao`, e a fase 4.5 liga INV-16/17/18 (toda publicação válida precisa deixar um `recebimento` e um `tipo_versao` válido). Exemplo em C1: 28 falhas, todas `[INV-16] fato ... sem recebimento novo/nova_versao`.
 
+## Método desta repetição
+Esta medição repetida parte da base limpa `72b7d4e` e **reaplica a implementação v5 já validada** na primeira M2 (branch `m2/spike-dotnet`, commit `c361e93` — código próprio, não de outra spike). Por isso os contadores de retrabalho e de erro barrado pelo compilador ficam em zero: o desenho já estava provado. O que esta repetição mede é o tempo de ponta a ponta de aplicar a mudança v5 com as barreiras do verificador, não a redescoberta do desenho.
+
 ## Tarefas (horário do commit = relógio)
 | Tarefa | Verificador | Commit | Observação |
 |---|---|---|---|
 | 25 | fase 4 13/13, fase 4.5 0/18 (impacto) | `M2R t25` | regressão read-only; nenhuma mudança de código |
-| 26 | C20, C9 | _pendente_ | |
+| 26 | C20 171, C9 86 | `M2R t26` | motor v5 aplicado (contrato §6.2 + violacoes + tipo_versao); dotnet test 258+10, 0 warnings |
 | 27 | C19, C23, C4 | _pendente_ | |
 | 28 | C22, C10, C3 | _pendente_ | |
 | 29 | C21 ×3, C6 isolado | _pendente_ | |

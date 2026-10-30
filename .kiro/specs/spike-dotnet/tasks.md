@@ -147,7 +147,7 @@ Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): cri
   - `--todos cenarios --fase 4 --limpar`: tem de dar 13/13. Depois `--fase 4.5` e registrar em `METRICAS.md` quais cenários quebram e por quê (é a medida de impacto da M2).
   - _Requisitos: 23.1_
 
-- [ ] 26. Contrato de fato na entrada
+- [x] 26. Contrato de fato na entrada
   - Ler o contrato ativo do banco a cada publicação; validar na ordem do §6.2; erros com o código e as `violacoes`; mesma validação em cada saída de `/concluir` (§8 passo 3a); gravar `tipo_versao` no fato.
   - Verificador: `--cenario cenarios/c20-m2-contrato-de-fato.json`, depois C9.
   - _Requisitos: 23.2, 23.3_

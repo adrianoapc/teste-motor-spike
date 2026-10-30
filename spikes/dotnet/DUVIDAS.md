@@ -260,3 +260,17 @@ grava transição/evento/conferência/exceção/tarefa/`version`) já era respei
 transiciona quando o estado efetivamente muda, e as conferências reaproveitam pela chave
 (`cf`, `entregavel_id`, `entrada_hash`) sem gravar outra. Os três cenários C11–C13 têm passo de fato
 sem consumidor e passam. Mantida a leitura PISO descrita no item 15.
+
+## M2 · `InvariantGlobalization` desligado por causa do NFC do hash v2 (§6.3)
+
+A etapa "normalizar" do hash v2 exige **NFC** em toda string do payload. Na M1 o
+`Directory.Build.props` tinha `InvariantGlobalization=true` (deterministmo de
+cultura, imagem menor). Nesse modo o .NET remove o ICU e **`String.Normalize(FormC)`
+vira no-op**: `"cafe"+U+0301` não funde em `"café"`, e os casos de NFC de
+`contrato/vetores-hash-v2.json` (e os pares `iguais`) falham.
+
+Decisão: `InvariantGlobalization=false`. O ICU volta e o NFC funciona. Isso não
+afeta a forma canônica — a ordenação de chaves é por **code point explícito**
+(`OrdemCodePoint`/`CmpCodePoint`), não por `string.Compare` dependente de cultura —
+nem a imagem de runtime (`aspnet:10.0` já traz o ICU). Verificado: 25 vetores do
+hash v2 passam e os 233 testes anteriores continuam verdes.

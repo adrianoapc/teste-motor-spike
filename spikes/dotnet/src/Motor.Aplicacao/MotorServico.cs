@@ -100,16 +100,24 @@ public sealed class MotorServico
         await using var uow = await _fabrica.AbrirAsync();
         var r = uow.Repos;
         var res = await PublicarFatoInternoAsync(r, cmd, reavaliar: true);
+        // Em erro de contrato (§6.2), nada é gravado: não confirma.
+        if (res.Erro != FatoErro.None) return res;
         await uow.ConfirmarAsync();
         return res;
     }
 
-    /// <summary>Publica o fato na transação dada. Se reavaliar=true, reavalia os casos abertos do titular.
-    /// entregavelConcluido: quando chamado de ConcluirTarefa (§8.4), a invalidação NÃO atinge o próprio
-    /// entregável sendo concluído.</summary>
+    /// <summary>Publica o fato na transação dada (v5). Ordem: trava do titular e da chave, contrato ativo
+    /// (§6.1), fonte e contrato (§6.2), idempotência (§6.5), hash v2 (§6.3), tabela de efeitos (§6.4),
+    /// recebimento em toda publicação válida. Em erro de contrato devolve <see cref="FatoErro"/> e NÃO grava.
+    /// Se reavaliar=true, reavalia os casos abertos do titular. entregavelConcluido: quando chamado de
+    /// ConcluirTarefa (§8.4), a invalidação NÃO atinge o próprio entregável sendo concluído.</summary>
     private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar,
         Guid? entregavelConcluido = null)
     {
+        // §6.4: o Postgres (timestamptz) guarda observado_em com precisão de microssegundo. Trunca o
+        // instante que chegou à mesma precisão ANTES de comparar e persistir, senão 7 dígitos de fração
+        // seriam vistos como um instante diferente do gravado (nova_versao em vez de conflito_fonte).
+        cmd = cmd with { ObservadoEm = TruncarMicrossegundos(cmd.ObservadoEm) };
         // Serializa com a abertura e com outras publicações do mesmo TITULAR: a reavaliação lê fatos
         // de outras competências (competencia_relativa), então publicar e abrir em paralelo não podem
         // deixar o entregável preso em aguardando_insumo (§6). Advisory locks são reentrantes na mesma
@@ -118,18 +126,50 @@ public sealed class MotorServico
         // Serializa publicações concorrentes da MESMA chave: sem isto, dois publishers leem o mesmo
         // vigente, calculam a mesma versão e um perde no índice único — virando 500 em vez de nova_versao.
         await r.Fatos.TravarChaveAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
-        var hash = HashCanonico.HashFato(cmd.Payload, cmd.ValorCentavos);
+
+        // §6.2 passo 2: tipo sem versão ativa -> 422 tipo_desconhecido.
+        var contrato = await r.Fatos.ContratoAtivoAsync(cmd.Tipo);
+        if (contrato is null) return ResultadoFato.DeErro(FatoErro.TipoDesconhecido);
+
+        // §6.2 passo 3: fonte fora de fontes_permitidas -> 403 fonte_nao_autorizada.
+        if (!contrato.FontesPermitidas.Contains(cmd.Fonte))
+            return ResultadoFato.DeErro(FatoErro.FonteNaoAutorizada);
+
+        // §6.2 passo 4: qualificador, valor_centavos e payload contra o contrato -> 422 payload_invalido.
+        var violacoes = ValidadorContrato.Validar(contrato, cmd.Tributo, cmd.ValorCentavos, cmd.Payload);
+        if (violacoes.Count > 0) return ResultadoFato.DeErro(FatoErro.PayloadInvalido, violacoes);
+
+        // §6.5 idempotência: a trava de titular não cobre a chave global (fonte, chave). Trava a chave
+        // ANTES de ler, serializando checagem-e-inserção do recebimento entre titulares diferentes.
+        if (cmd.ChaveIdempotencia is { } chaveIdem)
+        {
+            await r.Fatos.TravarChaveIdempotenciaAsync(cmd.Fonte, chaveIdem);
+            var repetido = await r.Fatos.RecebimentoPorChaveAsync(cmd.Fonte, chaveIdem);
+            if (repetido is not null)
+                return new ResultadoFato(repetido.FatoId, repetido.Versao, DeTexto(repetido.Efeito), Repetido: true);
+        }
+
+        // §6.3 hash v2 do que chegou, sob o contrato ativo.
+        var hash = HashV2.Hash(contrato, cmd.Payload, cmd.ValorCentavos);
         var vigente = await r.Fatos.VigenteAsync(cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo);
 
-        if (vigente is not null && vigente.Hash == hash)
+        // §6.4: hV recalculado AGORA sob o contrato ativo a partir do payload/valor gravados na vigente.
+        var hV = vigente is null ? null : HashV2.Hash(contrato, vigente.Payload, vigente.ValorCentavos);
+        var efeito = DecidirEfeito(cmd, vigente, hash, hV);
+
+        // Grava o recebimento em toda publicação válida, e o fato só quando a tabela manda (§6.4).
+        if (efeito is EfeitoFato.SemMudanca or EfeitoFato.Obsoleto or EfeitoFato.ConflitoFonte)
         {
-            // sem_mudança: nada grava, nenhuma invalidação nem acompanhamento (§6, §10.3).
-            return new ResultadoFato(vigente.Id, vigente.Versao, EfeitoFato.SemMudanca);
+            // Não grava fato; fato_id do recebimento = a vigente. conflito_fonte abre exceção.
+            if (efeito == EfeitoFato.ConflitoFonte)
+                await AbrirConflitoFonteAsync(r, cmd);
+            await GravarRecebimentoAsync(r, cmd, contrato.Versao, hash, efeito, vigente!.Id);
+            return new ResultadoFato(vigente.Id, vigente.Versao, efeito);
         }
 
         var novaVersao = (vigente?.Versao ?? 0) + 1;
-        var (id, versao) = await r.Fatos.GravarAsync(cmd, novaVersao, hash, vigente?.Id);
-        var efeito = vigente is null ? EfeitoFato.Novo : EfeitoFato.NovaVersao;
+        var (id, versao) = await r.Fatos.GravarAsync(cmd, novaVersao, hash, vigente?.Id, contrato.Versao);
+        await GravarRecebimentoAsync(r, cmd, contrato.Versao, hash, efeito, id);
 
         // 1. evento fato.publicado — caso_id só se existe caso do titular NAQUELA competência
         var caso = await r.Casos.PorChaveAsync(cmd.TitularId, cmd.Competencia);
@@ -157,6 +197,66 @@ public sealed class MotorServico
         return new ResultadoFato(id, versao, efeito);
     }
 
+    /// <summary>Tabela de efeitos de §6.4. V = vigente, h = hash do que chegou, hV = hash da vigente
+    /// recalculado sob o contrato ativo.</summary>
+    private static EfeitoFato DecidirEfeito(PublicarFatoCmd cmd, FatoVigente? vigente, string h, string? hV)
+    {
+        if (vigente is null) return EfeitoFato.Novo;
+        if (h == hV) return EfeitoFato.SemMudanca;
+        // h != hV: decide por observado_em. Comparação como instante.
+        var chegou = cmd.ObservadoEm.ToUniversalTime();
+        var daVigente = vigente.ObservadoEm.ToUniversalTime();
+        if (chegou > daVigente) return EfeitoFato.NovaVersao;
+        if (chegou < daVigente) return EfeitoFato.Obsoleto;
+        // mesmo instante: mesma fonte -> conflito_fonte; fonte diferente -> nova_versao.
+        return cmd.Fonte == vigente.Fonte ? EfeitoFato.ConflitoFonte : EfeitoFato.NovaVersao;
+    }
+
+    /// <summary>Abre a exceção conflito_fonte (§6.4): classe S, entregavel nulo, dono = carteira, no caso
+    /// ABERTO do titular e competência (abertura única §9.4). Sem caso ou caso encerrado: só o recebimento.</summary>
+    private static async Task AbrirConflitoFonteAsync(IRepositorios r, PublicarFatoCmd cmd)
+    {
+        var caso = await r.Casos.PorChaveAsync(cmd.TitularId, cmd.Competencia);
+        if (caso is null || caso.Estado == "encerrado") return;
+        var exId = await r.Excecoes.AbrirUnicaSemEntregavelAsync(caso.Id, "conflito_fonte", "S", caso.Carteira);
+        if (exId is { } eid)
+            await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, null, "excecao_id", eid);
+    }
+
+    private static async Task GravarRecebimentoAsync(IRepositorios r, PublicarFatoCmd cmd, int tipoVersao,
+        string hash, EfeitoFato efeito, Guid fatoId) =>
+        await r.Fatos.GravarRecebimentoAsync(new NovoRecebimento(
+            cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo, cmd.Fonte, cmd.ChaveIdempotencia,
+            cmd.ObservadoEm, tipoVersao, hash, ParaTexto(efeito), fatoId, cmd.Payload, cmd.ValorCentavos));
+
+    /// <summary>Trunca o instante à precisão de microssegundo do Postgres (timestamptz), para que a
+    /// comparação §6.4 e o valor gravado coincidam mesmo quando o cliente manda 7 dígitos de fração.</summary>
+    private static DateTimeOffset TruncarMicrossegundos(DateTimeOffset v)
+    {
+        var resto = v.Ticks % 10; // 1 tick = 100 ns; microssegundo = 10 ticks.
+        return resto == 0 ? v : v.AddTicks(-resto);
+    }
+
+    public static string ParaTexto(EfeitoFato e) => e switch
+    {
+        EfeitoFato.Novo => "novo",
+        EfeitoFato.NovaVersao => "nova_versao",
+        EfeitoFato.SemMudanca => "sem_mudanca",
+        EfeitoFato.Obsoleto => "obsoleto",
+        EfeitoFato.ConflitoFonte => "conflito_fonte",
+        _ => throw new ArgumentOutOfRangeException(nameof(e), e, null),
+    };
+
+    private static EfeitoFato DeTexto(string s) => s switch
+    {
+        "novo" => EfeitoFato.Novo,
+        "nova_versao" => EfeitoFato.NovaVersao,
+        "sem_mudanca" => EfeitoFato.SemMudanca,
+        "obsoleto" => EfeitoFato.Obsoleto,
+        "conflito_fonte" => EfeitoFato.ConflitoFonte,
+        _ => throw new ArgumentOutOfRangeException(nameof(s), s, null),
+    };
+
     private async Task ReavaliarAbertosAsync(IRepositorios r, string titularId)
     {
         var abertos = await r.Casos.AbertosDoTitularAsync(titularId);
@@ -174,7 +274,8 @@ public sealed class MotorServico
 
     // ---- ConcluirTarefa (§8) ----
     public enum ConcluirErro { None, NaoEncontrado, Conflito, Invalido }
-    public sealed record ConcluirResultado(ConcluirErro Erro, Entregavel? Entregavel, string? Mensagem);
+    public sealed record ConcluirResultado(ConcluirErro Erro, Entregavel? Entregavel, string? Mensagem,
+        IReadOnlyList<Violacao>? Violacoes = null, FatoErro ErroContrato = FatoErro.None);
     public sealed record SaidaDto(string Tributo, long? ValorCentavos, JsonElement Payload);
 
     public async Task<ConcluirResultado> ConcluirTarefaAsync(string titularId, Competencia competencia,
@@ -201,13 +302,20 @@ public sealed class MotorServico
 
         var agora = await uow.AgoraAsync();
 
-        // 4. cada saída vira fato (fonte=tarefa), ligada com papel 'saida'
+        // 4. cada saída vira fato (fonte=tarefa), ligada com papel 'saida'. A saída passa pela MESMA
+        // validação de contrato (§6.2, §8 passo 3a): se uma falha, o pedido inteiro falha (422) e a
+        // transação não é confirmada — a tarefa continua aberta (C20).
+        var indice = 0;
         foreach (var s in saidas)
         {
             var cmd = new PublicarFatoCmd(caso.TitularId, caso.Competencia, tipoSaida, s.Tributo,
                 s.ValorCentavos, s.Payload, "tarefa", null, agora);
             var rf = await PublicarFatoInternoAsync(r, cmd, reavaliar: false, entregavelConcluido: ent.Id);
+            if (rf.Erro != FatoErro.None)
+                return new ConcluirResultado(ConcluirErro.Invalido, null, "saída fora do contrato",
+                    PrefixarSaida(indice, rf), rf.Erro);
             await r.Entregaveis.LigarFatoAsync(ent.Id, rf.FatoId, "saida");
+            indice++;
         }
 
         // 5. concluir tarefa aberta
@@ -231,6 +339,11 @@ public sealed class MotorServico
         return new ConcluirResultado(ConcluirErro.None, final, null);
 
         static ConcluirResultado Falha(ConcluirErro e, string msg) => new(e, null, msg);
+
+        static IReadOnlyList<Violacao> PrefixarSaida(int indice, ResultadoFato rf) =>
+            (rf.Violacoes ?? Array.Empty<Violacao>())
+                .Select(v => v with { Campo = $"saidas[{indice}].{v.Campo}" })
+                .ToList();
     }
 
     // ---- Invalidação por nova versão de fato já usado (§11) ----
