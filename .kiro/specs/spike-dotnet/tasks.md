@@ -143,7 +143,7 @@ Antes da tarefa 19: `git merge origin/main` (traz a V008, o contrato 1.3.0, a se
 
 Antes da tarefa 25 (a numeração pula a 24, que só existe na spec Python): criar a branch `m2/spike-dotnet` a partir da `main` atualizada (traz a V009, o contrato 1.4.0, a semântica v5, os contratos de tipo de fato e os cenários C19 a C23) e recriar o banco (`docker compose down -v && docker compose up -d`). Anotar a hora de início em `METRICAS.md` (seção Manutenção M2). Ler `docs/semantica-do-motor.md` §6 (inteiro), §8, §13 e §17 antes de mudar código.
 
-- [ ] 25. Regressão sem mudar código
+- [x] 25. Regressão sem mudar código
   - `--todos cenarios --fase 4 --limpar`: tem de dar 13/13. Depois `--fase 4.5` e registrar em `METRICAS.md` quais cenários quebram e por quê (é a medida de impacto da M2).
   - _Requisitos: 23.1_
 

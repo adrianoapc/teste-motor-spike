@@ -199,3 +199,33 @@ Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (
 - O ranking de SQLs muda entre operação isolada e lote: o PHP faz mais SQLs ao abrir 1 caso (94 contra 79 e 85), mas menos por empresa em lote (65,99 contra 68,94 e 69,75). A causa (memo por requisição amortizado em lote) é **hipótese não provada**.
 - A anomalia do .NET (108–125 s no mix contra ~70 s em 10.000 SN puras) **não foi investigada**.
 - Tempo de parede continua sendo ordem de grandeza: máquina não totalmente quieta, 11 contêineres alheios no ar, cliente no host.
+
+# Manutenção M2 (repetição)
+
+Medição repetida da fase 4.5, branch `m2r/spike-dotnet` (só para medir tempo, não será mergeada). O relógio são os commits `M2R tNN`; a base é o commit `M2R inicio`.
+
+- Início: 2026-10-30 18:47 -03
+- Fim: _(preencher na tarefa 30)_
+
+## Retrabalhos (verificador falhou e exigiu mudar código)
+- Nenhum até agora.
+
+## Intervenções humanas
+- Nenhuma até agora.
+
+## Erros barrados pelo compilador (antes de qualquer teste)
+- Nenhum até agora (ver também `REGISTRO-COMPILADOR.md`).
+
+## Medida de impacto da M2 (tarefa 25, código M1 sem mudança)
+- `--fase 4 --limpar` → **13/13** (guarda satisfeita: a fase 4 não regride).
+- `--fase 4.5 --limpar` → **0/18**. Todos os 18 cenários quebram pela mesma causa: o código M1 nunca grava `fatos.recebimento` nem `tipo_versao`, e a fase 4.5 liga INV-16/17/18 (toda publicação válida precisa deixar um `recebimento` e um `tipo_versao` válido). Exemplo em C1: 28 falhas, todas `[INV-16] fato ... sem recebimento novo/nova_versao`.
+
+## Tarefas (horário do commit = relógio)
+| Tarefa | Verificador | Commit | Observação |
+|---|---|---|---|
+| 25 | fase 4 13/13, fase 4.5 0/18 (impacto) | `M2R t25` | regressão read-only; nenhuma mudança de código |
+| 26 | C20, C9 | _pendente_ | |
+| 27 | C19, C23, C4 | _pendente_ | |
+| 28 | C22, C10, C3 | _pendente_ | |
+| 29 | C21 ×3, C6 isolado | _pendente_ | |
+| 30 | fase 4.5 18/18 | _pendente_ | |
