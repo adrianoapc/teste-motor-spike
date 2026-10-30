@@ -114,6 +114,10 @@ public sealed class MotorServico
     private async Task<ResultadoFato> PublicarFatoInternoAsync(IRepositorios r, PublicarFatoCmd cmd, bool reavaliar,
         Guid? entregavelConcluido = null)
     {
+        // §6.4: o Postgres (timestamptz) guarda observado_em com precisão de microssegundo. Trunca o
+        // instante que chegou à mesma precisão ANTES de comparar e persistir, senão 7 dígitos de fração
+        // seriam vistos como um instante diferente do gravado (nova_versao em vez de conflito_fonte).
+        cmd = cmd with { ObservadoEm = TruncarMicrossegundos(cmd.ObservadoEm) };
         // Serializa com a abertura e com outras publicações do mesmo TITULAR: a reavaliação lê fatos
         // de outras competências (competencia_relativa), então publicar e abrir em paralelo não podem
         // deixar o entregável preso em aguardando_insumo (§6). Advisory locks são reentrantes na mesma
@@ -224,6 +228,14 @@ public sealed class MotorServico
         await r.Fatos.GravarRecebimentoAsync(new NovoRecebimento(
             cmd.TitularId, cmd.Competencia, cmd.Tipo, cmd.Tributo, cmd.Fonte, cmd.ChaveIdempotencia,
             cmd.ObservadoEm, tipoVersao, hash, ParaTexto(efeito), fatoId, cmd.Payload, cmd.ValorCentavos));
+
+    /// <summary>Trunca o instante à precisão de microssegundo do Postgres (timestamptz), para que a
+    /// comparação §6.4 e o valor gravado coincidam mesmo quando o cliente manda 7 dígitos de fração.</summary>
+    private static DateTimeOffset TruncarMicrossegundos(DateTimeOffset v)
+    {
+        var resto = v.Ticks % 10; // 1 tick = 100 ns; microssegundo = 10 ticks.
+        return resto == 0 ? v : v.AddTicks(-resto);
+    }
 
     public static string ParaTexto(EfeitoFato e) => e switch
     {

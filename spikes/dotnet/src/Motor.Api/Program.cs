@@ -135,8 +135,8 @@ app.MapPost("/fatos", async (HttpRequest req, MotorServico motor) =>
             return Erro(422, "corpo_invalido", motivoPayload);
         if (!Validacao.TextoOpcionalValido(raiz, "origem_ref", out var origemRef, aceitaNull: true))
             return Erro(422, "corpo_invalido", "origem_ref deve ser string");
-        // §6.5: chave_idempotencia opcional, 1..200 caracteres.
-        if (!Validacao.TextoOpcionalValido(raiz, "chave_idempotencia", out var chaveIdem))
+        // §6.5: chave_idempotencia opcional (openapi nullable: true), 1..200 caracteres. null == ausente.
+        if (!Validacao.TextoOpcionalValido(raiz, "chave_idempotencia", out var chaveIdem, aceitaNull: true))
             return Erro(422, "corpo_invalido", "chave_idempotencia deve ser string");
         if (chaveIdem is { Length: 0 or > 200 })
             return Erro(422, "corpo_invalido", "chave_idempotencia deve ter de 1 a 200 caracteres");
