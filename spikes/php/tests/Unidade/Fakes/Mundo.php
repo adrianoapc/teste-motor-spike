@@ -111,7 +111,7 @@ final class Mundo
         $this->uow = new UnidadeDeTrabalhoMemoria;
         $this->relogio = new RelogioFixo;
 
-        $this->transicionador = new Transicionador($this->entregaveis, $this->catalogo, $this->eventos);
+        $this->transicionador = new Transicionador($this->entregaveis, $this->catalogo, $this->eventos, $this->excecoes, $this->casos, $this->regras);
         $this->abertura = new Excecoes($this->excecoes, $this->eventos);
         $this->conferidor = new Conferidor($this->conferencias, $this->catalogo);
         $this->avaliar = new AvaliarCaso(

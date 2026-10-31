@@ -9,12 +9,14 @@ use App\Api\Controllers\ConcluirController;
 use App\Api\Controllers\FatosController;
 use App\Api\Controllers\FilaController;
 use App\Api\Controllers\OverrideController;
+use App\Api\Controllers\PrazosController;
 use App\Api\Controllers\SaudeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', [SaudeController::class, 'health']);
 Route::get('/admin/fila', [FilaController::class, 'fila']);
 Route::post('/admin/calendario/aplicar', [CalendarioController::class, 'aplicar']);
+Route::post('/admin/prazos/verificar', [PrazosController::class, 'verificar']);
 
 Route::post('/competencias/abrir', [CompetenciasController::class, 'abrir']);
 Route::post('/fatos', [FatosController::class, 'publicar']);
