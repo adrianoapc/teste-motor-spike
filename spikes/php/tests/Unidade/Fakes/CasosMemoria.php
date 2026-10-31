@@ -62,4 +62,16 @@ final class CasosMemoria implements RepositorioCaso
     {
         return $this->casos[$casoId] ?? null;
     }
+
+    /** @return list<Caso> */
+    public function abertosComPrazos(): array
+    {
+        $abertos = array_values(array_filter(
+            $this->casos,
+            static fn (Caso $c): bool => $c->estado === 'aberto' && $c->regraPrazosVersaoId !== null,
+        ));
+        usort($abertos, static fn (Caso $a, Caso $b): int => [$a->titularId, $a->competencia->valor] <=> [$b->titularId, $b->competencia->valor]);
+
+        return $abertos;
+    }
 }

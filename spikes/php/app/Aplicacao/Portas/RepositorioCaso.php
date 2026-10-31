@@ -30,5 +30,13 @@ interface RepositorioCaso
      */
     public function abertosDoTitular(string $titularId): array;
 
+    /**
+     * Todos os casos abertos que têm regra_prazos_versao_id (§18.3 AplicarCalendario),
+     * ordenados por titular para que o comando trave e processe um titular por vez.
+     *
+     * @return list<Caso>
+     */
+    public function abertosComPrazos(): array;
+
     public function porId(string $casoId): ?Caso;
 }

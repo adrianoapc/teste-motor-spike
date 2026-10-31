@@ -47,6 +47,18 @@ final readonly class CalculoDePrazos
         return new Prazo($vencimento, $meta, $acao);
     }
 
+    /** O estado de cumprimento do tipo (padrão 'validado'; E11 = 'disponibilizado'), §18.4. */
+    public function estadoCumprimento(string $tipo): string
+    {
+        return $this->prazos->estadoCumprimento($tipo);
+    }
+
+    /** Se o tipo gera multa (§18.4). */
+    public function geraMulta(string $tipo): bool
+    {
+        return $this->prazos->geraMulta($tipo);
+    }
+
     /** A data de vencimento mais cedo entre as obrigações aplicáveis de vencimento_ref. */
     private function vencimento(string $tipo, Competencia $competencia, Contexto $ctx): ?Data
     {

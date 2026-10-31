@@ -106,6 +106,27 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         return $casos;
     }
 
+    /** @return list<Caso> */
+    public function abertosComPrazos(): array
+    {
+        $linhas = $this->conexao->select(
+            <<<'SQL'
+            SELECT id::text, titular_id, competencia, snapshot, carteira,
+                   regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
+            FROM fechamento.caso_competencia
+            WHERE estado = 'aberto' AND regra_prazos_versao_id IS NOT NULL
+            ORDER BY titular_id, competencia
+            SQL,
+        );
+
+        $casos = [];
+        foreach ($linhas as $linha) {
+            $casos[] = $this->mapear($linha);
+        }
+
+        return $casos;
+    }
+
     private function mapear(mixed $linha): Caso
     {
         /** @var array{id: string, titular_id: string, competencia: string, snapshot: string, carteira: string, regra_id: string, regra_prazos_id: ?string, estado: string} $row */

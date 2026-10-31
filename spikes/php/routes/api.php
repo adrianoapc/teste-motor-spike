@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Api\Controllers\CalendarioController;
 use App\Api\Controllers\CasoController;
 use App\Api\Controllers\CompetenciasController;
 use App\Api\Controllers\ConcluirController;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/health', [SaudeController::class, 'health']);
 Route::get('/admin/fila', [FilaController::class, 'fila']);
+Route::post('/admin/calendario/aplicar', [CalendarioController::class, 'aplicar']);
 
 Route::post('/competencias/abrir', [CompetenciasController::class, 'abrir']);
 Route::post('/fatos', [FatosController::class, 'publicar']);
