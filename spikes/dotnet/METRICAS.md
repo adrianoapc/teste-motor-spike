@@ -182,10 +182,15 @@ Semântica v6 (§18): prazos como atributo do entregável, risco de multa e moti
 
 | Marco | Commit | Instante |
 |---|---|---|
-| M3 inicio (medição começa) | 4182424 | _(preenchido na tarefa 37)_ |
-| M3 t37 (fim) | — | — |
+| M3 inicio (medição começa) | 4182424 | 2026-10-31 13:10:28 -03 |
+| M3 t32 | 4707927 | 13:12:49 |
+| M3 t33 | 93d8696 | 13:19:25 |
+| M3 t34 | f81cb1e | 13:23:24 |
+| M3 t35 | 0667956 | 13:29:08 |
+| M3 t36 | cdb3bad | 13:32:24 |
+| M3 t37 (fim) | _(este commit)_ | ~13:40 |
 
-Tempo ativo = (fim − início) − pausas. _(cálculo final na tarefa 37)_
+**Tempo ativo ≈ 30 min** (do `M3 inicio` ao `M3 t37`), **sem pausas** (nenhum commit `M3 pausa/retomada`). A medição não inclui a tarefa 31 nem a preparação (merge da `main`, subir o Docker, ler §18).
 
 ## Tarefa 31 · regressão v5.1 (FORA da medição)
 
@@ -202,7 +207,36 @@ Tempo ativo = (fim − início) − pausas. _(cálculo final na tarefa 37)_
 | C28 | 34 | Mesmas datas `None` na abertura; e `POST /admin/calendario/aplicar` não existe (prorrogação como versão nova do calendário, §18.3). |
 | C29 | 29 | `POST /admin/prazos/verificar` → 404 e `POST .../impedimento` → 404: rotas não implementadas (§18.4, §18.5). |
 
-Os retrabalhos, intervenções humanas, `git diff --stat` e o C6 com I7/I8 ficam ao fim (tarefa 37).
+## Tarefas 33–36 · o que mudou no código
+
+| Tarefa | Mudança | Verificador |
+|---|---|---|
+| 33 | `CalculoPrazos` (domínio puro §18.2: dia útil, data de obrigação, vencimento mais cedo, meta, ação) + 14 testes unitários (req 25.2). `regra_prazos_versao_id` no caso; `vencimento/meta/acao` + `entregavel_prazo` (motivo `abertura`) na abertura. | C27, C1, C7 |
+| 34 | `AplicarCalendario` (§18.3): `POST /admin/calendario/aplicar`, 1 transação por titular com a trava §13, recalcula só não cumpridos de casos abertos, histórico `calendario_v<N>`, evento `prazo.alterado`, idempotente, sem transição. | C28 |
+| 35 | `VerificarPrazos` (§18.4): `POST /admin/prazos/verificar`, abre `prazo_em_risco` (classe O, única por entregável) para quem gera multa, não cumprido, `acao ≤ data_ref`; resolução por cumprimento DENTRO da função única de transição. | C29 (parte §18.4) |
+| 36 | `motivo_codigo` obrigatório no override (§8.1 v6: `422 corpo_invalido`/`422 motivo_invalido`, grava `override_motivo_codigo`); `RegistrarImpedimento`/`ResolverImpedimento` (§18.5, `impedimento_externo` classe S, sem mudar estado). | C29, C9 |
+
+## Esforço da M3
+
+- **Retrabalhos: 0.** Nenhuma tarefa precisou ser refeita após o commit `M3 tNN`.
+- **Erros barrados pelo compilador antes de teste: 1** (CS1061 `.Value` em `MotorServico.cs`, t34 — ver `REGISTRO-COMPILADOR.md`).
+- **Erros de lógica (não de compilação) corrigidos antes do commit da tarefa: 1** — `DateOnly` enviado como `timestamp` na chamada de `indicadores.i8_multas_em_risco` (HTTP 500); corrigido com `@d::date` e texto ISO (t35, `DUVIDAS.md` M3.1). Fora do registro do compilador por definição.
+- **Intervenções humanas: 1.** No início, a `origin/main` local estava desatualizada e eu parei: o dono informou que a M3 estava na `main` em `4d67d7f` (merge do PR #37) e autorizou `git fetch`/`git pull`. Depois disso, nenhuma intervenção.
+- **`git diff --stat` da fase** (`M3 inicio`..`M3 t37`, só `spikes/dotnet/`): **19 arquivos, ~1086 inserções, 17 remoções** (4 arquivos novos de domínio/infra/teste: `CalculoPrazos.cs`, `PrazoRepo.cs`, `MotivoCatalogoRepo.cs`, `CalculoPrazosTeste.cs`).
+- **Correção final:** `--todos cenarios --fase 4.6 --limpar` = **21/21** (INV-1 a INV-21). `dotnet test` unidade: **272 passam, 2 skip** (concorrência DB-gated offline), 0 aviso.
+
+### C6 isolado (tarefa 37, só esta spike no ar) — com I7 e I8
+
+`--cenario cenarios/c6-escala-4500-casos.json --limpar`:
+
+| Medida | Fase 4.6 (v6) | Fase 4.5 (v5) |
+|---|---|---|
+| Abertura em massa (4.500 casos) | **35,6 s** | 75,97 s (medição v5 anterior; aqui a abertura agora também calcula e grava prazos) |
+| Lote de 300 guias, p95 | **0,047 s** (0 erro) | 0,062 s |
+| I7 `i7_status_prazo` | **0,072 s** | — (novo na M3) |
+| I8 `i8_multas_em_risco` | **0,042 s** | — (novo na M3) |
+
+I7 e I8 são funções da V010 (base); a spike só grava as datas, o histórico e as exceções que elas leem. Ambas respondem bem abaixo do limite de 2 s mesmo com 4.500 casos. A abertura calcular prazos por entregável não degradou o tempo (medições em máquina não quieta; ordem de grandeza).
 
 ---
 
