@@ -20,10 +20,21 @@ public interface ICasoRepo
     /// <summary>Caso por id (para agrupar sementes de invalidação por caso, §11.1).</summary>
     Task<Caso?> PorIdAsync(Guid casoId);
     Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
-        string carteira, Guid regraVersaoId);
+        string carteira, Guid regraVersaoId, Guid? regraPrazosVersaoId);
     /// <summary>Casos ABERTOS do titular, com trava, para reavaliação após fato.</summary>
     Task<IReadOnlyList<Caso>> AbertosDoTitularAsync(string titularId);
     Task EncerrarAsync(Guid casoId);
+}
+
+/// <summary>Persistência das datas de prazo (§18). Grava as três datas no entregável e uma linha
+/// de histórico em fechamento.entregavel_prazo. Nada aqui cria estado ou transição.</summary>
+public interface IPrazosRepo
+{
+    /// <summary>Grava vencimento/meta/acao no entregável e insere a linha de histórico (motivo
+    /// 'abertura' ou 'calendario_v&lt;N&gt;'). Usada na abertura (§5 passo 3) e em AplicarCalendario (§18.3).</summary>
+    Task AtualizarDatasAsync(Guid entregavelId, Guid casoId,
+        DateOnly vencimento, DateOnly meta, DateOnly acao, string motivo,
+        Guid calendarioVersaoId, Guid catalogoVersaoId, Guid prazosVersaoId);
 }
 
 public interface IEntregavelRepo

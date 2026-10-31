@@ -32,6 +32,7 @@ public interface IRepositorios
     IRegrasRepo Regras { get; }
     ICasoRepo Casos { get; }
     IEntregavelRepo Entregaveis { get; }
+    IPrazosRepo Prazos { get; }
     IFatoRepo Fatos { get; }
     IConferenciaRepo Conferencias { get; }
     ITarefaRepo Tarefas { get; }

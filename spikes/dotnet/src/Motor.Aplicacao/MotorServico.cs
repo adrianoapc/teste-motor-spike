@@ -2,6 +2,7 @@ using System.Text.Json;
 using Motor.Dominio.Conferencias;
 using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
+using Motor.Dominio.Fechamento.Prazos;
 using Motor.Dominio.Regras;
 
 namespace Motor.Aplicacao;
@@ -42,7 +43,13 @@ public sealed class MotorServico
             var regraInfo = await r.Regras.VersaoEmUsoAsync("fechamento.entregaveis")
                 ?? throw new InvalidOperationException("regra fechamento.entregaveis sem versão em uso");
             var regra = new RegraEntregaveis(regraInfo.Id, regraInfo.Conteudo);
-            var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira, regra.VersaoId);
+
+            // v6 (§18): prazos fixados no caso. A regra fechamento.prazos é opcional (base sem V010
+            // não a tem): quando ausente, o caso abre sem prazos e nenhum entregável recebe datas.
+            var prazosCtx = await PrazosEmUsoAsync(r);
+
+            var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira,
+                regra.VersaoId, prazosCtx?.Prazos.VersaoId);
             if (caso is null)
             {
                 // abertura concorrente venceu entre o SELECT e o INSERT: relê e reporta como existente.
@@ -65,6 +72,16 @@ public sealed class MotorServico
                 await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
                     ent.Id, caso.Id, null, EstadoEntregavel.AguardandoInsumo, "abrir_competencia",
                     "comando", null, "sistema", regra.VersaoId));
+                // §18.2: entregável com prazo recebe vencimento/meta/acao e uma linha de histórico
+                // (motivo 'abertura'). Tipo fora da lista, ou sem obrigação aplicável, não tem prazo.
+                if (prazosCtx is { } pc)
+                {
+                    var prazo = CalculoPrazos.Calcular(item.Tipo, competencia, ctx,
+                        pc.Calendario, pc.Catalogo, pc.Prazos);
+                    if (prazo is { } p)
+                        await r.Prazos.AtualizarDatasAsync(ent.Id, caso.Id, p.Vencimento, p.Meta, p.Acao,
+                            "abertura", pc.CalendarioVersaoId, pc.CatalogoVersaoId, pc.Prazos.VersaoId);
+                }
                 criados.Add((item, ent));
             }
 
@@ -92,6 +109,28 @@ public sealed class MotorServico
             await uow.ConfirmarAsync();
         }
         return res;
+    }
+
+    /// <summary>As três regras de prazo em uso (§18.1): <c>fechamento.prazos</c> (cuja versão é fixada
+    /// no caso), <c>calendario.vencimentos</c> e <c>obrigacoes.catalogo</c> (lidas pelo status). Nulo
+    /// quando não há regra de prazos em uso (base sem V010): o caso abre sem prazos.</summary>
+    private sealed record PrazosEmUso(
+        RegraPrazos Prazos, Calendario Calendario, CatalogoObrigacoes Catalogo,
+        Guid CalendarioVersaoId, Guid CatalogoVersaoId);
+
+    private static async Task<PrazosEmUso?> PrazosEmUsoAsync(IRepositorios r)
+    {
+        var prazosInfo = await r.Regras.VersaoEmUsoAsync("fechamento.prazos");
+        if (prazosInfo is null) return null; // base sem V010: sem prazos
+        var calInfo = await r.Regras.VersaoEmUsoAsync("calendario.vencimentos")
+            ?? throw new InvalidOperationException("regra calendario.vencimentos sem versão em uso");
+        var catInfo = await r.Regras.VersaoEmUsoAsync("obrigacoes.catalogo")
+            ?? throw new InvalidOperationException("regra obrigacoes.catalogo sem versão em uso");
+        return new PrazosEmUso(
+            new RegraPrazos(prazosInfo.Id, prazosInfo.Conteudo),
+            Calendario.DeJson(calInfo.Conteudo),
+            CatalogoObrigacoes.DeJson(catInfo.Conteudo),
+            calInfo.Id, catInfo.Id);
     }
 
     // ---- PublicarFato (§6) ----
