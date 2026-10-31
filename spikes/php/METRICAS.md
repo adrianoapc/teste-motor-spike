@@ -395,3 +395,32 @@ Os quatro que quebram são a medida do impacto da mudança de regra v6:
 | C29 · Risco de multa, impedimento e motivo | FALHOU | `POST /admin/prazos/verificar` não existe (404), e faltam `motivo_codigo`/impedimento (§18.4/§18.5, tarefas 35–36). |
 
 Os 17 que passam (C1–C8, C10–C13, C19–C23, C6) confirmam que a base v5.1 segue íntegra.
+
+### Tarefas 33–36 — as mudanças da M3
+
+| Tarefa | Mudança | Verificador |
+|---|---|---|
+| 33 | Prazos na abertura (§18.2): domínio puro `App\Dominio\Prazos` (Data, Calendario, CatalogoObrigacoes, ItemPrazo, RegraPrazos, CalculoDePrazos), `regra_prazos_versao_id` no caso, datas + `entregavel_prazo` (motivo `abertura`). | C27, C1, C7 |
+| 34 | `AplicarCalendario` (§18.3): `POST /admin/calendario/aplicar`, uma transação por titular, recalcula com calendário/catálogo em uso + prazos fixados no caso; idempotente. | C28 |
+| 35 | `VerificarPrazos` (§18.4): `POST /admin/prazos/verificar`, abre `prazo_em_risco` (classe O); resolução na função única de transição ao atingir o `estado_cumprimento`. | C29 (parcial) |
+| 36 | `motivo_codigo` no override (§8.1 v6) + impedimento (§18.5): `RegistrarImpedimento`/`ResolverImpedimento`, `RepositorioMotivoCatalogo`. | C29, C9 |
+
+### Fechamento (tarefa 37)
+
+- **Regressão fase 4.6 completa:** `--todos cenarios --fase 4.6 --limpar --relatorio resultado-fase46-php.json` = **21/21**, só a spike PHP no ar (`resultado-fase46-php.json`).
+- **C6 isolado (só esta spike):** abertura de 4.500 casos = **44,55 s**; p95 das 300 guias em lote = **0,109 s** (total 0,94 s, 0 erro); I7 = 0,0724 s (4 linhas), I8 = 0,0313 s (0 linha). Ordem de grandeza, não comparação (máquina não quieta, cliente no host).
+- **Tempo ativo pelos commits (a medição começa no `M3 inicio`):** `M3 inicio` 16:03:23 → `M3 t36` 16:40:22 → `M3 t37`. A tarefa 31 (truncamento do `observado_em`) fica **fora** da medição. Janela ativa ≈ **37 min** (t32 → t36), fechada pelo t37.
+
+  | Commit | Hora | Intervalo |
+  |---|---|---|
+  | M3 inicio | 16:03:23 | — |
+  | M3 t32 | 16:05:09 | +1min46 |
+  | M3 t33 | 16:16:11 | +11min02 |
+  | M3 t34 | 16:32:38 | +16min27 |
+  | M3 t35 | 16:35:55 | +3min17 |
+  | M3 t36 | 16:40:22 | +4min27 |
+
+- **Retrabalhos:** 1, **fora da medição** (bug na reinserção da fração em `Instante::truncar` na t31, corrigido ao devolver `[base, fração, fuso]`). Dentro da medição (t32–t37): **0 retrabalho funcional** — os ajustes foram só do PHPStan `max`/Pint antes de teste, registrados em `REGISTRO-COMPILADOR.md`.
+- **Intervenções humanas:** **0** durante a implementação (uma única escolha de plano no início: "seguir direto até a 37").
+- **`git diff --stat` (base M3 `4d67d7f` → `M3 t37`, só `spikes/php/`):** 53 arquivos, ~1928 inserções, ~122 remoções.
+- **Erros do PHPStan barrados antes de teste:** t31 = 4, t33 = 10, t34/t35/t36 = 0 de tipo (detalhe em `REGISTRO-COMPILADOR.md`). Nenhum `@phpstan-ignore` nem baseline em toda a M3.
