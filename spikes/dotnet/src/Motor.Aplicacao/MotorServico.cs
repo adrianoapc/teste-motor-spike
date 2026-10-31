@@ -133,6 +133,69 @@ public sealed class MotorServico
             calInfo.Id, catInfo.Id);
     }
 
+    // ---- AplicarCalendario (§18.3) ----
+    /// <summary>Recalcula as datas dos entregáveis com prazo, não cumpridos, de casos abertos, com as
+    /// versões em uso do calendário e do catálogo e a versão de prazos FIXADA no caso. Grava histórico
+    /// (motivo <c>calendario_v&lt;N&gt;</c>) e o evento <c>prazo.alterado</c> só quando alguma das três
+    /// datas muda. Idempotente; nenhuma transição. Uma transação por titular, com a trava do §13.</summary>
+    public async Task<int> AplicarCalendarioAsync()
+    {
+        // Agrupa por titular: cada titular é uma transação com a sua trava (§13). A lista de titulares
+        // é lida uma vez; os casos de cada um são relidos dentro da sua transação (estado comitado).
+        List<string> titulares;
+        await using (var uowLeitura = await _fabrica.AbrirAsync())
+        {
+            titulares = (await uowLeitura.Repos.Prazos.CasosAbertosComPrazosAsync())
+                .Select(c => c.TitularId).Distinct().ToList();
+            await uowLeitura.ConfirmarAsync();
+        }
+
+        var alterados = 0;
+        foreach (var titular in titulares)
+        {
+            await using var uow = await _fabrica.AbrirAsync();
+            var r = uow.Repos;
+            await r.Casos.TravarCasoAsync(titular);
+
+            // Regras em uso agora (calendário e catálogo pelo status). A versão de prazos é a do caso.
+            var calInfo = await r.Regras.VersaoEmUsoAsync("calendario.vencimentos")
+                ?? throw new InvalidOperationException("regra calendario.vencimentos sem versão em uso");
+            var catInfo = await r.Regras.VersaoEmUsoAsync("obrigacoes.catalogo")
+                ?? throw new InvalidOperationException("regra obrigacoes.catalogo sem versão em uso");
+            var calendario = Calendario.DeJson(calInfo.Conteudo);
+            var catalogo = CatalogoObrigacoes.DeJson(catInfo.Conteudo);
+            var numeroCalendario = await r.Regras.NumeroDaVersaoAsync(calInfo.Id);
+            var motivo = $"calendario_v{numeroCalendario}";
+
+            foreach (var caso in (await r.Prazos.CasosAbertosComPrazosAsync()).Where(c => c.TitularId == titular))
+            {
+                var prazosConteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraPrazosVersaoId)
+                    ?? throw new InvalidOperationException($"versão de prazos {caso.RegraPrazosVersaoId} inexistente");
+                var regraPrazos = new RegraPrazos(caso.RegraPrazosVersaoId, prazosConteudo);
+                var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
+
+                foreach (var ent in await r.Prazos.EntregaveisComPrazoAsync(caso.CasoId))
+                {
+                    // Só entregável NÃO CUMPRIDO: estado atual com ordem < estado_cumprimento (§18.4).
+                    var estadoCump = Estados.Analisar(CalculoPrazos.EstadoCumprimento(ent.Tipo, regraPrazos));
+                    if (ent.Estado.PeloMenos(estadoCump)) continue; // cumprido: não mexe
+
+                    var novo = CalculoPrazos.Calcular(ent.Tipo, caso.Competencia, ctx, calendario, catalogo, regraPrazos);
+                    if (novo is not { } p) continue; // perdeu o prazo (não deveria na M3): ignora
+                    if (p.Vencimento == ent.Vencimento && p.Meta == ent.Meta && p.Acao == ent.Acao)
+                        continue; // nenhuma das três datas mudou: idempotente, não grava
+
+                    await r.Prazos.AtualizarDatasAsync(ent.Id, caso.CasoId, p.Vencimento, p.Meta, p.Acao,
+                        motivo, calInfo.Id, catInfo.Id, caso.RegraPrazosVersaoId);
+                    await r.Eventos.GravarComIdAsync("prazo.alterado", caso.CasoId, ent.Id, "entregavel_id", ent.Id);
+                    alterados++;
+                }
+            }
+            await uow.ConfirmarAsync();
+        }
+        return alterados;
+    }
+
     // ---- PublicarFato (§6) ----
     public async Task<ResultadoFato> PublicarFatoAsync(PublicarFatoCmd cmd)
     {

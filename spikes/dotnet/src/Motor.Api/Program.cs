@@ -71,6 +71,13 @@ app.MapGet("/admin/fila", async (IFabricaUnidade fab) =>
     return Results.Json(new { pendentes = fila.Pendentes, com_erro = fila.ComErro }, jsonOpts);
 });
 
+// ---- POST /admin/calendario/aplicar (§18.3) ----
+app.MapPost("/admin/calendario/aplicar", async (MotorServico motor) =>
+{
+    var alterados = await motor.AplicarCalendarioAsync();
+    return Results.Json(new { alterados }, jsonOpts);
+});
+
 // ---- /competencias/abrir ----
 app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =>
 {

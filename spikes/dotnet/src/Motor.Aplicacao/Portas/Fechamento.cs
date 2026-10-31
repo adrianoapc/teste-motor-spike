@@ -35,7 +35,23 @@ public interface IPrazosRepo
     Task AtualizarDatasAsync(Guid entregavelId, Guid casoId,
         DateOnly vencimento, DateOnly meta, DateOnly acao, string motivo,
         Guid calendarioVersaoId, Guid catalogoVersaoId, Guid prazosVersaoId);
+
+    /// <summary>Casos ABERTOS que têm regra de prazos fixada, agrupáveis por titular (ordenados por
+    /// titular) — alvos de AplicarCalendario (§18.3). Só casos abertos entram.</summary>
+    Task<IReadOnlyList<CasoComPrazos>> CasosAbertosComPrazosAsync();
+
+    /// <summary>Entregáveis de um caso que TÊM prazo (vencimento não nulo), com as datas atuais
+    /// e o estado atual — para AplicarCalendario decidir recálculo e cumprimento (§18.3/§18.4).</summary>
+    Task<IReadOnlyList<EntregavelComDatas>> EntregaveisComPrazoAsync(Guid casoId);
 }
+
+/// <summary>Caso aberto com a versão de prazos fixada e o contexto para recalcular datas.</summary>
+public sealed record CasoComPrazos(Guid CasoId, string TitularId, Competencia Competencia,
+    JsonElement Snapshot, Guid RegraPrazosVersaoId);
+
+/// <summary>Entregável com suas datas atuais e estado, para o recálculo de calendário.</summary>
+public sealed record EntregavelComDatas(Guid Id, string Tipo, EstadoEntregavel Estado,
+    DateOnly Vencimento, DateOnly Meta, DateOnly Acao);
 
 public interface IEntregavelRepo
 {
