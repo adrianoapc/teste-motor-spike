@@ -80,13 +80,13 @@ internal sealed class ConferenciaRepo : RepoBase, IConferenciaRepo
         return r is null ? null : new ConferenciaVigente(r.Value.id, r.Value.res, r.Value.sev, r.Value.temOv);
     }
 
-    public async Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo)
+    public async Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo, string motivoCodigo)
     {
         await Conn.ExecuteAsync(
             @"UPDATE conferencias.conferencia
-              SET override_autor = @a, override_motivo = @m, override_em = now()
+              SET override_autor = @a, override_motivo = @m, override_motivo_codigo = @mc, override_em = now()
               WHERE id = @id",
-            new { id = conferenciaId, a = autor, m = motivo }, Tx);
+            new { id = conferenciaId, a = autor, m = motivo, mc = motivoCodigo }, Tx);
     }
 
     public async Task<bool> TemOutraDivergenteBSemOverrideAsync(Guid entregavelId, Guid excetoConferenciaId)

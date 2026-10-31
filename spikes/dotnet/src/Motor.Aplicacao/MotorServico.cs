@@ -633,14 +633,20 @@ public sealed class MotorServico
     }
 
     // ---- RegistrarOverride (§8.1) ----
-    public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido }
+    public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido, MotivoInvalido }
     public sealed record OverrideResultado(OverrideErro Erro, Entregavel? Entregavel, string? Mensagem);
 
     public async Task<OverrideResultado> RegistrarOverrideAsync(string titularId, Competencia competencia,
-        string tipo, string ator, string cf, string motivo)
+        string tipo, string ator, string cf, string motivo, string motivoCodigo)
     {
         await using var uow = await _fabrica.AbrirAsync();
         var r = uow.Repos;
+
+        // 1a (v6, §18.5): motivo_codigo tem de existir no catálogo com aplica_a = 'override'. Vem antes
+        // do 404 (ordem do §8.1). O 422 corpo_invalido por motivo_codigo ausente é checado na API.
+        var mc = await r.Motivos.PorCodigoAsync(motivoCodigo);
+        if (mc is null || mc.AplicaA != "override")
+            return new OverrideResultado(OverrideErro.MotivoInvalido, null, "motivo_codigo inválido para override");
 
         var caso = await r.Casos.PorChaveAsync(titularId, competencia);
         if (caso is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "caso inexistente");
@@ -655,8 +661,8 @@ public sealed class MotorServico
         if (conf is null || conf.Resultado != "divergente" || conf.Severidade != "B" || conf.TemOverride)
             return new OverrideResultado(OverrideErro.Conflito, null, "conferência não elegível a override");
 
-        // 1. grava override na conferência vigente
-        await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo);
+        // 1. grava override na conferência vigente (com motivo_codigo v6)
+        await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo, motivoCodigo);
         // 2. resolve exceções abertas daquele entregável com tipo = cf (resolucao override)
         await r.Excecoes.ResolverPorTiposAsync(ent.Id, new[] { cf }, "override");
         // 3. evento conferencia.override
@@ -683,5 +689,66 @@ public sealed class MotorServico
         var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
             ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
         return new RegraEntregaveis(caso.RegraVersaoId, conteudo);
+    }
+
+    // ---- RegistrarImpedimento / ResolverImpedimento (§18.5) ----
+    public enum ImpedimentoErro { None, CorpoInvalido, MotivoInvalido, NaoEncontrado, Conflito }
+    public sealed record ImpedimentoResultado(ImpedimentoErro Erro, Guid? ExcecaoId, string? Mensagem);
+
+    /// <summary>Abre um impedimento externo (§18.5). Ordem: 422 corpo (ator/motivo_codigo — ator na API),
+    /// 422 motivo_invalido (código fora do catálogo ou aplica_a ≠ impedimento), 422 corpo (exige_texto e
+    /// texto &lt; 5), 404 (caso/entregável), 409 (encerrado ou impedimento já aberto). Não muda estado.</summary>
+    public async Task<ImpedimentoResultado> RegistrarImpedimentoAsync(string titularId, Competencia competencia,
+        string tipo, string ator, string motivoCodigo, string? texto)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+
+        // 2. código fora do catálogo ou aplica_a ≠ impedimento -> 422 motivo_invalido.
+        var mc = await r.Motivos.PorCodigoAsync(motivoCodigo);
+        if (mc is null || mc.AplicaA != "impedimento")
+            return new ImpedimentoResultado(ImpedimentoErro.MotivoInvalido, null, "motivo_codigo inválido para impedimento");
+        // 3. exige_texto e texto ausente ou com menos de 5 caracteres -> 422 corpo_invalido.
+        if (mc.ExigeTexto && (texto is null || texto.Length < 5))
+            return new ImpedimentoResultado(ImpedimentoErro.CorpoInvalido, null, "motivo_codigo exige texto com ao menos 5 caracteres");
+
+        // 4. caso ou entregável inexistente -> 404.
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "caso inexistente");
+        await r.Casos.TravarCasoAsync(titularId);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
+        if (ent is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "entregável inexistente");
+
+        // 5. caso encerrado, ou impedimento já aberto -> 409.
+        if (caso.Estado == "encerrado")
+            return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "caso encerrado");
+        var id = await r.Motivos.AbrirImpedimentoAsync(caso.Id, ent.Id, caso.Carteira, motivoCodigo);
+        if (id is not { } excecaoId)
+            return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "impedimento já aberto");
+
+        // Efeito: evento excecao.aberta, SEM mudar o estado do entregável (§18.5).
+        await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, ent.Id, "excecao_id", excecaoId);
+        await uow.ConfirmarAsync();
+        return new ImpedimentoResultado(ImpedimentoErro.None, excecaoId, null);
+    }
+
+    /// <summary>Resolve o impedimento externo aberto (§18.5): 422 sem ator (na API), 404 caso/entregável,
+    /// 409 se não há impedimento aberto. Não muda estado.</summary>
+    public async Task<ImpedimentoResultado> ResolverImpedimentoAsync(string titularId, Competencia competencia,
+        string tipo, string ator)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "caso inexistente");
+        await r.Casos.TravarCasoAsync(titularId);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
+        if (ent is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "entregável inexistente");
+
+        var resolveu = await r.Motivos.ResolverImpedimentoAsync(ent.Id);
+        if (!resolveu) return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "nenhum impedimento aberto");
+        await uow.ConfirmarAsync();
+        return new ImpedimentoResultado(ImpedimentoErro.None, null, null);
     }
 }

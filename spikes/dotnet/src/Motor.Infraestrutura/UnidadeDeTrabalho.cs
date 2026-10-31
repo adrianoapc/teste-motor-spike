@@ -58,6 +58,7 @@ internal sealed class Repositorios : IRepositorios
         Conferencias = new ConferenciaRepo(c, t);
         Tarefas = new TarefaRepo(c, t);
         Excecoes = new ExcecaoRepo(c, t);
+        Motivos = new MotivoCatalogoRepo(c, t);
         Eventos = new EventoRepo(c, t);
     }
 
@@ -69,6 +70,7 @@ internal sealed class Repositorios : IRepositorios
     public IConferenciaRepo Conferencias { get; }
     public ITarefaRepo Tarefas { get; }
     public IExcecaoRepo Excecoes { get; }
+    public IMotivoCatalogoRepo Motivos { get; }
     public IEventoRepo Eventos { get; }
 }
 

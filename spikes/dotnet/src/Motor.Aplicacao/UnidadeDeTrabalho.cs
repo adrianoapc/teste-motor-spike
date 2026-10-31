@@ -37,5 +37,6 @@ public interface IRepositorios
     IConferenciaRepo Conferencias { get; }
     ITarefaRepo Tarefas { get; }
     IExcecaoRepo Excecoes { get; }
+    IMotivoCatalogoRepo Motivos { get; }
     IEventoRepo Eventos { get; }
 }
