@@ -73,4 +73,55 @@ internal sealed class PrazoRepo : RepoBase, IPrazosRepo
             r.id, r.tipo, Estados.Analisar(r.estado),
             DateOnly.FromDateTime(r.venc), DateOnly.FromDateTime(r.meta), DateOnly.FromDateTime(r.acao))).ToList();
     }
+
+    public async Task<Guid?> AbrirRiscoDeMultaAsync(Guid casoId, Guid entregavelId, string dono, DateOnly vencimento)
+    {
+        // Abertura única (§18.4): só se não houver prazo_em_risco aberta nesse entregável.
+        // classe 'O' (operacional), prazo = vencimento do entregável. Nenhuma transição.
+        return await Conn.QuerySingleOrDefaultAsync<Guid?>(
+            @"INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, estado, prazo)
+              SELECT @c, @e, 'prazo_em_risco', 'O', @d, 'aberta', @prazo
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM trabalho.excecao
+                  WHERE entregavel_id = @e AND tipo = 'prazo_em_risco' AND estado = 'aberta')
+              RETURNING id",
+            new { c = casoId, e = entregavelId, d = dono, prazo = vencimento.ToDateTime(TimeOnly.MinValue) }, Tx);
+    }
+
+    public async Task ResolverRiscoCumpridoAsync(Guid entregavelId)
+    {
+        // §18.4: resolve a prazo_em_risco ABERTA do entregável SOMENTE quando seu estado atual já
+        // atingiu o estado de cumprimento (ordem do estado atual >= ordem do estado_cumprimento do
+        // item de prazo do caso). Tudo no banco, usando a função indicadores.prazo_item (V010) e a
+        // tabela de ordem fechamento.estado_entregavel — assim a decisão não depende de reler a regra
+        // na aplicação e vale para qualquer caminho que passe pela função única de transição (§4.1).
+        await Conn.ExecuteAsync(
+            @"UPDATE trabalho.excecao x
+              SET estado = 'resolvida', resolucao = 'cumprido', resolvida_em = now()
+              FROM fechamento.entregavel e
+              JOIN fechamento.caso_competencia c ON c.id = e.caso_id
+              JOIN LATERAL indicadores.prazo_item(c.regra_prazos_versao_id, e.tipo) p ON true
+              JOIN fechamento.estado_entregavel ea ON ea.estado = e.estado
+              JOIN fechamento.estado_entregavel ec ON ec.estado = p.estado_cumprimento
+              WHERE x.entregavel_id = @e
+                AND x.tipo = 'prazo_em_risco' AND x.estado = 'aberta'
+                AND e.id = @e
+                AND ea.ordem IS NOT NULL AND ea.ordem >= ec.ordem",
+            new { e = entregavelId }, Tx);
+    }
+
+    public async Task<IReadOnlyList<CandidatoRisco>> CandidatosRiscoAsync(DateOnly dataRef)
+    {
+        // §18.4 = exatamente a base do indicador I8 (gera_multa, não cumprido, caso aberto, data_ref>=acao).
+        // Reusa a função da V010 e junta o entregável para obter o caso_id. Dono = carteira do caso.
+        var rows = await Conn.QueryAsync<(Guid entregavelId, string titular, string carteira, DateTime venc, Guid casoId)>(
+            @"SELECT i.entregavel_id AS entregavelId, i.titular_id AS titular, i.carteira, i.vencimento AS venc,
+                     e.caso_id AS casoId
+              FROM indicadores.i8_multas_em_risco(@d::date) i
+              JOIN fechamento.entregavel e ON e.id = i.entregavel_id
+              ORDER BY i.titular_id, e.tipo",
+            new { d = dataRef.ToString("yyyy-MM-dd") }, Tx);
+        return rows.Select(r => new CandidatoRisco(
+            r.casoId, r.entregavelId, r.titular, r.carteira, DateOnly.FromDateTime(r.venc))).ToList();
+    }
 }

@@ -43,6 +43,21 @@ public interface IPrazosRepo
     /// <summary>Entregáveis de um caso que TÊM prazo (vencimento não nulo), com as datas atuais
     /// e o estado atual — para AplicarCalendario decidir recálculo e cumprimento (§18.3/§18.4).</summary>
     Task<IReadOnlyList<EntregavelComDatas>> EntregaveisComPrazoAsync(Guid casoId);
+
+    /// <summary>Abre a exceção <c>prazo_em_risco</c> (classe O, dono = carteira, prazo = vencimento)
+    /// do entregável, só se não houver outra aberta nele (§18.4 abertura única). Devolve o id, ou
+    /// null se já existia aberta. Nenhuma transição é gravada.</summary>
+    Task<Guid?> AbrirRiscoDeMultaAsync(Guid casoId, Guid entregavelId, string dono, DateOnly vencimento);
+
+    /// <summary>Resolve (resolvida, resolucao = 'cumprido', now) a <c>prazo_em_risco</c> ABERTA do
+    /// entregável — chamada na função única de transição quando o entregável atinge o estado de
+    /// cumprimento (§18.4). Idempotente: nada a resolver não faz nada.</summary>
+    Task ResolverRiscoCumpridoAsync(Guid entregavelId);
+
+    /// <summary>Candidatos a <c>prazo_em_risco</c> na data de referência (§18.4): entregáveis que
+    /// geram multa, não cumpridos, de casos abertos, com <c>acao ≤ data_ref</c>. Agrupáveis por
+    /// titular (ordenados por titular). Usa a mesma base do indicador I8 (V010).</summary>
+    Task<IReadOnlyList<CandidatoRisco>> CandidatosRiscoAsync(DateOnly dataRef);
 }
 
 /// <summary>Caso aberto com a versão de prazos fixada e o contexto para recalcular datas.</summary>
@@ -52,6 +67,11 @@ public sealed record CasoComPrazos(Guid CasoId, string TitularId, Competencia Co
 /// <summary>Entregável com suas datas atuais e estado, para o recálculo de calendário.</summary>
 public sealed record EntregavelComDatas(Guid Id, string Tipo, EstadoEntregavel Estado,
     DateOnly Vencimento, DateOnly Meta, DateOnly Acao);
+
+/// <summary>Candidato a prazo_em_risco na data de referência (§18.4): entregável que gera multa,
+/// não cumprido, de caso aberto, com ação já atingida. <c>Dono</c> = carteira do caso.</summary>
+public sealed record CandidatoRisco(Guid CasoId, Guid EntregavelId, string TitularId,
+    string Dono, DateOnly Vencimento);
 
 public interface IEntregavelRepo
 {

@@ -196,6 +196,42 @@ public sealed class MotorServico
         return alterados;
     }
 
+    // ---- VerificarPrazos (§18.4) ----
+    /// <summary>Abre a exceção <c>prazo_em_risco</c> para cada entregável que gera multa, não cumprido,
+    /// de caso aberto, com <c>acao ≤ data_ref</c>, sem duplicar (abertura única) e sem transição.
+    /// Uma transação por titular, com a trava do §13. Idempotente no mesmo <c>data_ref</c>. Devolve o
+    /// número de exceções abertas.</summary>
+    public async Task<int> VerificarPrazosAsync(DateOnly dataRef)
+    {
+        List<string> titulares;
+        await using (var uowLeitura = await _fabrica.AbrirAsync())
+        {
+            titulares = (await uowLeitura.Repos.Prazos.CandidatosRiscoAsync(dataRef))
+                .Select(c => c.TitularId).Distinct().ToList();
+            await uowLeitura.ConfirmarAsync();
+        }
+
+        var abertas = 0;
+        foreach (var titular in titulares)
+        {
+            await using var uow = await _fabrica.AbrirAsync();
+            var r = uow.Repos;
+            await r.Casos.TravarCasoAsync(titular);
+            // Relê os candidatos sob a trava (estado comitado); um que foi cumprido entrementes já sai.
+            foreach (var cand in (await r.Prazos.CandidatosRiscoAsync(dataRef)).Where(c => c.TitularId == titular))
+            {
+                var id = await r.Prazos.AbrirRiscoDeMultaAsync(cand.CasoId, cand.EntregavelId, cand.Dono, cand.Vencimento);
+                if (id is { } excecaoId)
+                {
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", cand.CasoId, cand.EntregavelId, "excecao_id", excecaoId);
+                    abertas++;
+                }
+            }
+            await uow.ConfirmarAsync();
+        }
+        return abertas;
+    }
+
     // ---- PublicarFato (§6) ----
     public async Task<ResultadoFato> PublicarFatoAsync(PublicarFatoCmd cmd)
     {

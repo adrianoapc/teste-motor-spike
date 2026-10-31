@@ -78,6 +78,23 @@ app.MapPost("/admin/calendario/aplicar", async (MotorServico motor) =>
     return Results.Json(new { alterados }, jsonOpts);
 });
 
+// ---- POST /admin/prazos/verificar (§18.4) ----
+app.MapPost("/admin/prazos/verificar", async (HttpRequest req, MotorServico motor) =>
+{
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
+    using (doc)
+    {
+        var raiz = doc!.RootElement;
+        // data_ref obrigatório, AAAA-MM-DD; ausente ou inválido -> 422 corpo_invalido.
+        if (!raiz.TryGetProperty("data_ref", out var dr) || dr.ValueKind != JsonValueKind.String
+            || !DateOnly.TryParseExact(dr.GetString(), "yyyy-MM-dd", out var dataRef))
+            return Erro(422, "corpo_invalido", "data_ref ausente ou inválido");
+        var abertas = await motor.VerificarPrazosAsync(dataRef);
+        return Results.Json(new { abertas }, jsonOpts);
+    }
+});
+
 // ---- /competencias/abrir ----
 app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =>
 {
