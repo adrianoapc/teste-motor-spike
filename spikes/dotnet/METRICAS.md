@@ -174,6 +174,38 @@ O p95 das 300 publicações subiu de ~0,030 s (v4) para 0,062 s (v5): o custo no
 
 ---
 
+# Manutenção M3 (Fase 4.6)
+
+Semântica v6 (§18): prazos como atributo do entregável, risco de multa e motivo de catálogo. Migração V010, contrato 1.5.0, cenários C27 a C29, C9 passa a exigir `motivo_codigo`. Branch `m3/spike-dotnet` a partir da `main` 4d67d7f (merge do PR #37). Implementação do zero (requisito 26); o tempo sai dos commits `M3 tNN`.
+
+## Tempo ativo (pelos commits)
+
+| Marco | Commit | Instante |
+|---|---|---|
+| M3 inicio (medição começa) | 4182424 | _(preenchido na tarefa 37)_ |
+| M3 t37 (fim) | — | — |
+
+Tempo ativo = (fim − início) − pausas. _(cálculo final na tarefa 37)_
+
+## Tarefa 31 · regressão v5.1 (FORA da medição)
+
+`--todos cenarios --fase 4.5 --limpar`: **18/18**, sem mudança de código. C9 passa (nesta fase ainda não manda `motivo_codigo`; isso é 4.6). Nenhum ajuste necessário nesta spike.
+
+## Tarefa 32 · regressão da M3 sem mudar código
+
+`--todos cenarios --fase 4.6 --limpar`: **17/21**. Quebram exatamente os quatro esperados; é a medida do impacto da M3:
+
+| Cenário | Falhas | Por quê |
+|---|---|---|
+| C9 | 1 | INV-21: override gravado sem `override_motivo_codigo` do catálogo. O override ainda não exige/grava `motivo_codigo` (§8.1 v6, §18.5). |
+| C27 | 18 | `vencimento`/`meta`/`acao` dos entregáveis vêm `None`: a abertura não calcula prazos nem grava `entregavel_prazo` (§5 passo 3 v6, §18.2). |
+| C28 | 34 | Mesmas datas `None` na abertura; e `POST /admin/calendario/aplicar` não existe (prorrogação como versão nova do calendário, §18.3). |
+| C29 | 29 | `POST /admin/prazos/verificar` → 404 e `POST .../impedimento` → 404: rotas não implementadas (§18.4, §18.5). |
+
+Os retrabalhos, intervenções humanas, `git diff --stat` e o C6 com I7/I8 ficam ao fim (tarefa 37).
+
+---
+
 # Medição pós-merge (2026-10-14)
 
 Origin/main `998cad0`. Os números acima ficam como histórico.
