@@ -46,7 +46,7 @@ final class ConferenciasMemoria implements RepositorioConferencia
         return $v === null ? null : new ConferenciaVigente($v['id'], $v['resultado'], $v['severidade'], $v['override']);
     }
 
-    public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void
+    public function registrarOverride(string $conferenciaId, string $autor, string $motivo, string $motivoCodigo): void
     {
         foreach ($this->linhas as $i => $l) {
             if ($l['id'] === $conferenciaId) {

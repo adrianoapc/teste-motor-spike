@@ -34,7 +34,7 @@ interface RepositorioConferencia
     public function vigente(string $entregavelId, string $cf): ?ConferenciaVigente;
 
     /** Grava override na conferência vigente da CF. */
-    public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void;
+    public function registrarOverride(string $conferenciaId, string $autor, string $motivo, string $motivoCodigo): void;
 
     /**
      * Conferências vigentes do entregável que são divergentes B sem override.

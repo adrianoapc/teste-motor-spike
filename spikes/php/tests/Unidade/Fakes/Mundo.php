@@ -62,6 +62,8 @@ final class Mundo
 
     public PrazosMemoria $prazos;
 
+    public MotivoCatalogoMemoria $motivos;
+
     public RegrasMemoria $regras;
 
     public UnidadeDeTrabalhoMemoria $uow;
@@ -107,6 +109,7 @@ final class Mundo
         $this->excecoes = new ExcecoesMemoria;
         $this->catalogo = new CatalogoMemoria;
         $this->prazos = new PrazosMemoria;
+        $this->motivos = new MotivoCatalogoMemoria;
         $this->regras = new RegrasMemoria(RegraEntregaveis::de('regra-v2', 2, $conteudoDaRegra ?? self::regraPadrao()));
         $this->uow = new UnidadeDeTrabalhoMemoria;
         $this->relogio = new RelogioFixo;
@@ -140,7 +143,7 @@ final class Mundo
         );
         $this->override = new RegistrarOverride(
             $this->uow, $this->casos, $this->entregaveis, $this->conferencias, $this->excecoes, $this->eventos,
-            $this->transicionador, $this->avaliar,
+            $this->motivos, $this->transicionador, $this->avaliar,
         );
         $this->consultar = new ConsultarCaso($this->casos, $this->entregaveis, $this->tarefas, $this->excecoes);
     }

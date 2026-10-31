@@ -91,4 +91,19 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
             [$resolucao, $entregavelId, $tipo],
         );
     }
+
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string
+    {
+        $linha = $this->conexao->selectOne(
+            "SELECT id::text FROM trabalho.excecao WHERE entregavel_id = ? AND tipo = ? AND estado = 'aberta' ORDER BY aberta_em DESC, id DESC LIMIT 1",
+            [$entregavelId, $tipo],
+        );
+        if ($linha === null) {
+            return null;
+        }
+        /** @var array{id: string} $row */
+        $row = (array) $linha;
+
+        return $row['id'];
+    }
 }

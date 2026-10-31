@@ -29,4 +29,7 @@ interface RepositorioExcecao
 
     /** Resolve exceções abertas de um entregável por tipo exato. */
     public function resolverPorTipo(string $entregavelId, string $tipo, string $resolucao): void;
+
+    /** Id da exceção aberta de um entregável por tipo exato (a mais recente), ou null. */
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string;
 }

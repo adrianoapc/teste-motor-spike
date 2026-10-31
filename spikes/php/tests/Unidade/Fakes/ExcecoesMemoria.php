@@ -69,6 +69,17 @@ final class ExcecoesMemoria implements RepositorioExcecao
         }
     }
 
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string
+    {
+        foreach (array_reverse($this->excecoes, true) as $id => $x) {
+            if ($x['entregavelId'] === $entregavelId && $x['estado'] === 'aberta' && $x['tipo'] === $tipo) {
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
     /** @return list<string> "tipo:estado[:resolucao]" de todas as exceções, na ordem de abertura */
     public function resumo(): array
     {
