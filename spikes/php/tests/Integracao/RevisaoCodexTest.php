@@ -302,9 +302,10 @@ final class RevisaoCodexTest extends TestCase
     }
 
     /**
-     * §6.4: fração com 7+ dígitos. O Postgres ARREDONDA ao gravar timestamptz (…1234567 -> .123457);
-     * PHP sozinho TRUNCARIA (.123456). Uma republicação com o MESMO instante, a MESMA fonte e valor
-     * diferente tem de dar conflito_fonte, não obsoleto por 1 µs de diferença de precisão.
+     * §6.4 (v5.1): fração com 7+ dígitos. O motor TRUNCA para 6 dígitos (.1234567 -> .123456)
+     * antes de comparar e de gravar, e grava já truncado; o Postgres recebe sempre 6 dígitos.
+     * Uma republicação com o MESMO instante, a MESMA fonte e valor diferente tem de dar
+     * conflito_fonte, não obsoleto por diferença de precisão.
      */
     public function test_republicacao_no_mesmo_instante_com_fracao_de_7_digitos_e_conflito_fonte(): void
     {
@@ -322,6 +323,33 @@ final class RevisaoCodexTest extends TestCase
 
         // Só a versão 1 permanece vigente (conflito_fonte não grava novo fato).
         $this->assertSame(1, DB::table('fatos.fato')->where('titular_id', 'TPREC')->where('tipo', 'faturamento_mes')->count());
+    }
+
+    /**
+     * §6.4 (v5.1): o valor gravado é TRUNCADO, não arredondado. '.9999996' arredondaria para o
+     * segundo seguinte (.000000 do segundo +1); truncado fica '.999999'. Como o motor grava já
+     * truncado, o timestamptz guarda '.999999' e uma republicação de mesmo instante, mesma fonte
+     * e valor diferente dá conflito_fonte (prova que não houve carry por arredondamento).
+     */
+    public function test_valor_gravado_e_truncado_nao_arredondado(): void
+    {
+        $em = '2026-10-01T09:00:00.9999996-03:00';
+        $this->postJson('/fatos', [
+            'titular_id' => 'TTRUNC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 100,
+        ])->assertOk()->assertJsonPath('efeito', 'novo');
+
+        // O banco guardou .999999 (truncado). Republicar no mesmo instante com valor diferente
+        // => hash muda, mesmo instante, mesma fonte => conflito_fonte.
+        $this->postJson('/fatos', [
+            'titular_id' => 'TTRUNC', 'competencia' => self::COMP, 'tipo' => 'faturamento_mes',
+            'fonte' => 'intranet', 'observado_em' => $em, 'valor_centavos' => 200,
+        ])->assertOk()->assertJsonPath('efeito', 'conflito_fonte');
+
+        // observado_em gravado tem microssegundo .999999 (truncado), nunca .000000 do segundo seguinte.
+        $gravado = DB::table('fatos.fato')->where('titular_id', 'TTRUNC')->where('tipo', 'faturamento_mes')->value('observado_em');
+        $this->assertIsString($gravado);
+        $this->assertStringContainsString('.999999', $gravado);
     }
 
     public function test_abrir_competencias_trava_a_chave_e_reporta_existente_na_segunda_chamada(): void
