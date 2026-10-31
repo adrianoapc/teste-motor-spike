@@ -56,14 +56,14 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
     }
 
     public async Task<Caso?> CriarAsync(string titularId, Competencia competencia, JsonElement snapshot,
-        string carteira, Guid regraVersaoId)
+        string carteira, Guid regraVersaoId, Guid? regraPrazosVersaoId)
     {
         // INSERT atômico tolerante a conflito: duas aberturas concorrentes do mesmo
         // (titular, competência) não quebram com 23505 — a perdedora recebe id nulo (§ idempotência).
         var cmd = new NpgsqlCommand(
             @"INSERT INTO fechamento.caso_competencia
-              (titular_id, competencia, snapshot, carteira, regra_entregaveis_versao_id, estado)
-              VALUES (@t, @c, @s, @ca, @rv, 'aberto')
+              (titular_id, competencia, snapshot, carteira, regra_entregaveis_versao_id, regra_prazos_versao_id, estado)
+              VALUES (@t, @c, @s, @ca, @rv, @rpv, 'aberto')
               ON CONFLICT (titular_id, competencia) DO NOTHING
               RETURNING id", Conn, Tx);
         cmd.Parameters.AddWithValue("t", titularId);
@@ -71,6 +71,8 @@ internal sealed class CasoRepo : RepoBase, ICasoRepo
         cmd.Parameters.Add(new NpgsqlParameter("s", NpgsqlDbType.Jsonb) { Value = snapshot.GetRawText() });
         cmd.Parameters.AddWithValue("ca", carteira);
         cmd.Parameters.AddWithValue("rv", regraVersaoId);
+        cmd.Parameters.Add(new NpgsqlParameter("rpv", NpgsqlDbType.Uuid)
+            { Value = (object?)regraPrazosVersaoId ?? DBNull.Value });
         var res = await cmd.ExecuteScalarAsync();
         if (res is not Guid id) return null; // conflito: outra transação já abriu o caso
         return new Caso(id, titularId, competencia, snapshot, carteira, regraVersaoId, "aberto", 1);

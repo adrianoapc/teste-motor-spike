@@ -29,4 +29,11 @@ internal sealed class RegrasRepo : RepoBase, IRegrasRepo
             new { id = versaoId }, Tx);
         return conteudo is null ? null : Json.Parse(conteudo);
     }
+
+    public async Task<int> NumeroDaVersaoAsync(Guid versaoId)
+    {
+        return await Conn.QuerySingleAsync<int>(
+            @"SELECT versao FROM regras.regra_versao WHERE id = @id",
+            new { id = versaoId }, Tx);
+    }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Motor.Dominio.Conferencias;
 using Motor.Dominio.Fatos;
 using Motor.Dominio.Fechamento;
+using Motor.Dominio.Fechamento.Prazos;
 using Motor.Dominio.Regras;
 
 namespace Motor.Aplicacao;
@@ -42,7 +43,13 @@ public sealed class MotorServico
             var regraInfo = await r.Regras.VersaoEmUsoAsync("fechamento.entregaveis")
                 ?? throw new InvalidOperationException("regra fechamento.entregaveis sem versão em uso");
             var regra = new RegraEntregaveis(regraInfo.Id, regraInfo.Conteudo);
-            var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira, regra.VersaoId);
+
+            // v6 (§18): prazos fixados no caso. A regra fechamento.prazos é opcional (base sem V010
+            // não a tem): quando ausente, o caso abre sem prazos e nenhum entregável recebe datas.
+            var prazosCtx = await PrazosEmUsoAsync(r);
+
+            var caso = await r.Casos.CriarAsync(emp.TitularId, competencia, emp.Snapshot, emp.Carteira,
+                regra.VersaoId, prazosCtx?.Prazos.VersaoId);
             if (caso is null)
             {
                 // abertura concorrente venceu entre o SELECT e o INSERT: relê e reporta como existente.
@@ -65,6 +72,16 @@ public sealed class MotorServico
                 await r.Entregaveis.TransicionarAsync(ent, new NovaTransicao(
                     ent.Id, caso.Id, null, EstadoEntregavel.AguardandoInsumo, "abrir_competencia",
                     "comando", null, "sistema", regra.VersaoId));
+                // §18.2: entregável com prazo recebe vencimento/meta/acao e uma linha de histórico
+                // (motivo 'abertura'). Tipo fora da lista, ou sem obrigação aplicável, não tem prazo.
+                if (prazosCtx is { } pc)
+                {
+                    var prazo = CalculoPrazos.Calcular(item.Tipo, competencia, ctx,
+                        pc.Calendario, pc.Catalogo, pc.Prazos);
+                    if (prazo is { } p)
+                        await r.Prazos.AtualizarDatasAsync(ent.Id, caso.Id, p.Vencimento, p.Meta, p.Acao,
+                            "abertura", pc.CalendarioVersaoId, pc.CatalogoVersaoId, pc.Prazos.VersaoId);
+                }
                 criados.Add((item, ent));
             }
 
@@ -92,6 +109,127 @@ public sealed class MotorServico
             await uow.ConfirmarAsync();
         }
         return res;
+    }
+
+    /// <summary>As três regras de prazo em uso (§18.1): <c>fechamento.prazos</c> (cuja versão é fixada
+    /// no caso), <c>calendario.vencimentos</c> e <c>obrigacoes.catalogo</c> (lidas pelo status). Nulo
+    /// quando não há regra de prazos em uso (base sem V010): o caso abre sem prazos.</summary>
+    private sealed record PrazosEmUso(
+        RegraPrazos Prazos, Calendario Calendario, CatalogoObrigacoes Catalogo,
+        Guid CalendarioVersaoId, Guid CatalogoVersaoId);
+
+    private static async Task<PrazosEmUso?> PrazosEmUsoAsync(IRepositorios r)
+    {
+        var prazosInfo = await r.Regras.VersaoEmUsoAsync("fechamento.prazos");
+        if (prazosInfo is null) return null; // base sem V010: sem prazos
+        var calInfo = await r.Regras.VersaoEmUsoAsync("calendario.vencimentos")
+            ?? throw new InvalidOperationException("regra calendario.vencimentos sem versão em uso");
+        var catInfo = await r.Regras.VersaoEmUsoAsync("obrigacoes.catalogo")
+            ?? throw new InvalidOperationException("regra obrigacoes.catalogo sem versão em uso");
+        return new PrazosEmUso(
+            new RegraPrazos(prazosInfo.Id, prazosInfo.Conteudo),
+            Calendario.DeJson(calInfo.Conteudo),
+            CatalogoObrigacoes.DeJson(catInfo.Conteudo),
+            calInfo.Id, catInfo.Id);
+    }
+
+    // ---- AplicarCalendario (§18.3) ----
+    /// <summary>Recalcula as datas dos entregáveis com prazo, não cumpridos, de casos abertos, com as
+    /// versões em uso do calendário e do catálogo e a versão de prazos FIXADA no caso. Grava histórico
+    /// (motivo <c>calendario_v&lt;N&gt;</c>) e o evento <c>prazo.alterado</c> só quando alguma das três
+    /// datas muda. Idempotente; nenhuma transição. Uma transação por titular, com a trava do §13.</summary>
+    public async Task<int> AplicarCalendarioAsync()
+    {
+        // Agrupa por titular: cada titular é uma transação com a sua trava (§13). A lista de titulares
+        // é lida uma vez; os casos de cada um são relidos dentro da sua transação (estado comitado).
+        List<string> titulares;
+        await using (var uowLeitura = await _fabrica.AbrirAsync())
+        {
+            titulares = (await uowLeitura.Repos.Prazos.CasosAbertosComPrazosAsync())
+                .Select(c => c.TitularId).Distinct().ToList();
+            await uowLeitura.ConfirmarAsync();
+        }
+
+        var alterados = 0;
+        foreach (var titular in titulares)
+        {
+            await using var uow = await _fabrica.AbrirAsync();
+            var r = uow.Repos;
+            await r.Casos.TravarCasoAsync(titular);
+
+            // Regras em uso agora (calendário e catálogo pelo status). A versão de prazos é a do caso.
+            var calInfo = await r.Regras.VersaoEmUsoAsync("calendario.vencimentos")
+                ?? throw new InvalidOperationException("regra calendario.vencimentos sem versão em uso");
+            var catInfo = await r.Regras.VersaoEmUsoAsync("obrigacoes.catalogo")
+                ?? throw new InvalidOperationException("regra obrigacoes.catalogo sem versão em uso");
+            var calendario = Calendario.DeJson(calInfo.Conteudo);
+            var catalogo = CatalogoObrigacoes.DeJson(catInfo.Conteudo);
+            var numeroCalendario = await r.Regras.NumeroDaVersaoAsync(calInfo.Id);
+            var motivo = $"calendario_v{numeroCalendario}";
+
+            foreach (var caso in (await r.Prazos.CasosAbertosComPrazosAsync()).Where(c => c.TitularId == titular))
+            {
+                var prazosConteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraPrazosVersaoId)
+                    ?? throw new InvalidOperationException($"versão de prazos {caso.RegraPrazosVersaoId} inexistente");
+                var regraPrazos = new RegraPrazos(caso.RegraPrazosVersaoId, prazosConteudo);
+                var ctx = Contexto.DeSnapshot(caso.Snapshot, caso.Competencia.MesDoTrimestre);
+
+                foreach (var ent in await r.Prazos.EntregaveisComPrazoAsync(caso.CasoId))
+                {
+                    // Só entregável NÃO CUMPRIDO: estado atual com ordem < estado_cumprimento (§18.4).
+                    var estadoCump = Estados.Analisar(CalculoPrazos.EstadoCumprimento(ent.Tipo, regraPrazos));
+                    if (ent.Estado.PeloMenos(estadoCump)) continue; // cumprido: não mexe
+
+                    var novo = CalculoPrazos.Calcular(ent.Tipo, caso.Competencia, ctx, calendario, catalogo, regraPrazos);
+                    if (novo is not { } p) continue; // perdeu o prazo (não deveria na M3): ignora
+                    if (p.Vencimento == ent.Vencimento && p.Meta == ent.Meta && p.Acao == ent.Acao)
+                        continue; // nenhuma das três datas mudou: idempotente, não grava
+
+                    await r.Prazos.AtualizarDatasAsync(ent.Id, caso.CasoId, p.Vencimento, p.Meta, p.Acao,
+                        motivo, calInfo.Id, catInfo.Id, caso.RegraPrazosVersaoId);
+                    await r.Eventos.GravarComIdAsync("prazo.alterado", caso.CasoId, ent.Id, "entregavel_id", ent.Id);
+                    alterados++;
+                }
+            }
+            await uow.ConfirmarAsync();
+        }
+        return alterados;
+    }
+
+    // ---- VerificarPrazos (§18.4) ----
+    /// <summary>Abre a exceção <c>prazo_em_risco</c> para cada entregável que gera multa, não cumprido,
+    /// de caso aberto, com <c>acao ≤ data_ref</c>, sem duplicar (abertura única) e sem transição.
+    /// Uma transação por titular, com a trava do §13. Idempotente no mesmo <c>data_ref</c>. Devolve o
+    /// número de exceções abertas.</summary>
+    public async Task<int> VerificarPrazosAsync(DateOnly dataRef)
+    {
+        List<string> titulares;
+        await using (var uowLeitura = await _fabrica.AbrirAsync())
+        {
+            titulares = (await uowLeitura.Repos.Prazos.CandidatosRiscoAsync(dataRef))
+                .Select(c => c.TitularId).Distinct().ToList();
+            await uowLeitura.ConfirmarAsync();
+        }
+
+        var abertas = 0;
+        foreach (var titular in titulares)
+        {
+            await using var uow = await _fabrica.AbrirAsync();
+            var r = uow.Repos;
+            await r.Casos.TravarCasoAsync(titular);
+            // Relê os candidatos sob a trava (estado comitado); um que foi cumprido entrementes já sai.
+            foreach (var cand in (await r.Prazos.CandidatosRiscoAsync(dataRef)).Where(c => c.TitularId == titular))
+            {
+                var id = await r.Prazos.AbrirRiscoDeMultaAsync(cand.CasoId, cand.EntregavelId, cand.Dono, cand.Vencimento);
+                if (id is { } excecaoId)
+                {
+                    await r.Eventos.GravarComIdAsync("excecao.aberta", cand.CasoId, cand.EntregavelId, "excecao_id", excecaoId);
+                    abertas++;
+                }
+            }
+            await uow.ConfirmarAsync();
+        }
+        return abertas;
     }
 
     // ---- PublicarFato (§6) ----
@@ -495,14 +633,20 @@ public sealed class MotorServico
     }
 
     // ---- RegistrarOverride (§8.1) ----
-    public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido }
+    public enum OverrideErro { None, NaoEncontrado, Conflito, Invalido, MotivoInvalido }
     public sealed record OverrideResultado(OverrideErro Erro, Entregavel? Entregavel, string? Mensagem);
 
     public async Task<OverrideResultado> RegistrarOverrideAsync(string titularId, Competencia competencia,
-        string tipo, string ator, string cf, string motivo)
+        string tipo, string ator, string cf, string motivo, string motivoCodigo)
     {
         await using var uow = await _fabrica.AbrirAsync();
         var r = uow.Repos;
+
+        // 1a (v6, §18.5): motivo_codigo tem de existir no catálogo com aplica_a = 'override'. Vem antes
+        // do 404 (ordem do §8.1). O 422 corpo_invalido por motivo_codigo ausente é checado na API.
+        var mc = await r.Motivos.PorCodigoAsync(motivoCodigo);
+        if (mc is null || mc.AplicaA != "override")
+            return new OverrideResultado(OverrideErro.MotivoInvalido, null, "motivo_codigo inválido para override");
 
         var caso = await r.Casos.PorChaveAsync(titularId, competencia);
         if (caso is null) return new OverrideResultado(OverrideErro.NaoEncontrado, null, "caso inexistente");
@@ -517,8 +661,8 @@ public sealed class MotorServico
         if (conf is null || conf.Resultado != "divergente" || conf.Severidade != "B" || conf.TemOverride)
             return new OverrideResultado(OverrideErro.Conflito, null, "conferência não elegível a override");
 
-        // 1. grava override na conferência vigente
-        await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo);
+        // 1. grava override na conferência vigente (com motivo_codigo v6)
+        await r.Conferencias.GravarOverrideAsync(conf.Id, ator, motivo, motivoCodigo);
         // 2. resolve exceções abertas daquele entregável com tipo = cf (resolucao override)
         await r.Excecoes.ResolverPorTiposAsync(ent.Id, new[] { cf }, "override");
         // 3. evento conferencia.override
@@ -545,5 +689,66 @@ public sealed class MotorServico
         var conteudo = await r.Regras.ConteudoPorIdAsync(caso.RegraVersaoId)
             ?? throw new InvalidOperationException($"regra fixada {caso.RegraVersaoId} do caso {caso.Id} não encontrada");
         return new RegraEntregaveis(caso.RegraVersaoId, conteudo);
+    }
+
+    // ---- RegistrarImpedimento / ResolverImpedimento (§18.5) ----
+    public enum ImpedimentoErro { None, CorpoInvalido, MotivoInvalido, NaoEncontrado, Conflito }
+    public sealed record ImpedimentoResultado(ImpedimentoErro Erro, Guid? ExcecaoId, string? Mensagem);
+
+    /// <summary>Abre um impedimento externo (§18.5). Ordem: 422 corpo (ator/motivo_codigo — ator na API),
+    /// 422 motivo_invalido (código fora do catálogo ou aplica_a ≠ impedimento), 422 corpo (exige_texto e
+    /// texto &lt; 5), 404 (caso/entregável), 409 (encerrado ou impedimento já aberto). Não muda estado.</summary>
+    public async Task<ImpedimentoResultado> RegistrarImpedimentoAsync(string titularId, Competencia competencia,
+        string tipo, string ator, string motivoCodigo, string? texto)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+
+        // 2. código fora do catálogo ou aplica_a ≠ impedimento -> 422 motivo_invalido.
+        var mc = await r.Motivos.PorCodigoAsync(motivoCodigo);
+        if (mc is null || mc.AplicaA != "impedimento")
+            return new ImpedimentoResultado(ImpedimentoErro.MotivoInvalido, null, "motivo_codigo inválido para impedimento");
+        // 3. exige_texto e texto ausente ou com menos de 5 caracteres -> 422 corpo_invalido.
+        if (mc.ExigeTexto && (texto is null || texto.Length < 5))
+            return new ImpedimentoResultado(ImpedimentoErro.CorpoInvalido, null, "motivo_codigo exige texto com ao menos 5 caracteres");
+
+        // 4. caso ou entregável inexistente -> 404.
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "caso inexistente");
+        await r.Casos.TravarCasoAsync(titularId);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
+        if (ent is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "entregável inexistente");
+
+        // 5. caso encerrado, ou impedimento já aberto -> 409.
+        if (caso.Estado == "encerrado")
+            return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "caso encerrado");
+        var id = await r.Motivos.AbrirImpedimentoAsync(caso.Id, ent.Id, caso.Carteira, motivoCodigo);
+        if (id is not { } excecaoId)
+            return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "impedimento já aberto");
+
+        // Efeito: evento excecao.aberta, SEM mudar o estado do entregável (§18.5).
+        await r.Eventos.GravarComIdAsync("excecao.aberta", caso.Id, ent.Id, "excecao_id", excecaoId);
+        await uow.ConfirmarAsync();
+        return new ImpedimentoResultado(ImpedimentoErro.None, excecaoId, null);
+    }
+
+    /// <summary>Resolve o impedimento externo aberto (§18.5): 422 sem ator (na API), 404 caso/entregável,
+    /// 409 se não há impedimento aberto. Não muda estado.</summary>
+    public async Task<ImpedimentoResultado> ResolverImpedimentoAsync(string titularId, Competencia competencia,
+        string tipo, string ator)
+    {
+        await using var uow = await _fabrica.AbrirAsync();
+        var r = uow.Repos;
+
+        var caso = await r.Casos.PorChaveAsync(titularId, competencia);
+        if (caso is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "caso inexistente");
+        await r.Casos.TravarCasoAsync(titularId);
+        var ent = await r.Entregaveis.PorChaveComTravaAsync(caso.Id, tipo);
+        if (ent is null) return new ImpedimentoResultado(ImpedimentoErro.NaoEncontrado, null, "entregável inexistente");
+
+        var resolveu = await r.Motivos.ResolverImpedimentoAsync(ent.Id);
+        if (!resolveu) return new ImpedimentoResultado(ImpedimentoErro.Conflito, null, "nenhum impedimento aberto");
+        await uow.ConfirmarAsync();
+        return new ImpedimentoResultado(ImpedimentoErro.None, null, null);
     }
 }

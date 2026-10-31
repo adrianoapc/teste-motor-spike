@@ -274,3 +274,30 @@ afeta a forma canônica — a ordenação de chaves é por **code point explíci
 (`OrdemCodePoint`/`CmpCodePoint`), não por `string.Compare` dependente de cultura —
 nem a imagem de runtime (`aspnet:10.0` já traz o ICU). Verificado: 25 vetores do
 hash v2 passam e os 233 testes anteriores continuam verdes.
+
+## M3 · Fase 4.6 (semântica v6, V010, cenários C27–C29)
+
+### M3.1 · `DateOnly` vs. argumento `date` de função no Npgsql/Dapper
+
+As datas de prazo são `DateOnly` no domínio (§18.2). Ao chamar a função
+`indicadores.i8_multas_em_risco(data_ref date)`, passar o `DateOnly` por parâmetro
+nomeado do Dapper fez o Npgsql enviá-lo como `timestamp without time zone`, e o
+Postgres recusou com `42883: function ... (timestamp ...) does not exist` (a
+resolução de sobrecarga de função é estrita quanto ao tipo). Em `INSERT`/`UPDATE`
+de **coluna** `date` o mesmo valor é coagido sem erro; só a chamada de função é
+estrita. **Decisão:** no argumento de função, passar a data como texto ISO
+(`yyyy-MM-dd`) e `@d::date` no SQL. As gravações em coluna continuam com o valor
+de data direto. Erro de runtime (não de compilação): fora do REGISTRO-COMPILADOR.
+
+### M3.2 · Resolução da `prazo_em_risco` na função única de transição (§18.4)
+
+A `prazo_em_risco` resolve quando o entregável atinge o `estado_cumprimento`
+(§18.4), "dentro da função única de transição para nenhum caminho esquecer". A
+spike tem um único ponto por onde toda transição de negócio passa
+(`Transicoes.TransicionarAsync`); a criação na abertura usa o repo direto, mas só
+cria em `aguardando_insumo` (nunca cumprimento). **Decisão:** `TransicionarAsync`
+chama `ResolverRiscoCumpridoAsync` após gravar a transição; o SQL só resolve se o
+novo estado já tem ordem ≥ a do `estado_cumprimento` do item de prazo do caso
+(via `indicadores.prazo_item` da V010 + `fechamento.estado_entregavel`), então
+chamar em toda transição é seguro e idempotente. Assim um entregável invalidado
+depois de cumprido deixa de estar cumprido e o risco volta a abrir (C29).

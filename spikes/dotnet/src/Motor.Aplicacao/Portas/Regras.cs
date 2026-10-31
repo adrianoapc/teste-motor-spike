@@ -15,4 +15,8 @@ public interface IRegrasRepo
     /// <summary>Conteúdo de uma versão de regra pelo seu id — usado para carregar a versão
     /// FIXADA no caso (caso.RegraVersaoId), e não a versão atualmente em uso. (§13, imutabilidade)</summary>
     Task<JsonElement?> ConteudoPorIdAsync(Guid versaoId);
+
+    /// <summary>Número inteiro da versão (coluna <c>versao</c>) pelo id — usado para o motivo
+    /// <c>calendario_v&lt;N&gt;</c> do histórico de prazo (§18.3).</summary>
+    Task<int> NumeroDaVersaoAsync(Guid versaoId);
 }

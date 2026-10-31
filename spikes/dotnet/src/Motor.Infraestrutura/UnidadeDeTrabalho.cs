@@ -53,20 +53,24 @@ internal sealed class Repositorios : IRepositorios
         Regras = new RegrasRepo(c, t);
         Casos = new CasoRepo(c, t);
         Entregaveis = new EntregavelRepo(c, t);
+        Prazos = new PrazoRepo(c, t);
         Fatos = new FatoRepo(c, t);
         Conferencias = new ConferenciaRepo(c, t);
         Tarefas = new TarefaRepo(c, t);
         Excecoes = new ExcecaoRepo(c, t);
+        Motivos = new MotivoCatalogoRepo(c, t);
         Eventos = new EventoRepo(c, t);
     }
 
     public IRegrasRepo Regras { get; }
     public ICasoRepo Casos { get; }
     public IEntregavelRepo Entregaveis { get; }
+    public IPrazosRepo Prazos { get; }
     public IFatoRepo Fatos { get; }
     public IConferenciaRepo Conferencias { get; }
     public ITarefaRepo Tarefas { get; }
     public IExcecaoRepo Excecoes { get; }
+    public IMotivoCatalogoRepo Motivos { get; }
     public IEventoRepo Eventos { get; }
 }
 

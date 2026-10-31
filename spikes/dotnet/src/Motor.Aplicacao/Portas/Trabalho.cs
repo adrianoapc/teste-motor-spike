@@ -38,3 +38,22 @@ public interface IExcecaoRepo
     /// <summary>Exceções abertas do caso, para a consulta GET /casos.</summary>
     Task<IReadOnlyList<ExcecaoConsulta>> AbertasDoCasoAsync(Guid casoId);
 }
+
+/// <summary>Catálogo de motivos (trabalho.motivo_catalogo, V010, §18.5). Valida código por uso.</summary>
+public interface IMotivoCatalogoRepo
+{
+    /// <summary>Um motivo do catálogo pelo código, ou null se não existe.</summary>
+    Task<MotivoCatalogo?> PorCodigoAsync(string codigo);
+
+    /// <summary>Abre a exceção <c>impedimento_externo</c> (classe S, dono = carteira, com motivo_codigo)
+    /// do entregável, só se não houver outra aberta nele (§18.5 abertura única). Devolve o id, ou null
+    /// se já existia aberta. Nenhuma transição.</summary>
+    Task<Guid?> AbrirImpedimentoAsync(Guid casoId, Guid entregavelId, string dono, string motivoCodigo);
+
+    /// <summary>Resolve (resolvida, resolucao = 'resolvido', now) o <c>impedimento_externo</c> ABERTO do
+    /// entregável (§18.5). Devolve true se resolveu algo, false se não havia impedimento aberto.</summary>
+    Task<bool> ResolverImpedimentoAsync(Guid entregavelId);
+}
+
+/// <summary>Motivo do catálogo (§18.5): a que uso se aplica e se exige texto.</summary>
+public sealed record MotivoCatalogo(string Codigo, string AplicaA, bool ExigeTexto);

@@ -71,6 +71,30 @@ app.MapGet("/admin/fila", async (IFabricaUnidade fab) =>
     return Results.Json(new { pendentes = fila.Pendentes, com_erro = fila.ComErro }, jsonOpts);
 });
 
+// ---- POST /admin/calendario/aplicar (§18.3) ----
+app.MapPost("/admin/calendario/aplicar", async (MotorServico motor) =>
+{
+    var alterados = await motor.AplicarCalendarioAsync();
+    return Results.Json(new { alterados }, jsonOpts);
+});
+
+// ---- POST /admin/prazos/verificar (§18.4) ----
+app.MapPost("/admin/prazos/verificar", async (HttpRequest req, MotorServico motor) =>
+{
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
+    using (doc)
+    {
+        var raiz = doc!.RootElement;
+        // data_ref obrigatório, AAAA-MM-DD; ausente ou inválido -> 422 corpo_invalido.
+        if (!raiz.TryGetProperty("data_ref", out var dr) || dr.ValueKind != JsonValueKind.String
+            || !DateOnly.TryParseExact(dr.GetString(), "yyyy-MM-dd", out var dataRef))
+            return Erro(422, "corpo_invalido", "data_ref ausente ou inválido");
+        var abertas = await motor.VerificarPrazosAsync(dataRef);
+        return Results.Json(new { abertas }, jsonOpts);
+    }
+});
+
 // ---- /competencias/abrir ----
 app.MapPost("/competencias/abrir", async (HttpRequest req, MotorServico motor) =>
 {
@@ -238,11 +262,15 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
             return Erro(422, "corpo_invalido", "cf ausente ou fora do padrão CF-nn");
         if (!Validacao.CampoTextoNaoVazio(raiz, "motivo", out var motivo) || motivo.Length < 5)
             return Erro(422, "corpo_invalido", "motivo ausente ou com menos de 5 caracteres");
+        // v6 (§18.5): motivo_codigo obrigatório.
+        if (!Validacao.CampoTextoNaoVazio(raiz, "motivo_codigo", out var motivoCodigo))
+            return Erro(422, "corpo_invalido", "motivo_codigo ausente");
 
-        var res = await motor.RegistrarOverrideAsync(titularId, Competencia.Analisar(competencia), tipo, ator, cf, motivo);
+        var res = await motor.RegistrarOverrideAsync(titularId, Competencia.Analisar(competencia), tipo, ator, cf, motivo, motivoCodigo);
         return res.Erro switch
         {
             MotorServico.OverrideErro.NaoEncontrado => Erro(404, "nao_encontrado", res.Mensagem ?? "não encontrado"),
+            MotorServico.OverrideErro.MotivoInvalido => Erro(422, "motivo_invalido", res.Mensagem ?? "motivo_codigo inválido"),
             MotorServico.OverrideErro.Conflito => Erro(409, "override_nao_permitido", res.Mensagem ?? "estado não permite"),
             MotorServico.OverrideErro.Invalido => Erro(422, "corpo_invalido", res.Mensagem ?? "corpo inválido"),
             _ => Results.Json(new
@@ -251,6 +279,59 @@ app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/override",
                 tipo = res.Entregavel.Tipo,
                 estado = res.Entregavel.Estado.Nome(),
             }, jsonOpts),
+        };
+    }
+});
+
+// ---- POST .../entregaveis/{tipo}/impedimento (§18.5) ----
+app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/impedimento",
+    async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
+{
+    if (ErroDeCaminho(competencia, titularId, tipo) is { } falhaCaminho) return falhaCaminho;
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
+    using (doc)
+    {
+        var raiz = doc!.RootElement;
+        // 1. ator ou motivo_codigo ausente/vazio -> 422 corpo_invalido.
+        if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
+            return Erro(422, "corpo_invalido", "ator ausente");
+        if (!Validacao.CampoTextoNaoVazio(raiz, "motivo_codigo", out var motivoCodigo))
+            return Erro(422, "corpo_invalido", "motivo_codigo ausente");
+        if (!Validacao.TextoOpcionalValido(raiz, "texto", out var texto, aceitaNull: true))
+            return Erro(422, "corpo_invalido", "texto deve ser string");
+
+        var res = await motor.RegistrarImpedimentoAsync(titularId, Competencia.Analisar(competencia), tipo, ator, motivoCodigo, texto);
+        return res.Erro switch
+        {
+            MotorServico.ImpedimentoErro.MotivoInvalido => Erro(422, "motivo_invalido", res.Mensagem ?? "motivo_codigo inválido"),
+            MotorServico.ImpedimentoErro.CorpoInvalido => Erro(422, "corpo_invalido", res.Mensagem ?? "corpo inválido"),
+            MotorServico.ImpedimentoErro.NaoEncontrado => Erro(404, "nao_encontrado", res.Mensagem ?? "não encontrado"),
+            MotorServico.ImpedimentoErro.Conflito => Erro(409, "impedimento_nao_permitido", res.Mensagem ?? "estado não permite"),
+            _ => Results.Json(new { excecao_id = res.ExcecaoId }, jsonOpts),
+        };
+    }
+});
+
+// ---- POST .../entregaveis/{tipo}/impedimento/resolver (§18.5) ----
+app.MapPost("/casos/{titularId}/{competencia}/entregaveis/{tipo}/impedimento/resolver",
+    async (string titularId, string competencia, string tipo, HttpRequest req, MotorServico motor) =>
+{
+    if (ErroDeCaminho(competencia, titularId, tipo) is { } falhaCaminho) return falhaCaminho;
+    var (doc, falhaCorpo) = await LerCorpoObjetoAsync(req);
+    if (falhaCorpo is not null) return falhaCorpo;
+    using (doc)
+    {
+        var raiz = doc!.RootElement;
+        if (!Validacao.CampoTextoNaoVazio(raiz, "ator", out var ator))
+            return Erro(422, "corpo_invalido", "ator ausente");
+
+        var res = await motor.ResolverImpedimentoAsync(titularId, Competencia.Analisar(competencia), tipo, ator);
+        return res.Erro switch
+        {
+            MotorServico.ImpedimentoErro.NaoEncontrado => Erro(404, "nao_encontrado", res.Mensagem ?? "não encontrado"),
+            MotorServico.ImpedimentoErro.Conflito => Erro(409, "impedimento_nao_aberto", res.Mensagem ?? "nada a resolver"),
+            _ => Results.Json(new { excecao_id = res.ExcecaoId }, jsonOpts),
         };
     }
 });

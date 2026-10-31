@@ -28,8 +28,8 @@ public interface IConferenciaRepo
     /// CF naquele entregável (§8.1).</summary>
     Task<ConferenciaVigente?> VigenteDaCfAsync(Guid entregavelId, string cf);
 
-    /// <summary>Grava override (autor, motivo, em) na conferência vigente da CF (§8.1).</summary>
-    Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo);
+    /// <summary>Grava override (autor, motivo, motivo_codigo v6, em) na conferência vigente da CF (§8.1).</summary>
+    Task GravarOverrideAsync(Guid conferenciaId, string autor, string motivo, string motivoCodigo);
 
     /// <summary>Existe ALGUMA conferência vigente divergente, severidade B, sem override, em
     /// qualquer CF deste entregável, exceto a conferência dada (§8.1 passo 4)?</summary>
