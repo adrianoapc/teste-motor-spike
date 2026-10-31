@@ -357,3 +357,41 @@ Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (
 - O ranking de SQLs muda entre operação isolada e lote: o PHP faz mais SQLs ao abrir 1 caso (94 contra 79 e 85), mas menos por empresa em lote (65,99 contra 68,94 e 69,75). A causa (memo por requisição amortizado em lote) é **hipótese não provada**.
 - A anomalia do .NET (108–125 s no mix contra ~70 s em 10.000 SN puras) **não foi investigada**.
 - Tempo de parede continua sendo ordem de grandeza: máquina não totalmente quieta, 11 contêineres alheios no ar, cliente no host.
+
+## Manutenção M3 (fase 4.6 — cenários C27–C29 + C9 com `motivo_codigo` + regressão C1–C23, C6)
+
+Terceiro teste comum de manutenção (§18): prazos como atributo do entregável, risco de
+multa e motivo de catálogo. Migração V010, contrato 1.5.0, semântica v6. O motor continua
+sem relógio: tudo que depende de "hoje" recebe `data_ref` de quem chama.
+
+**Início da medição:** 2026-10-31 16:03 -03 (commit vazio `M3 inicio`, `98d9551`). O tempo
+ativo da M3 é o dos commits `M3 t32`..`M3 t37` (a tarefa 31, o truncamento do `observado_em`,
+fica **fora** da medição, como manda a spec).
+
+### Tarefa 31 — fora da medição (truncamento do `observado_em`, §6.4 v5.1)
+- Troca do arredondamento meio-para-o-par por **truncamento** para 6 dígitos de fração, antes
+  de comparar e antes de gravar, gravando o valor já truncado (`Instante::truncar`, chamado na
+  entrada de `PublicacaoDeFato::publicar`). Assim o Postgres recebe sempre 6 dígitos e nunca
+  arredonda (o `.9999996` subiria para o segundo seguinte). Fração com até 9 dígitos é aceita;
+  mais de 9 já dava 422 pela regex do controller.
+- `InstanteTest` reescrito para os vetores de truncamento; novo teste de `truncar()`.
+  `RevisaoCodexTest`: docblock corrigido e novo teste provando que não há carry (`.9999996`
+  gravado como `.999999`, não `.000000` do segundo seguinte).
+- Portões: PHPStan `max` limpo, Pint limpo, Pest 314/314. Regressão fase 4.5 = **17/18**
+  (só o C9 falha, porque agora manda `motivo_codigo`, que é da M3).
+- 1 retrabalho interno (bug na reinserção da fração em `truncar()`, que caía no hífen da data
+  e gerava `timestamptz` inválido/500; corrigido ao devolver `[base, fração, fuso]`). 4 erros
+  do PHPStan barrados antes de teste, em `REGISTRO-COMPILADOR.md`.
+
+### Tarefa 32 — regressão da M3 sem mudar código
+`--todos cenarios --fase 4.6 --limpar` logo após o `M3 inicio`, sem tocar no código: **17/21**.
+Os quatro que quebram são a medida do impacto da mudança de regra v6:
+
+| Cenário | Efeito | Por que quebra (sem código M3) |
+|---|---|---|
+| C9 · Override de conferência | FALHOU | O corpo do override agora manda `motivo_codigo`; o `OverrideRequest` recusa a chave não declarada (422 `corpo_invalido`). Falta `motivo_codigo` obrigatório + validação `motivo_invalido` (§8.1/§18.5, tarefa 36). |
+| C27 · Prazos na abertura | FALHOU | A abertura não grava `vencimento`/`meta`/`ação` dos entregáveis nem linha em `entregavel_prazo`: as três datas voltam `None`. Falta o cálculo de datas (§18.2) e a gravação na abertura (tarefa 33). |
+| C28 · Prorrogação como versão do calendário | FALHOU | Mesma ausência de datas na abertura; e não há `POST /admin/calendario/aplicar` para recalcular na nova versão do calendário (§18.3, tarefa 34). |
+| C29 · Risco de multa, impedimento e motivo | FALHOU | `POST /admin/prazos/verificar` não existe (404), e faltam `motivo_codigo`/impedimento (§18.4/§18.5, tarefas 35–36). |
+
+Os 17 que passam (C1–C8, C10–C13, C19–C23, C6) confirmam que a base v5.1 segue íntegra.
