@@ -9,12 +9,14 @@ use App\Aplicacao\Portas\RepositorioCatalogo;
 use App\Aplicacao\Portas\RepositorioDependencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioEvento;
+use App\Aplicacao\Portas\RepositorioPrazo;
 use App\Aplicacao\Portas\RepositorioRegras;
 use App\Aplicacao\Portas\UnidadeDeTrabalho;
 use App\Dominio\Fechamento\Caso;
 use App\Dominio\Fechamento\Competencia;
 use App\Dominio\Fechamento\Condicao;
 use App\Dominio\Fechamento\EstadoEntregavel;
+use App\Dominio\Prazos\RegrasDePrazo;
 
 /**
  * AbrirCompetencias (§5). Uma transação por empresa. Idempotente por
@@ -30,6 +32,7 @@ final readonly class AbrirCompetencias
         private RepositorioEvento $eventos,
         private RepositorioRegras $regras,
         private RepositorioCatalogo $catalogo,
+        private RepositorioPrazo $prazos,
         private Transicionador $transicionador,
         private AvaliarCaso $avaliar,
     ) {}
@@ -50,8 +53,10 @@ final readonly class AbrirCompetencias
                     return ['criado' => false, 'caso' => new CasoDaEmpresa($empresa->titularId, $existente->id)];
                 }
 
-                $caso = $this->casos->criar($competencia, $empresa, $this->regras->entregaveisEmUso()->versaoId);
-                $this->criarEntregaveis($caso, $comando->ator);
+                // v6 (§18): fixa a versão em uso de fechamento.prazos no caso; calendário e catálogo não são fixados.
+                $regrasDePrazo = $this->regras->prazosEmUso();
+                $caso = $this->casos->criar($competencia, $empresa, $this->regras->entregaveisEmUso()->versaoId, $regrasDePrazo->prazosVersaoId);
+                $this->criarEntregaveis($caso, $comando->ator, $regrasDePrazo);
                 $this->eventos->gravar('competencia.aberta', $caso->id, null, ['caso_id' => $caso->id]);
                 $this->avaliar->avaliar($caso);
 
@@ -68,7 +73,7 @@ final readonly class AbrirCompetencias
         return new ResultadoAbertura($criados, $existentes);
     }
 
-    private function criarEntregaveis(Caso $caso, string $ator): void
+    private function criarEntregaveis(Caso $caso, string $ator, RegrasDePrazo $regrasDePrazo): void
     {
         $regra = $this->regras->entregaveisPorId($caso->regraEntregaveisVersaoId);
         $ctx = $caso->contexto();
@@ -83,6 +88,17 @@ final readonly class AbrirCompetencias
             $entregavel = $this->entregaveis->criar($caso->id, $item->tipo, EstadoEntregavel::AguardandoInsumo, $item->executor, $area);
             $this->transicionador->criar($entregavel, $ator, $caso->regraEntregaveisVersaoId);
             $criados[$item->tipo] = $entregavel->id;
+
+            // v6 (§18.2): entregável com prazo recebe vencimento, meta e ação + linha em entregavel_prazo
+            // (motivo 'abertura'). Tipo sem prazo (ou sem obrigação aplicável) fica com as três nulas.
+            $prazo = $regrasDePrazo->calculo->para($item->tipo, $caso->competencia, $ctx);
+            if ($prazo !== null) {
+                $this->prazos->gravar($entregavel->id, $caso->id, $prazo, 'abertura', [
+                    'calendario' => $regrasDePrazo->calendarioVersaoId,
+                    'catalogo' => $regrasDePrazo->catalogoVersaoId,
+                    'prazos' => $regrasDePrazo->prazosVersaoId,
+                ]);
+            }
         }
 
         // 2. Grava as dependências cujo `quando` casa e cujo alvo existe no caso (§5.4).

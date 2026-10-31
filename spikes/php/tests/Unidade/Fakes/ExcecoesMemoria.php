@@ -9,7 +9,7 @@ use App\Aplicacao\Portas\RepositorioExcecao;
 
 final class ExcecoesMemoria implements RepositorioExcecao
 {
-    /** @var array<string, array{casoId: string, entregavelId: ?string, tipo: string, classe: string, dono: string, estado: string, resolucao: ?string}> */
+    /** @var array<string, array{casoId: string, entregavelId: ?string, tipo: string, classe: string, dono: string, prazo: ?string, motivoCodigo: ?string, estado: string, resolucao: ?string}> */
     public array $excecoes = [];
 
     public function existeAberta(string $casoId, ?string $entregavelId, string $tipo): bool
@@ -26,12 +26,12 @@ final class ExcecoesMemoria implements RepositorioExcecao
         return false;
     }
 
-    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): string
+    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono, ?string $prazo = null, ?string $motivoCodigo = null): string
     {
         $id = 'exc-'.(count($this->excecoes) + 1);
         $this->excecoes[$id] = [
             'casoId' => $casoId, 'entregavelId' => $entregavelId, 'tipo' => $tipo, 'classe' => $classe,
-            'dono' => $dono, 'estado' => 'aberta', 'resolucao' => null,
+            'dono' => $dono, 'prazo' => $prazo, 'motivoCodigo' => $motivoCodigo, 'estado' => 'aberta', 'resolucao' => null,
         ];
 
         return $id;
@@ -67,6 +67,17 @@ final class ExcecoesMemoria implements RepositorioExcecao
                 $this->excecoes[$id]['resolucao'] = $resolucao;
             }
         }
+    }
+
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string
+    {
+        foreach (array_reverse($this->excecoes, true) as $id => $x) {
+            if ($x['entregavelId'] === $entregavelId && $x['estado'] === 'aberta' && $x['tipo'] === $tipo) {
+                return $id;
+            }
+        }
+
+        return null;
     }
 
     /** @return list<string> "tipo:estado[:resolucao]" de todas as exceções, na ordem de abertura */

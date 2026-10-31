@@ -28,7 +28,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             SELECT id::text, titular_id, competencia, snapshot, carteira,
-                   regra_entregaveis_versao_id::text AS regra_id, estado
+                   regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
             FROM fechamento.caso_competencia
             WHERE titular_id = ? AND competencia = ?
             SQL,
@@ -43,7 +43,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             SELECT id::text, titular_id, competencia, snapshot, carteira,
-                   regra_entregaveis_versao_id::text AS regra_id, estado
+                   regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
             FROM fechamento.caso_competencia WHERE id = ?
             SQL,
             [$casoId],
@@ -52,15 +52,15 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         return $linha === null ? null : $this->mapear($linha);
     }
 
-    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId): Caso
+    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId, string $regraPrazosVersaoId): Caso
     {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
             INSERT INTO fechamento.caso_competencia
-                (titular_id, competencia, snapshot, carteira, regra_entregaveis_versao_id, estado)
-            VALUES (?, ?, ?::jsonb, ?, ?, 'aberto')
+                (titular_id, competencia, snapshot, carteira, regra_entregaveis_versao_id, regra_prazos_versao_id, estado)
+            VALUES (?, ?, ?::jsonb, ?, ?, ?, 'aberto')
             RETURNING id::text, titular_id, competencia, snapshot, carteira,
-                      regra_entregaveis_versao_id::text AS regra_id, estado
+                      regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
             SQL,
             [
                 $empresa->titularId,
@@ -68,6 +68,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
                 json_encode($empresa->paraSnapshot(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
                 $empresa->carteira,
                 $regraEntregaveisVersaoId,
+                $regraPrazosVersaoId,
             ],
         );
         assert($linha !== null);
@@ -89,7 +90,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         $linhas = $this->conexao->select(
             <<<'SQL'
             SELECT id::text, titular_id, competencia, snapshot, carteira,
-                   regra_entregaveis_versao_id::text AS regra_id, estado
+                   regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
             FROM fechamento.caso_competencia
             WHERE titular_id = ? AND estado = 'aberto'
             ORDER BY competencia
@@ -105,9 +106,30 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
         return $casos;
     }
 
+    /** @return list<Caso> */
+    public function abertosComPrazos(): array
+    {
+        $linhas = $this->conexao->select(
+            <<<'SQL'
+            SELECT id::text, titular_id, competencia, snapshot, carteira,
+                   regra_entregaveis_versao_id::text AS regra_id, regra_prazos_versao_id::text AS regra_prazos_id, estado
+            FROM fechamento.caso_competencia
+            WHERE estado = 'aberto' AND regra_prazos_versao_id IS NOT NULL
+            ORDER BY titular_id, competencia
+            SQL,
+        );
+
+        $casos = [];
+        foreach ($linhas as $linha) {
+            $casos[] = $this->mapear($linha);
+        }
+
+        return $casos;
+    }
+
     private function mapear(mixed $linha): Caso
     {
-        /** @var array{id: string, titular_id: string, competencia: string, snapshot: string, carteira: string, regra_id: string, estado: string} $row */
+        /** @var array{id: string, titular_id: string, competencia: string, snapshot: string, carteira: string, regra_id: string, regra_prazos_id: ?string, estado: string} $row */
         $row = (array) $linha;
         /** @var array<string, mixed> $snapshot */
         $snapshot = json_decode($row['snapshot'], true, flags: JSON_THROW_ON_ERROR);
@@ -120,6 +142,7 @@ final readonly class RepositorioCasoDb implements RepositorioCaso
             carteira: $row['carteira'],
             regraEntregaveisVersaoId: $row['regra_id'],
             estado: $row['estado'],
+            regraPrazosVersaoId: $row['regra_prazos_id'],
         );
     }
 }

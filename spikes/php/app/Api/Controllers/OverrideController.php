@@ -31,12 +31,13 @@ final readonly class OverrideController
         if (! is_object($cru)) {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido');
         }
-        CorpoEstrito::exigirChaves($cru, ['ator', 'cf', 'motivo'], 'OverrideRequest');
+        CorpoEstrito::exigirChaves($cru, ['ator', 'cf', 'motivo', 'motivo_codigo'], 'OverrideRequest');
         $ator = isset($cru->ator) && is_string($cru->ator) ? $cru->ator : '';
         $cf = isset($cru->cf) && is_string($cru->cf) ? $cru->cf : '';
         $motivo = isset($cru->motivo) && is_string($cru->motivo) ? $cru->motivo : '';
+        $motivoCodigo = isset($cru->motivo_codigo) && is_string($cru->motivo_codigo) ? $cru->motivo_codigo : '';
 
-        $resultado = $this->override->registrar(new RegistrarOverrideComando($titularId, $competencia, $tipo, $ator, $cf, $motivo));
+        $resultado = $this->override->registrar(new RegistrarOverrideComando($titularId, $competencia, $tipo, $ator, $cf, $motivo, $motivoCodigo));
 
         return new JsonResponse([
             'entregavel_id' => $resultado->entregavelId,

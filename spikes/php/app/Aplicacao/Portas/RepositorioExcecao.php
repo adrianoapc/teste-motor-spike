@@ -12,8 +12,10 @@ interface RepositorioExcecao
      */
     public function existeAberta(string $casoId, ?string $entregavelId, string $tipo): bool;
 
-    /** Insere uma exceção aberta e devolve o id. Sem regra de unicidade: quem decide é a aplicação. */
-    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): string;
+    /** Insere uma exceção aberta e devolve o id. Sem regra de unicidade: quem decide é a aplicação.
+     * $prazo (date 'AAAA-MM-DD') só na prazo_em_risco (§18.4); $motivoCodigo só na impedimento_externo (§18.5).
+     */
+    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono, ?string $prazo = null, ?string $motivoCodigo = null): string;
 
     /**
      * Exceções abertas do caso, em ordem de abertura (aberta_em, id).
@@ -27,4 +29,7 @@ interface RepositorioExcecao
 
     /** Resolve exceções abertas de um entregável por tipo exato. */
     public function resolverPorTipo(string $entregavelId, string $tipo, string $resolucao): void;
+
+    /** Id da exceção aberta de um entregável por tipo exato (a mais recente), ou null. */
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string;
 }

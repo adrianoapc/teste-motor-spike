@@ -59,6 +59,10 @@ final readonly class PublicacaoDeFato
         ?Caso $caso,
         string $prefixoCampo,
     ): Publicacao {
+        // §6.4 (v5.1): trunca observado_em para 6 dígitos de fração ANTES de comparar e de
+        // gravar. Assim o Postgres recebe sempre 6 dígitos e nunca arredonda (meio-para-o-par).
+        $observadoEm = Instante::truncar($observadoEm);
+
         // §6.2 passo 2: tipo com versão ativa.
         $contrato = $this->contratos->ativo($tipo);
         if ($contrato === null) {
@@ -229,10 +233,10 @@ final readonly class PublicacaoDeFato
             return 1;
         }
         try {
-            // Normaliza à precisão do timestamptz (6 casas, meio-para-o-par) ANTES de comparar:
-            // o que chega (até 9 dígitos de fração) e a vigente lida do banco (já arredondada)
+            // Normaliza à precisão do timestamptz (6 casas, truncando) ANTES de comparar:
+            // o que chega (até 9 dígitos de fração) e a vigente lida do banco (já truncada)
             // têm de ser medidos no mesmo instante, senão '…1234567Z' viraria obsoleto em vez de
-            // conflito_fonte por 1 µs de diferença entre o truncar de PHP e o arredondar do Postgres.
+            // conflito_fonte por 1 µs de diferença entre o que chega e o que está gravado.
             $a = Instante::microssegundos($novo);
             $b = Instante::microssegundos($vigente);
         } catch (\Exception) {

@@ -60,6 +60,10 @@ final class Mundo
 
     public CatalogoMemoria $catalogo;
 
+    public PrazosMemoria $prazos;
+
+    public MotivoCatalogoMemoria $motivos;
+
     public RegrasMemoria $regras;
 
     public UnidadeDeTrabalhoMemoria $uow;
@@ -104,11 +108,13 @@ final class Mundo
         $this->conferencias = new ConferenciasMemoria;
         $this->excecoes = new ExcecoesMemoria;
         $this->catalogo = new CatalogoMemoria;
+        $this->prazos = new PrazosMemoria;
+        $this->motivos = new MotivoCatalogoMemoria;
         $this->regras = new RegrasMemoria(RegraEntregaveis::de('regra-v2', 2, $conteudoDaRegra ?? self::regraPadrao()));
         $this->uow = new UnidadeDeTrabalhoMemoria;
         $this->relogio = new RelogioFixo;
 
-        $this->transicionador = new Transicionador($this->entregaveis, $this->catalogo, $this->eventos);
+        $this->transicionador = new Transicionador($this->entregaveis, $this->catalogo, $this->eventos, $this->excecoes, $this->casos, $this->regras);
         $this->abertura = new Excecoes($this->excecoes, $this->eventos);
         $this->conferidor = new Conferidor($this->conferencias, $this->catalogo);
         $this->avaliar = new AvaliarCaso(
@@ -125,7 +131,7 @@ final class Mundo
         );
         $this->abrir = new AbrirCompetencias(
             $this->uow, $this->casos, $this->entregaveis, $this->dependencias, $this->eventos, $this->regras,
-            $this->catalogo, $this->transicionador, $this->avaliar,
+            $this->catalogo, $this->prazos, $this->transicionador, $this->avaliar,
         );
         $this->publicar = new PublicarFato(
             $this->uow, $this->fatos, $this->casos, $this->entregaveis, $this->publicacao, $this->avaliar,
@@ -137,7 +143,7 @@ final class Mundo
         );
         $this->override = new RegistrarOverride(
             $this->uow, $this->casos, $this->entregaveis, $this->conferencias, $this->excecoes, $this->eventos,
-            $this->transicionador, $this->avaliar,
+            $this->motivos, $this->transicionador, $this->avaliar,
         );
         $this->consultar = new ConsultarCaso($this->casos, $this->entregaveis, $this->tarefas, $this->excecoes);
     }

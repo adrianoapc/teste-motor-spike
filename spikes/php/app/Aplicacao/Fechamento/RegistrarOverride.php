@@ -9,6 +9,7 @@ use App\Aplicacao\Portas\RepositorioConferencia;
 use App\Aplicacao\Portas\RepositorioEntregavel;
 use App\Aplicacao\Portas\RepositorioEvento;
 use App\Aplicacao\Portas\RepositorioExcecao;
+use App\Aplicacao\Portas\RepositorioMotivoCatalogo;
 use App\Aplicacao\Portas\UnidadeDeTrabalho;
 use App\Aplicacao\Suporte\ErroDeNegocio;
 use App\Dominio\Fechamento\Competencia;
@@ -17,7 +18,7 @@ use App\Dominio\Fechamento\EstadoEntregavel;
 /**
  * RegistrarOverride (§8.1). Valida 422 → 404 → 409, grava o override na
  * conferência vigente, resolve a exceção da CF, e se não restar divergência B
- * sem override leva o entregável a validado.
+ * sem override leva o entregável a validado. v6 (§18.5): motivo_codigo obrigatório.
  */
 final readonly class RegistrarOverride
 {
@@ -28,15 +29,20 @@ final readonly class RegistrarOverride
         private RepositorioConferencia $conferencias,
         private RepositorioExcecao $excecoes,
         private RepositorioEvento $eventos,
+        private RepositorioMotivoCatalogo $motivos,
         private Transicionador $transicionador,
         private AvaliarCaso $avaliar,
     ) {}
 
     public function registrar(RegistrarOverrideComando $comando): ResultadoEntregavel
     {
-        // 422: corpo inválido (ator/cf/motivo já validados na borda; cf padrão e motivo >= 5).
-        if (preg_match('/^CF-[0-9]{2}$/D', $comando->cf) !== 1 || mb_strlen($comando->motivo) < 5 || $comando->ator === '') {
+        // 422 corpo_invalido: ator/cf/motivo/motivo_codigo de forma (cf padrão, motivo >= 5, motivo_codigo não vazio).
+        if (preg_match('/^CF-[0-9]{2}$/D', $comando->cf) !== 1 || mb_strlen($comando->motivo) < 5 || $comando->ator === '' || $comando->motivoCodigo === '') {
             throw ErroDeNegocio::invalido('corpo_invalido', 'corpo inválido para override');
+        }
+        // 422 motivo_invalido (§18.5): motivo_codigo fora do catálogo com aplica_a = 'override'.
+        if (! $this->motivos->existe($comando->motivoCodigo, 'override')) {
+            throw ErroDeNegocio::invalido('motivo_invalido', "motivo_codigo inválido para override: {$comando->motivoCodigo}");
         }
 
         return $this->uow->transacao(function () use ($comando): ResultadoEntregavel {
@@ -62,7 +68,7 @@ final readonly class RegistrarOverride
             }
 
             // Efeito.
-            $this->conferencias->registrarOverride($vigente->id, $comando->ator, $comando->motivo);
+            $this->conferencias->registrarOverride($vigente->id, $comando->ator, $comando->motivo, $comando->motivoCodigo);
             $this->excecoes->resolverPorTipo($entregavel->id, $comando->cf, 'override');
             $this->eventos->gravar('conferencia.override', $caso->id, $entregavel->id, ['conferencia_id' => $vigente->id]);
 

@@ -201,7 +201,7 @@ function casoComE01Divergente(Mundo $m): Caso
 
 function overrideDe(Mundo $m, string $cf = 'CF-01', string $motivo = 'nota fora do período', string $ator = 'bia', string $tipo = 'E01', string $titular = 'T1'): ResultadoEntregavel
 {
-    return $m->override->registrar(new RegistrarOverrideComando($titular, Mundo::COMP, $tipo, $ator, $cf, $motivo));
+    return $m->override->registrar(new RegistrarOverrideComando($titular, Mundo::COMP, $tipo, $ator, $cf, $motivo, 'acordo_coordenacao'));
 }
 
 it('override: grava na conferência vigente, resolve a exceção, emite o evento e valida o entregável', function (): void {

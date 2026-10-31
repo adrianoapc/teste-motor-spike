@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace App\Infraestrutura\Persistencia;
 
 use App\Aplicacao\Portas\RepositorioRegras;
+use App\Dominio\Prazos\CalculoDePrazos;
+use App\Dominio\Prazos\Calendario;
+use App\Dominio\Prazos\CatalogoObrigacoes;
+use App\Dominio\Prazos\RegraPrazos;
+use App\Dominio\Prazos\RegrasDePrazo;
 use App\Dominio\Regras\Parametros;
 use App\Dominio\Regras\RegraEntregaveis;
 use App\Dominio\Regras\Tolerancia;
@@ -60,6 +65,64 @@ final class RepositorioRegrasDb implements RepositorioRegras
         }
 
         return $this->parametros;
+    }
+
+    public function prazosEmUso(): RegrasDePrazo
+    {
+        $prazos = $this->emUso('fechamento.prazos');
+
+        return $this->montarRegrasDePrazo($prazos);
+    }
+
+    public function prazosComPrazosFixos(string $prazosVersaoId): RegrasDePrazo
+    {
+        $prazos = $this->versaoPorId($prazosVersaoId);
+
+        return $this->montarRegrasDePrazo($prazos);
+    }
+
+    /**
+     * Monta o trio de regras de prazo: o calendário e o catálogo SEMPRE em uso (não fixados), e
+     * a versão de 'fechamento.prazos' recebida (em uso na abertura, fixada no caso em §18.3).
+     *
+     * @param  array{id: string, versao: int, conteudo: array<string, mixed>}  $prazos
+     */
+    private function montarRegrasDePrazo(array $prazos): RegrasDePrazo
+    {
+        $calendario = $this->emUso('calendario.vencimentos');
+        $catalogo = $this->emUso('obrigacoes.catalogo');
+
+        $calculo = new CalculoDePrazos(
+            Calendario::de($calendario['conteudo']),
+            CatalogoObrigacoes::de($catalogo['conteudo']),
+            RegraPrazos::de($prazos['conteudo']),
+        );
+
+        return new RegrasDePrazo(
+            calendarioVersaoId: $calendario['id'],
+            calendarioVersao: $calendario['versao'],
+            catalogoVersaoId: $catalogo['id'],
+            prazosVersaoId: $prazos['id'],
+            calculo: $calculo,
+        );
+    }
+
+    /**
+     * Uma versão de regra por id (qualquer chave), para a versão de prazos fixada no caso.
+     *
+     * @return array{id: string, versao: int, conteudo: array<string, mixed>}
+     */
+    private function versaoPorId(string $versaoId): array
+    {
+        $linha = $this->conexao->selectOne(
+            'SELECT id::text, versao, conteudo FROM regras.regra_versao WHERE id = ?',
+            [$versaoId],
+        );
+        if ($linha === null) {
+            throw new RuntimeException("versão de regra inexistente: {$versaoId}");
+        }
+
+        return $this->normalizar($linha);
     }
 
     private function lerEntregaveisPorId(string $versaoId): RegraEntregaveis

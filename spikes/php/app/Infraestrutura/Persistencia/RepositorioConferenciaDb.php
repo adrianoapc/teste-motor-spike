@@ -73,11 +73,11 @@ final readonly class RepositorioConferenciaDb implements RepositorioConferencia
         return new ConferenciaVigente($row['id'], $row['resultado'], $row['severidade'], (bool) $row['tem_override']);
     }
 
-    public function registrarOverride(string $conferenciaId, string $autor, string $motivo): void
+    public function registrarOverride(string $conferenciaId, string $autor, string $motivo, string $motivoCodigo): void
     {
         $this->conexao->update(
-            'UPDATE conferencias.conferencia SET override_autor = ?, override_motivo = ?, override_em = clock_timestamp() WHERE id = ?',
-            [$autor, $motivo, $conferenciaId],
+            'UPDATE conferencias.conferencia SET override_autor = ?, override_motivo = ?, override_motivo_codigo = ?, override_em = clock_timestamp() WHERE id = ?',
+            [$autor, $motivo, $motivoCodigo, $conferenciaId],
         );
     }
 

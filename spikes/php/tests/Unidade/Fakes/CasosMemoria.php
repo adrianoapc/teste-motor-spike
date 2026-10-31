@@ -33,9 +33,9 @@ final class CasosMemoria implements RepositorioCaso
         $this->travas[] = $titularId;
     }
 
-    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId): Caso
+    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId, string $regraPrazosVersaoId): Caso
     {
-        $caso = new Caso('caso-'.(count($this->casos) + 1), $empresa->titularId, $competencia, $empresa, $empresa->carteira, $regraEntregaveisVersaoId, 'aberto');
+        $caso = new Caso('caso-'.(count($this->casos) + 1), $empresa->titularId, $competencia, $empresa, $empresa->carteira, $regraEntregaveisVersaoId, 'aberto', $regraPrazosVersaoId);
         $this->casos[$caso->id] = $caso;
 
         return $caso;
@@ -44,7 +44,7 @@ final class CasosMemoria implements RepositorioCaso
     public function encerrar(string $casoId): void
     {
         $c = $this->casos[$casoId];
-        $this->casos[$casoId] = new Caso($c->id, $c->titularId, $c->competencia, $c->empresa, $c->carteira, $c->regraEntregaveisVersaoId, 'encerrado');
+        $this->casos[$casoId] = new Caso($c->id, $c->titularId, $c->competencia, $c->empresa, $c->carteira, $c->regraEntregaveisVersaoId, 'encerrado', $c->regraPrazosVersaoId);
     }
 
     public function abertosDoTitular(string $titularId): array
@@ -61,5 +61,17 @@ final class CasosMemoria implements RepositorioCaso
     public function porId(string $casoId): ?Caso
     {
         return $this->casos[$casoId] ?? null;
+    }
+
+    /** @return list<Caso> */
+    public function abertosComPrazos(): array
+    {
+        $abertos = array_values(array_filter(
+            $this->casos,
+            static fn (Caso $c): bool => $c->estado === 'aberto' && $c->regraPrazosVersaoId !== null,
+        ));
+        usort($abertos, static fn (Caso $a, Caso $b): int => [$a->titularId, $a->competencia->valor] <=> [$b->titularId, $b->competencia->valor]);
+
+        return $abertos;
     }
 }

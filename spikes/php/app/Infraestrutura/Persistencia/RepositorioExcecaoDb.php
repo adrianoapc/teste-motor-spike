@@ -29,15 +29,15 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
         return $existe !== null;
     }
 
-    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono): string
+    public function abrir(string $casoId, ?string $entregavelId, string $tipo, string $classe, string $dono, ?string $prazo = null, ?string $motivoCodigo = null): string
     {
         $linha = $this->conexao->selectOne(
             <<<'SQL'
-            INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, estado)
-            VALUES (?, ?, ?, ?, ?, 'aberta')
+            INSERT INTO trabalho.excecao (caso_id, entregavel_id, tipo, classe, dono, prazo, motivo_codigo, estado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'aberta')
             RETURNING id::text
             SQL,
-            [$casoId, $entregavelId, $tipo, $classe, $dono],
+            [$casoId, $entregavelId, $tipo, $classe, $dono, $prazo, $motivoCodigo],
         );
         assert($linha !== null);
         /** @var array{id: string} $row */
@@ -90,5 +90,20 @@ final readonly class RepositorioExcecaoDb implements RepositorioExcecao
             SQL,
             [$resolucao, $entregavelId, $tipo],
         );
+    }
+
+    public function idAbertaDoEntregavel(string $entregavelId, string $tipo): ?string
+    {
+        $linha = $this->conexao->selectOne(
+            "SELECT id::text FROM trabalho.excecao WHERE entregavel_id = ? AND tipo = ? AND estado = 'aberta' ORDER BY aberta_em DESC, id DESC LIMIT 1",
+            [$entregavelId, $tipo],
+        );
+        if ($linha === null) {
+            return null;
+        }
+        /** @var array{id: string} $row */
+        $row = (array) $linha;
+
+        return $row['id'];
     }
 }

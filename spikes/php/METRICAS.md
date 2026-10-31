@@ -357,3 +357,70 @@ Diferencial do Python: 0 divergência e 0 não determinismo em 450 sequências (
 - O ranking de SQLs muda entre operação isolada e lote: o PHP faz mais SQLs ao abrir 1 caso (94 contra 79 e 85), mas menos por empresa em lote (65,99 contra 68,94 e 69,75). A causa (memo por requisição amortizado em lote) é **hipótese não provada**.
 - A anomalia do .NET (108–125 s no mix contra ~70 s em 10.000 SN puras) **não foi investigada**.
 - Tempo de parede continua sendo ordem de grandeza: máquina não totalmente quieta, 11 contêineres alheios no ar, cliente no host.
+
+## Manutenção M3 (fase 4.6 — cenários C27–C29 + C9 com `motivo_codigo` + regressão C1–C23, C6)
+
+Terceiro teste comum de manutenção (§18): prazos como atributo do entregável, risco de
+multa e motivo de catálogo. Migração V010, contrato 1.5.0, semântica v6. O motor continua
+sem relógio: tudo que depende de "hoje" recebe `data_ref` de quem chama.
+
+**Início da medição:** 2026-10-31 16:03 -03 (commit vazio `M3 inicio`, `98d9551`). O tempo
+ativo da M3 é o dos commits `M3 t32`..`M3 t37` (a tarefa 31, o truncamento do `observado_em`,
+fica **fora** da medição, como manda a spec).
+
+### Tarefa 31 — fora da medição (truncamento do `observado_em`, §6.4 v5.1)
+- Troca do arredondamento meio-para-o-par por **truncamento** para 6 dígitos de fração, antes
+  de comparar e antes de gravar, gravando o valor já truncado (`Instante::truncar`, chamado na
+  entrada de `PublicacaoDeFato::publicar`). Assim o Postgres recebe sempre 6 dígitos e nunca
+  arredonda (o `.9999996` subiria para o segundo seguinte). Fração com até 9 dígitos é aceita;
+  mais de 9 já dava 422 pela regex do controller.
+- `InstanteTest` reescrito para os vetores de truncamento; novo teste de `truncar()`.
+  `RevisaoCodexTest`: docblock corrigido e novo teste provando que não há carry (`.9999996`
+  gravado como `.999999`, não `.000000` do segundo seguinte).
+- Portões: PHPStan `max` limpo, Pint limpo, Pest 314/314. Regressão fase 4.5 = **17/18**
+  (só o C9 falha, porque agora manda `motivo_codigo`, que é da M3).
+- 1 retrabalho interno (bug na reinserção da fração em `truncar()`, que caía no hífen da data
+  e gerava `timestamptz` inválido/500; corrigido ao devolver `[base, fração, fuso]`). 4 erros
+  do PHPStan barrados antes de teste, em `REGISTRO-COMPILADOR.md`.
+
+### Tarefa 32 — regressão da M3 sem mudar código
+`--todos cenarios --fase 4.6 --limpar` logo após o `M3 inicio`, sem tocar no código: **17/21**.
+Os quatro que quebram são a medida do impacto da mudança de regra v6:
+
+| Cenário | Efeito | Por que quebra (sem código M3) |
+|---|---|---|
+| C9 · Override de conferência | FALHOU | O corpo do override agora manda `motivo_codigo`; o `OverrideRequest` recusa a chave não declarada (422 `corpo_invalido`). Falta `motivo_codigo` obrigatório + validação `motivo_invalido` (§8.1/§18.5, tarefa 36). |
+| C27 · Prazos na abertura | FALHOU | A abertura não grava `vencimento`/`meta`/`ação` dos entregáveis nem linha em `entregavel_prazo`: as três datas voltam `None`. Falta o cálculo de datas (§18.2) e a gravação na abertura (tarefa 33). |
+| C28 · Prorrogação como versão do calendário | FALHOU | Mesma ausência de datas na abertura; e não há `POST /admin/calendario/aplicar` para recalcular na nova versão do calendário (§18.3, tarefa 34). |
+| C29 · Risco de multa, impedimento e motivo | FALHOU | `POST /admin/prazos/verificar` não existe (404), e faltam `motivo_codigo`/impedimento (§18.4/§18.5, tarefas 35–36). |
+
+Os 17 que passam (C1–C8, C10–C13, C19–C23, C6) confirmam que a base v5.1 segue íntegra.
+
+### Tarefas 33–36 — as mudanças da M3
+
+| Tarefa | Mudança | Verificador |
+|---|---|---|
+| 33 | Prazos na abertura (§18.2): domínio puro `App\Dominio\Prazos` (Data, Calendario, CatalogoObrigacoes, ItemPrazo, RegraPrazos, CalculoDePrazos), `regra_prazos_versao_id` no caso, datas + `entregavel_prazo` (motivo `abertura`). | C27, C1, C7 |
+| 34 | `AplicarCalendario` (§18.3): `POST /admin/calendario/aplicar`, uma transação por titular, recalcula com calendário/catálogo em uso + prazos fixados no caso; idempotente. | C28 |
+| 35 | `VerificarPrazos` (§18.4): `POST /admin/prazos/verificar`, abre `prazo_em_risco` (classe O); resolução na função única de transição ao atingir o `estado_cumprimento`. | C29 (parcial) |
+| 36 | `motivo_codigo` no override (§8.1 v6) + impedimento (§18.5): `RegistrarImpedimento`/`ResolverImpedimento`, `RepositorioMotivoCatalogo`. | C29, C9 |
+
+### Fechamento (tarefa 37)
+
+- **Regressão fase 4.6 completa:** `--todos cenarios --fase 4.6 --limpar --relatorio resultado-fase46-php.json` = **21/21**, só a spike PHP no ar (`resultado-fase46-php.json`).
+- **C6 isolado (só esta spike):** abertura de 4.500 casos = **44,55 s**; p95 das 300 guias em lote = **0,109 s** (total 0,94 s, 0 erro); I7 = 0,0724 s (4 linhas), I8 = 0,0313 s (0 linha). Ordem de grandeza, não comparação (máquina não quieta, cliente no host).
+- **Tempo ativo pelos commits (a medição começa no `M3 inicio`):** `M3 inicio` 16:03:23 → `M3 t36` 16:40:22 → `M3 t37`. A tarefa 31 (truncamento do `observado_em`) fica **fora** da medição. Janela ativa ≈ **37 min** (t32 → t36), fechada pelo t37.
+
+  | Commit | Hora | Intervalo |
+  |---|---|---|
+  | M3 inicio | 16:03:23 | — |
+  | M3 t32 | 16:05:09 | +1min46 |
+  | M3 t33 | 16:16:11 | +11min02 |
+  | M3 t34 | 16:32:38 | +16min27 |
+  | M3 t35 | 16:35:55 | +3min17 |
+  | M3 t36 | 16:40:22 | +4min27 |
+
+- **Retrabalhos:** 1, **fora da medição** (bug na reinserção da fração em `Instante::truncar` na t31, corrigido ao devolver `[base, fração, fuso]`). Dentro da medição (t32–t37): **0 retrabalho funcional** — os ajustes foram só do PHPStan `max`/Pint antes de teste, registrados em `REGISTRO-COMPILADOR.md`.
+- **Intervenções humanas:** **0** durante a implementação (uma única escolha de plano no início: "seguir direto até a 37").
+- **`git diff --stat` (base M3 `4d67d7f` → `M3 t37`, só `spikes/php/`):** 53 arquivos, ~1928 inserções, ~122 remoções.
+- **Erros do PHPStan barrados antes de teste:** t31 = 4, t33 = 10, t34/t35/t36 = 0 de tipo (detalhe em `REGISTRO-COMPILADOR.md`). Nenhum `@phpstan-ignore` nem baseline em toda a M3.

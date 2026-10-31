@@ -14,5 +14,6 @@ final readonly class RegistrarOverrideComando
         public string $ator,
         public string $cf,
         public string $motivo,
+        public string $motivoCodigo,
     ) {}
 }
