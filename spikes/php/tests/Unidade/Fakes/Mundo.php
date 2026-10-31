@@ -60,6 +60,8 @@ final class Mundo
 
     public CatalogoMemoria $catalogo;
 
+    public PrazosMemoria $prazos;
+
     public RegrasMemoria $regras;
 
     public UnidadeDeTrabalhoMemoria $uow;
@@ -104,6 +106,7 @@ final class Mundo
         $this->conferencias = new ConferenciasMemoria;
         $this->excecoes = new ExcecoesMemoria;
         $this->catalogo = new CatalogoMemoria;
+        $this->prazos = new PrazosMemoria;
         $this->regras = new RegrasMemoria(RegraEntregaveis::de('regra-v2', 2, $conteudoDaRegra ?? self::regraPadrao()));
         $this->uow = new UnidadeDeTrabalhoMemoria;
         $this->relogio = new RelogioFixo;
@@ -125,7 +128,7 @@ final class Mundo
         );
         $this->abrir = new AbrirCompetencias(
             $this->uow, $this->casos, $this->entregaveis, $this->dependencias, $this->eventos, $this->regras,
-            $this->catalogo, $this->transicionador, $this->avaliar,
+            $this->catalogo, $this->prazos, $this->transicionador, $this->avaliar,
         );
         $this->publicar = new PublicarFato(
             $this->uow, $this->fatos, $this->casos, $this->entregaveis, $this->publicacao, $this->avaliar,

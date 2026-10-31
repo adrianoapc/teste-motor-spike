@@ -19,7 +19,7 @@ interface RepositorioCaso
      */
     public function travarTitular(string $titularId): void;
 
-    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId): Caso;
+    public function criar(Competencia $competencia, Empresa $empresa, string $regraEntregaveisVersaoId, string $regraPrazosVersaoId): Caso;
 
     public function encerrar(string $casoId): void;
 

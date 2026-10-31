@@ -15,6 +15,7 @@ final readonly class Caso
         public string $carteira,
         public string $regraEntregaveisVersaoId,
         public string $estado,
+        public ?string $regraPrazosVersaoId = null,
     ) {}
 
     public function encerrado(): bool
